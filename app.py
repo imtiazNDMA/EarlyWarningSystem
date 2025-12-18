@@ -399,6 +399,9 @@ def refresh_map(forecast_days):
     selected_districts_str = request.args.get("districts", "")
     selected_districts = selected_districts_str.split(",") if selected_districts_str else []
     
+    # Get blinking state (default to True)
+    blinking_active = request.args.get("blinking", "true").lower() == "true"
+    
     all_districts = {
         district: coords
         for province_districts in PROVINCES.values()
@@ -409,7 +412,8 @@ def refresh_map(forecast_days):
         all_districts, 
         forecast_days, 
         active_basemap=active_basemap,
-        selected_districts=selected_districts
+        selected_districts=selected_districts,
+        blinking_active=blinking_active
     )
     return jsonify({"map_html": map_html})
 

@@ -16,7 +16,12 @@
       --color-bg-lightgray: #cccccc;
       --color-border: #224d64;
       --color-text: #F3F3E0;
+      --color-accent: #b7e806;
+      --color-danger: #ff4d4d;
       --font-main: "Helvetica Neue", sans-serif;
+      --glass-bg: rgba(255, 255, 255, 0.08);
+      --glass-border: rgba(255, 255, 255, 0.15);
+      --glass-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
     }
 
     body {
@@ -40,72 +45,129 @@
       color: white;
       padding: 20px;
       overflow-y: auto;
-      box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+      box-shadow: 4px 0 15px rgba(0, 0, 0, 0.3);
       padding-bottom: 40px;
+      z-index: 10;
     }
 
     .logo-container {
       text-align: center;
       margin-bottom: 25px;
       padding-bottom: 20px;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     }
 
     .logo {
       height: 60px;
       margin-bottom: -10px;
+      transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     }
 
     .logo:hover {
-      transform: scale(1.1) rotate(45deg);
+      transform: scale(1.1) rotate(5deg);
     }
 
     .sidebar-section {
-      background: rgba(255, 255, 255, 0.1);
-      padding: 15px;
-      border-radius: 10px;
+      background: var(--glass-bg);
+      backdrop-filter: blur(4px);
+      border: 1px solid var(--glass-border);
+      padding: 18px;
+      border-radius: 12px;
       margin-bottom: 20px;
+      box-shadow: var(--glass-shadow);
     }
 
     .form-label {
-      color: white;
+      color: rgba(255, 255, 255, 0.9);
       font-weight: 600;
+      font-size: 0.9rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 8px;
     }
 
     .form-select,
     .form-control {
-      background: var(--color-bg-lightgray);
-      border: none;
-      border-radius: 6px;
-    }
-
-    .district-filter {
-      max-height: 200px;
-      overflow-y: auto;
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 6px;
+      background: rgba(255, 255, 255, 0.1) !important;
+      border: 1px solid rgba(255, 255, 255, 0.2) !important;
+      color: white !important;
+      border-radius: 8px;
       padding: 10px;
-      margin-top: 10px;
-    }
-
-    .form-check-label {
-      color: white;
-    }
-
-    .btn-sidebar {
-      background: rgba(255, 255, 255, 0.2);
-      border: 1px solid rgba(255, 255, 255, 0.3);
-      color: white;
-      width: 100%;
-      margin-bottom: 8px;
-      border-radius: 6px;
       transition: all 0.3s ease;
     }
 
+    .form-select:focus,
+    .form-control:focus {
+      background: rgba(255, 255, 255, 0.15) !important;
+      border-color: var(--color-accent) !important;
+      box-shadow: 0 0 0 0.25rem rgba(183, 232, 6, 0.25) !important;
+    }
+
+    .form-select option {
+      background: var(--color-bg-dark);
+      color: white;
+    }
+
+    .district-filter {
+      max-height: 220px;
+      overflow-y: auto;
+      background: rgba(0, 0, 0, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 10px;
+      scrollbar-width: thin;
+      scrollbar-color: var(--color-accent) rgba(255, 255, 255, 0.1);
+    }
+
+    .btn-sidebar {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      color: white;
+      width: 100%;
+      margin-bottom: 10px;
+      border-radius: 10px;
+      padding: 12px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    }
+
+    .btn-sidebar i {
+      font-size: 1.1rem;
+      opacity: 0.8;
+      transition: transform 0.3s ease;
+    }
+
     .btn-sidebar:hover {
-      background: rgba(183, 232, 6, 0.728);
-      transform: translateY(-2px) translateX(-2px);
-      box-shadow: 1px 0 8px 0 rgba(255, 255, 255, 0.72);
+      background: rgba(255, 255, 255, 0.15);
+      border-color: var(--color-accent);
+      color: var(--color-accent);
+      transform: translateY(-3px) scale(1.02);
+      box-shadow: 0 8px 20px rgba(183, 232, 6, 0.2);
+    }
+
+    .btn-sidebar:hover i {
+      transform: scale(1.2);
+      opacity: 1;
+    }
+
+    .btn-sidebar:active {
+      transform: translateY(-1px) scale(0.98);
+    }
+
+    .btn-danger-sidebar {
+      border-color: rgba(255, 77, 77, 0.3) !important;
+    }
+
+    .btn-danger-sidebar:hover {
+      border-color: var(--color-danger) !important;
+      color: var(--color-danger) !important;
+      box-shadow: 0 8px 20px rgba(255, 77, 77, 0.25) !important;
     }
 
     .map-container {
@@ -430,17 +492,19 @@
 
       <div class="d-grid gap-2">
         <button type="button" class="btn btn-sidebar" onclick="generateForecast()">
-          <i class="fas fa-search"></i> Get Forecast
+          <i class="fas fa-search"></i> <span>Get Forecast</span>
         </button>
         <button type="button" class="btn btn-sidebar" onclick="generateAlerts()">
-          <i class="fas fa-bell"></i> Generate Alerts
+          <i class="fas fa-bell"></i> <span>Generate Alerts</span>
         </button>
         <button type="button" class="btn btn-sidebar" onclick="generateForecastAndAlerts()">
-          <i class="fas fa-bolt"></i> Generate Forecast & Alerts
+          <i class="fas fa-bolt"></i> <span>Generate Forecast & Alerts</span>
         </button>
-        <button type="button" class="btn btn-sidebar"
-          style="background: rgba(220, 53, 69, 0.2); border-color: rgba(220, 53, 69, 0.3);" onclick="purgeCache()">
-          <i class="fas fa-trash-alt"></i> Purge Cache
+        <button type="button" class="btn btn-sidebar" id="blinkingToggle" onclick="toggleAnimation()">
+          <i class="fas fa-eye"></i> <span>Disable Animation</span>
+        </button>
+        <button type="button" class="btn btn-sidebar btn-danger-sidebar" onclick="purgeCache()">
+          <i class="fas fa-trash-alt"></i> <span>Purge Cache</span>
         </button>
       </div>
     </div>
@@ -477,6 +541,7 @@
     let currentForecastDays = {{ selected_forecast_days }};
     let currentSelectedDistrict = null;
     let currentBasemap = "Mapbox Satellite";
+    let isBlinkingActive = true;
 
     // Function to be called from map iframe when basemap changes
     function updateActiveBasemap(name) {
@@ -557,6 +622,78 @@
       }
     }
 
+    // Toggle blinking animation
+    function toggleAnimation() {
+      isBlinkingActive = !isBlinkingActive;
+      const btn = document.getElementById('blinkingToggle');
+      const icon = btn.querySelector('i');
+      const span = btn.querySelector('span');
+
+      if (isBlinkingActive) {
+        icon.className = 'fas fa-eye';
+        span.textContent = 'Disable Animation';
+        btn.classList.remove('btn-danger-sidebar');
+      } else {
+        icon.className = 'fas fa-eye-slash';
+        span.textContent = 'Enable Animation';
+        btn.classList.add('btn-danger-sidebar');
+      }
+
+      // Try to update map iframe instantly
+      try {
+        const mapIframe = document.querySelector('.map-content iframe');
+        if (mapIframe && mapIframe.contentWindow && mapIframe.contentWindow.toggleBlinking) {
+          mapIframe.contentWindow.toggleBlinking(isBlinkingActive);
+        }
+      } catch (e) {
+        console.warn("Could not toggle blinking instantly:", e);
+      }
+    }
+
+    // Refresh map with persistence
+    async function refreshMap() {
+      const forecastDays = document.getElementById('forecast_days').value;
+      const districts = getSelectedDistricts();
+
+      showLoading('Refreshing map...');
+
+      try {
+        const url = `/refresh_map/${forecastDays}?basemap=${encodeURIComponent(currentBasemap)}&districts=${districts.join(',')}&blinking=${isBlinkingActive}`;
+        const response = await fetch(url);
+        const result = await response.json();
+
+        if (result.map_html) {
+          document.querySelector('.map-content').innerHTML = result.map_html;
+        }
+      } catch (error) {
+        console.error('Error refreshing map:', error);
+      } finally {
+        hideLoading();
+      }
+    }
+
+    // Refresh map when forecast days change
+    async function refreshMapOnDaysChange() {
+      const forecastDays = document.getElementById('forecast_days').value;
+      const districts = getSelectedDistricts();
+
+      showLoading('Updating map...');
+
+      try {
+        const url = `/refresh_map/${forecastDays}?basemap=${encodeURIComponent(currentBasemap)}&districts=${districts.join(',')}&blinking=${isBlinkingActive}`;
+        const response = await fetch(url);
+        const result = await response.json();
+
+        if (result.map_html) {
+          document.querySelector('.map-content').innerHTML = result.map_html;
+        }
+      } catch (error) {
+        console.error('Error updating map:', error);
+      } finally {
+        hideLoading();
+      }
+    }
+
     // Load and display alert for a specific district
     async function loadDistrictAlert(province, district) {
       const forecastDays = document.getElementById('forecast_days').value;
@@ -599,14 +736,14 @@
       }
 
       let html = `
-            <div class="selected-district-header">
-                <h6><i class="fas fa-map-marker-alt"></i> ${district}</h6>
-                <small class="text-muted">Click on other districts in the map or list to view their alerts</small>
-            </div>
-            <hr>
-            <div class="district-alert-content">
-                <div class="alert-message">
-        `;
+              <div class="selected-district-header">
+                  <h6><i class="fas fa-map-marker-alt"></i> ${district}</h6>
+                  <small class="text-muted">Click on other districts in the map or list to view their alerts</small>
+              </div>
+              <hr>
+              <div class="district-alert-content">
+                  <div class="alert-message">
+          `;
 
       // Clean up the alert text
       let cleanAlert = alertText;

@@ -26,7 +26,8 @@ class MapService:
         locations: Dict[str, Tuple[float, float]], 
         forecast_days: int = 1,
         active_basemap: str = "Mapbox Satellite",
-        selected_districts: list = None
+        selected_districts: list = None,
+        blinking_active: bool = True
     ) -> str:
         """
         Create an interactive map with weather data markers
@@ -36,6 +37,7 @@ class MapService:
             forecast_days: Number of forecast days for data display
             active_basemap: Name of the basemap to show by default
             selected_districts: List of districts to highlight with animation
+            blinking_active: Whether the blinking animation starts as active
 
         Returns:
             HTML representation of the map
@@ -110,7 +112,7 @@ class MapService:
         for layer in basemaps.values():
             layer.add_to(m)
 
-        # Add CSS for breathing animation
+        # Add CSS for breathing animation with toggle support
         animation_css = """
         <style>
         @keyframes breathing {
@@ -119,26 +121,49 @@ class MapService:
             100% { fill-opacity: 0.3; stroke-width: 0.9; }
         }
         .blinking-district {
+            /* Animation is only active if .blinking-on class is on body */
+            animation: none;
+        }
+        body.blinking-on .blinking-district {
             animation: breathing 3s ease-in-out infinite;
         }
         </style>
         """
         m.get_root().header.add_child(folium.Element(animation_css))
 
-        # Add JS to notify parent of basemap changes
+        # Add JS to notify parent of basemap changes and handle blinking toggle
         js_code = """
         <script>
         document.addEventListener('DOMContentLoaded', function() {
             var map = %s;
+            
+            // Set initial blinking state
+            if (%s) {
+                document.body.classList.add('blinking-on');
+            }
+            
             map.on('baselayerchange', function(e) {
                 if (window.parent && window.parent.updateActiveBasemap) {
                     window.parent.updateActiveBasemap(e.name);
                 }
             });
+            
+            // Global function for parent to toggle blinking
+            window.toggleBlinking = function(active) {
+                if (active) {
+                    document.body.classList.add('blinking-on');
+                } else {
+                    document.body.classList.remove('blinking-on');
+                }
+            };
         });
         </script>
         """
-        m.get_root().html.add_child(folium.Element(js_code % m.get_name()))
+        m.get_root().html.add_child(
+            folium.Element(
+                js_code % (m.get_name(), "true" if blinking_active else "false")
+            )
+        )
 
         # Add GeoJSON boundary layer
         try:
