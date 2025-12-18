@@ -637,6 +637,13 @@
     let currentProvince = "{{ selected_province }}";
     let currentForecastDays = {{ selected_forecast_days }};
     let currentSelectedDistrict = null;
+    let currentBasemap = "Mapbox Satellite";
+
+    // Function to be called from map iframe when basemap changes
+    function updateActiveBasemap(name) {
+      console.log("Basemap changed to:", name);
+      currentBasemap = name;
+    }
 
     // Show loading overlay
     function showLoading(text = "Loading...") {
@@ -929,7 +936,7 @@
       showLoading('Refreshing map...');
 
       try {
-        const response = await fetch(`/refresh_map/${forecastDays}`);
+        const response = await fetch(`/refresh_map/${forecastDays}?basemap=${encodeURIComponent(currentBasemap)}`);
         const result = await response.json();
 
         if (result.map_html) {

@@ -22,7 +22,10 @@ class MapService:
         self.mapbox_token = Config.MAPBOX_TOKEN
 
     def create_map(
-        self, locations: Dict[str, Tuple[float, float]], forecast_days: int = 1
+        self, 
+        locations: Dict[str, Tuple[float, float]], 
+        forecast_days: int = 1,
+        active_basemap: str = "Mapbox Satellite"
     ) -> str:
         """
         Create an interactive map with weather data markers
@@ -30,6 +33,7 @@ class MapService:
         Args:
             locations: Dict of district_name -> (lat, lon)
             forecast_days: Number of forecast days for data display
+            active_basemap: Name of the basemap to show by default
 
         Returns:
             HTML representation of the map
@@ -46,32 +50,37 @@ class MapService:
                 attr="&copy; <a href='https://www.mapbox.com/about/maps/'>Mapbox</a>",
                 name="Mapbox Satellite",
                 overlay=False,
-                control=True
+                control=True,
+                show=(active_basemap == "Mapbox Satellite")
             ),
             "OpenStreetMap": folium.TileLayer(
                 tiles="openstreetmap",
                 name="OpenStreetMap",
                 overlay=False,
-                control=True
+                control=True,
+                show=(active_basemap == "OpenStreetMap")
             ),
             "CartoDB Positron": folium.TileLayer(
                 tiles="cartodbpositron",
                 name="CartoDB Positron (Light)",
                 overlay=False,
-                control=True
+                control=True,
+                show=(active_basemap == "CartoDB Positron (Light)")
             ),
             "CartoDB Dark Matter": folium.TileLayer(
                 tiles="cartodbdark_matter",
                 name="CartoDB Dark Matter (Dark)",
                 overlay=False,
-                control=True
+                control=True,
+                show=(active_basemap == "CartoDB Dark Matter (Dark)")
             ),
             "OpenTopoMap": folium.TileLayer(
                 tiles="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
                 attr='Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)',
                 name="OpenTopoMap (Topographic)",
                 overlay=False,
-                control=True
+                control=True,
+                show=(active_basemap == "OpenTopoMap (Topographic)")
             )
         }
 
@@ -96,11 +105,26 @@ class MapService:
         for layer in basemaps.values():
             layer.add_to(m)
 
+        # Add JS to notify parent of basemap changes
+        js_code = """
+        <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            var map = %s;
+            map.on('baselayerchange', function(e) {
+                if (window.parent && window.parent.updateActiveBasemap) {
+                    window.parent.updateActiveBasemap(e.name);
+                }
+            });
+        });
+        </script>
+        """
+        m.get_root().html.add_child(folium.Element(js_code % m.get_name()))
 
         # Add GeoJSON boundary layer
         try:
             districts_gpd = gpd.read_file("static/boundary/district.geojson")
             pakistan_boundary = json.loads(districts_gpd.to_json())
+
 
             gj = folium.GeoJson(
                 pakistan_boundary,
@@ -264,62 +288,62 @@ class MapService:
     ) -> str:
         """Build HTML content for marker popup"""
         popup_html = f"""
-        <div style="min-width: 450px;">
-            <b>{district}</b><br>
-            <i>Province: {province}</i><br>
+        <div style="min-width: 300px; font-family: 'Inter', sans-serif;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                <b style="font-size: 1.2em; color: #333;">{district}</b>
+                <span style="font-size: 0.8em; color: #666; background: #f0f0f0; padding: 2px 6px; border-radius: 10px;">{province}</span>
+            </div>
+            
+            <div style="background: linear-gradient(135deg, #17a2b8 0%, #117a8b 100%); color: white; padding: 12px; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
+                <div style="font-size: 0.9em; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px;">Nowcasting</div>
         """
 
         if current_weather:
             temp = current_weather.get('temperature', 'N/A')
             wind = current_weather.get('windspeed', 'N/A')
-            logger.info(f"Building popup for {district}: Current Temp={temp}, Wind={wind}")
             popup_html += f"""
-            <div style="background-color: #e9ecef; padding: 8px; border-radius: 4px; margin: 8px 0; border-left: 4px solid #17a2b8;">
-                <strong>Current Conditions:</strong><br>
-                &#127777; <b>Temp:</b> {temp} °C<br>
-                &#128168; <b>Wind:</b> {wind} km/h
+                <div style="display: flex; align-items: center; gap: 15px;">
+                    <div style="font-size: 2em;">&#127777; {temp}°C</div>
+                    <div style="font-size: 0.9em; opacity: 0.9;">
+                        &#128168; {wind} km/h
+                    </div>
+                </div>
+            """
+        
+        if forecast_data:
+            today = forecast_data[0]
+            snow_html = f"<span>&#10052; {today['Snowfall (cm)']}cm</span>" if today.get('Snowfall (cm)', 0) > 0 else ""
+            popup_html += f"""
+                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.85em;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                        <span>H: {today['Max Temp (°C)']}° | L: {today['Min Temp (°C)']}°</span>
+                        <span>&#127783; {today['Precipitation (mm)']}mm</span>
+                    </div>
+                    <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                        <span>&#127782; {today['Precipitation Chance (%)']}%</span>
+                        <span>&#127786; Gusts: {today['Wind Gusts (km/h)']}km/h</span>
+                        <span>&#9728; UV: {today['UV Index Max']}</span>
+                        {snow_html}
+                    </div>
+                </div>
+            """
+        
+        popup_html += "</div>"
+
+        if forecast_data:
+            popup_html += f"""
+            <div style="display: flex; justify-content: center; margin-top: 10px;">
+                <button onclick="window.parent.loadDistrictAlert('{province}', '{district}')"
+                        style="background: #007bff; color: white; border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-weight: 600; font-size: 0.9em; transition: all 0.3s ease; box-shadow: 0 2px 4px rgba(0,123,255,0.3);">
+                &#128203; View Detailed Alert
+                </button>
             </div>
             """
         else:
-            logger.warning(f"Building popup for {district}: Current weather data MISSING")
-            # No debug message for user, just skip the box as before or show a subtle hint
-            pass
-
-        popup_html += f"""
-            <small><em>Forecast for {forecast_days} day(s)</em></small>
-            <br><br>
-        """
-
-        if forecast_data:
-            for i, day_data in enumerate(forecast_data):
-                if i > 0:  # Add separator between days
-                    popup_html += "<hr style='margin: 10px 0;'>"
-
-                precip = day_data["Precipitation (mm)"]
-                popup_html += f"""
-                    <b>Day {i + 1} - {day_data["Date"]}</b><br>
-                    &#127777; <b>Max:</b> {day_data["Max Temp (°C)"]} °C<br>
-                    &#127777; <b>Min:</b> {day_data["Min Temp (°C)"]} °C<br>
-                    &#127783; <b>Precip:</b> {precip} mm<br>
-                    &#127782; <b>Chance:</b> {day_data["Precipitation Chance (%)"]} %<br>
-                    &#128168; <b>Wind:</b> {day_data["Wind Speed (km/h)"]} km/h<br>
-                    &#127786; <b>Gusts:</b> {day_data["Wind Gusts (km/h)"]} km/h<br>
-                    &#10052; <b>Snow:</b> {day_data["Snowfall (cm)"]} cm<br>
-                    &#9728; <b>UV:</b> {day_data["UV Index Max"]}<br>
-                """
-                break  # Only show first day in popup for brevity
-
-            popup_html += f"""
-            <hr style='margin: 10px 0;'>
-            <b>&#128276; Alert:</b> {alert_data}<br><br>
-            <button onclick="window.parent.loadDistrictAlert('{province}', '{district}')"
-                    style="background: #007bff; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">
-            &#128203; View Detailed Alert
-            </button>
-            """
-        else:
             popup_html += (
-                "<em>No forecast data available. Click 'Get Forecast' first.</em>"
+                "<div style='text-align: center; color: #666; font-style: italic; margin-top: 10px;'>"
+                "No forecast data available. Click 'Get Forecast' first."
+                "</div>"
             )
 
         popup_html += "</div>"
