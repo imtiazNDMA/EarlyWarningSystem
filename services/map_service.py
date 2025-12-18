@@ -118,12 +118,8 @@ class MapService:
             50% { fill-opacity: 0.8; stroke-width: 3; }
             100% { fill-opacity: 0.3; stroke-width: 0.9; }
         }
-        .blinking-1 {
+        .blinking-district {
             animation: breathing 3s ease-in-out infinite;
-        }
-        .blinking-2 {
-            animation: breathing 3s ease-in-out infinite;
-            animation-delay: 1.5s;
         }
         </style>
         """
@@ -149,9 +145,12 @@ class MapService:
             districts_gpd = gpd.read_file("static/boundary/district.geojson")
             pakistan_boundary = json.loads(districts_gpd.to_json())
 
+            # Normalize selected districts for comparison
+            selected_districts_upper = [d.upper() for d in selected_districts]
+
             def get_style(feature):
-                district_name = feature['properties']['DISTRICT']
-                is_selected = district_name in selected_districts
+                district_name = feature['properties']['DISTRICT'].upper()
+                is_selected = district_name in selected_districts_upper
                 
                 style = {
                     "color": "black",
@@ -185,25 +184,44 @@ class MapService:
             if selected_districts:
                 blinking_js = """
                 <script>
-                document.addEventListener('DOMContentLoaded', function() {
-                    var gjLayer = %s;
+                (function() {
+                    var gjLayerName = '%s';
                     var selectedDistricts = %s;
-                    var count = 0;
                     
-                    gjLayer.eachLayer(function(layer) {
-                        var district = layer.feature.properties.DISTRICT;
-                        if (selectedDistricts.includes(district)) {
-                            var className = (count %% 2 === 0) ? 'blinking-1' : 'blinking-2';
-                            if (layer._path) {
-                                layer._path.classList.add(className);
-                            }
-                            count++;
+                    function applyBlinking() {
+                        var gjLayer = window[gjLayerName];
+                        if (!gjLayer) {
+                            setTimeout(applyBlinking, 100);
+                            return;
                         }
-                    });
-                });
+                        
+                        gjLayer.eachLayer(function(layer) {
+                            var district = layer.feature.properties.DISTRICT.toUpperCase();
+                            if (selectedDistricts.includes(district)) {
+                                var element = layer._path || (layer.getElement ? layer.getElement() : null);
+                                if (element) {
+                                    element.classList.add('blinking-district');
+                                    // Randomize delay and duration for organic effect
+                                    var delay = (Math.random() * 3).toFixed(2) + 's';
+                                    var duration = (2 + Math.random() * 2).toFixed(2) + 's';
+                                    element.style.animationDelay = delay;
+                                    element.style.animationDuration = duration;
+                                }
+                            }
+                        });
+                    }
+
+                    if (document.readyState === 'complete') {
+                        applyBlinking();
+                    } else {
+                        window.addEventListener('load', applyBlinking);
+                        // Fallback for dynamic injection
+                        setTimeout(applyBlinking, 500);
+                    }
+                })();
                 </script>
                 """
-                m.get_root().html.add_child(folium.Element(blinking_js % (gj.get_name(), json.dumps(selected_districts))))
+                m.get_root().html.add_child(folium.Element(blinking_js % (gj.get_name(), json.dumps(selected_districts_upper))))
 
 
             # Add district labels

@@ -48,17 +48,16 @@ class TestAlertService:
         alerts = self.service.parse_district_alerts(llm_text)
         assert len(alerts) == 0
 
-    @patch('services.alert_service.Groq')
-    def test_generate_alert_success(self, mock_groq):
+    @patch('services.alert_service.ChatOllama')
+    def test_generate_alert_success(self, mock_ollama):
         """Test successful alert generation"""
-        # Mock the Groq API response
+        # Mock the Ollama response
         mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        mock_response.choices[0].message.content = "**Lahore Weather Alert** Test alert"
+        mock_response.content = "**Lahore Weather Alert** Test alert"
         
         mock_client = MagicMock()
-        mock_client.chat.completions.create.return_value = mock_response
-        mock_groq.return_value = mock_client
+        mock_client.invoke.return_value = mock_response
+        mock_ollama.return_value = mock_client
         
         # Create test service with mocked client
         service = AlertService()
@@ -83,7 +82,7 @@ class TestAlertService:
         alert_text = service.generate_alert("Punjab", forecasts)
         
         assert "Lahore" in alert_text
-        assert mock_client.chat.completions.create.called
+        assert mock_client.invoke.called
 
     @patch('builtins.open', create=True)
     @patch('os.makedirs')

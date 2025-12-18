@@ -12,14 +12,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-groq_key = os.getenv("GROQ_API_KEY")
+ollama_model = os.getenv("OLLAMA_MODEL", "llama3.2")
+ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 mapbox_key = os.getenv("MAPBOX_TOKEN")
 
-print(f"GROQ_API_KEY loaded: {bool(groq_key)}")
+print(f"OLLAMA_MODEL: {ollama_model}")
+print(f"OLLAMA_BASE_URL: {ollama_url}")
 print(f"MAPBOX_TOKEN loaded: {bool(mapbox_key)}")
 
-if groq_key:
-    print(f"GROQ_API_KEY starts with: {groq_key[:10]}...")
 if mapbox_key:
     print(f"MAPBOX_TOKEN starts with: {mapbox_key[:10]}...")
 
@@ -29,7 +29,8 @@ try:
     from config import Config
 
     print("Config imported successfully")
-    print(f"Config.GROQ_API_KEY: {bool(Config.GROQ_API_KEY)}")
+    print(f"Config.OLLAMA_MODEL: {Config.OLLAMA_MODEL}")
+    print(f"Config.OLLAMA_BASE_URL: {Config.OLLAMA_BASE_URL}")
     print(f"Config.MAPBOX_TOKEN: {bool(Config.MAPBOX_TOKEN)}")
 except Exception as e:
     print(f"Config error: {e}")

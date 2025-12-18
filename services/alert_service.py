@@ -1,13 +1,10 @@
-"""
-Alert generation service using Groq AI
-"""
-
 import re
 import json
 import logging
 from typing import Dict, List, Optional
 import pandas as pd
-from groq import Groq
+from langchain_ollama import ChatOllama
+from langchain_core.messages import SystemMessage, HumanMessage
 from config import Config
 from utils.validation import sanitize_filename
 from utils.retry import retry_on_failure
@@ -19,7 +16,11 @@ class AlertService:
     """Service for generating weather alerts using AI"""
 
     def __init__(self):
-        self.client = Groq(api_key=Config.GROQ_API_KEY)
+        self.client = ChatOllama(
+            model=Config.OLLAMA_MODEL,
+            base_url=Config.OLLAMA_BASE_URL,
+            temperature=0.3,
+        )
 
     def parse_district_alerts(self, llm_text: str) -> Dict[str, str]:
         """
@@ -84,18 +85,12 @@ class AlertService:
         """
 
         try:
-            response = self.client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": "You generate daily weather alerts for Pakistan. Always use the format: **DISTRICT_NAME**: followed by the alert description.",
-                    },
-                    {"role": "user", "content": prompt},
-                ],
-                temperature=0.3,
-            )
-            alert_text = response.choices[0].message.content
+            messages = [
+                SystemMessage(content="You generate daily weather alerts for Pakistan. Always use the format: **DISTRICT_NAME**: followed by the alert description."),
+                HumanMessage(content=prompt),
+            ]
+            response = self.client.invoke(messages)
+            alert_text = response.content
             logger.info(f"Generated alerts for {province} ({len(forecasts)} districts)")
             return alert_text
 
