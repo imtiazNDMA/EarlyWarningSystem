@@ -1,0 +1,1111 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🌦 Province-Wise Weather Alerts Dashboard</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+  <style>
+    /* Colors */
+    @import url('https://fonts.googleapis.com/css2?family=Source+Code+Pro:ital,wght@0,200..900;1,200..900&display=swap');
+
+    :root {
+      --color-bg-dark: #183B4E;
+      --color-bg-lightgray: #cccccc;
+      --color-border: #224d64;
+      --color-text: #F3F3E0;
+      --font-main: "Helvetica Neue", sans-serif;
+    }
+
+    body {
+      /*background-color: #f8f9fa;*/
+      background-color: var(--color-bg-dark);
+      /*font-family: 'Source Code Pro', Tahoma, Geneva, Verdana, sans-serif;*/
+      font-family: var(--font-main);
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    .dashboard-container {
+      display: grid;
+      grid-template-columns: 320px 1fr 487px;
+      height: calc(100vh - 70px - 25px);
+      gap: 0;
+    }
+
+    .sidebar-left {
+      /*background: linear-gradient(135deg, #1f77b4 0%, #17a2b8 100%);*/
+      background: var(--color-bg-dark);
+      color: white;
+      padding: 20px;
+      overflow-y: auto;
+      box-shadow: 2px 0 10px rgba(0, 0, 0, 0.1);
+      padding-bottom: 40px;
+
+    }
+
+    .logo-container {
+      text-align: center;
+      margin-bottom: 25px;
+      padding-bottom: 20px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    }
+
+    .logo {
+      height: 60px;
+      margin-bottom: -10px;
+    }
+
+    .logo:hover {
+      transform: scale(1.1) rotate(45deg);
+    }
+
+    .sidebar-section {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+    }
+
+    .form-label {
+      color: white;
+      font-weight: 600;
+    }
+
+    .form-select,
+    .form-control {
+      /*background: rgba(255,255,255,0.9);*/
+      background: var(--color-bg-lightgray);
+      border: none;
+      border-radius: 6px;
+    }
+
+    .district-filter {
+      max-height: 200px;
+      overflow-y: auto;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 6px;
+      padding: 10px;
+      margin-top: 10px;
+    }
+
+    .form-check-label {
+      color: white;
+    }
+
+    .btn-sidebar {
+      background: rgba(255, 255, 255, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.3);
+      color: white;
+      width: 100%;
+      margin-bottom: 8px;
+      border-radius: 6px;
+      transition: all 0.3s ease;
+    }
+
+    .btn-sidebar:hover {
+      background: rgba(183, 232, 6, 0.728);
+      transform: translateY(-2px) translateX(-2px);
+      box-shadow: 1px 0 8px 0 rgba(255, 255, 255, 0.72);
+    }
+
+    .map-container {
+      /*background: #e9ecef;*/
+      background: var(--color-bg-lightgray);
+      position: relative;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .map-content {
+      width: 100%;
+      height: 100%;
+      position: relative;
+    }
+
+    .map-content iframe,
+    .map-content>div,
+    .map-content>div>div {
+      height: 100% !important;
+      width: 100% !important;
+      padding-bottom: 0 !important;
+      border: none !important;
+    }
+
+    .sidebar-right {
+      /*background: #f0f7fb;*/
+      background: var(--color-border);
+      padding: 10px;
+      box-shadow: -2px 0 10px rgba(0, 0, 0, 0.1);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    .sidebar-scrollable {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .alert-header {
+      /*background: linear-gradient(135deg, #ff9900 0%, #ff6b00 100%);*/
+      background: var(--color-bg-dark);
+      color: white;
+      padding: 15px;
+      border-radius: 10px;
+      margin-bottom: 20px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .alert-header:hover {
+      /*transform: scale(1.1) rotate(45deg);*/
+      animation: float 1.4s ease-in-out infinite;
+    }
+
+    /*.alert-content {
+      /*background: #fff4e5;
+      background: var(--color-bg-lightgray);
+      /*border-left: 4px solid #ff9900;
+      border-left: 4px solid var(--color-bg-lightgray);
+      padding: 15px;
+      border-radius: 8px;
+      white-space: pre-line;
+      font-size: 0.9rem;
+      flex: 1;
+      display: flex;
+      /*align-items: center;
+      justify-content: center;
+      text-align: center;
+      align-items: flex-start; /* Changed from center to start 
+      justify-content: flex-start; /* Changed from center to start 
+      text-align: left; /* Changed from center to left 
+    }*/
+
+    .alert-content b {
+      color: #2c5aa0;
+      font-weight: 600;
+    }
+
+    .alert-content .district-header {
+      color: #d35400;
+      font-weight: 700;
+      margin: 10px 0 5px 0;
+      font-size: 1rem;
+    }
+
+    /* Alert content styling */
+    .alert-content {
+      background: var(--color-bg-lightgray);
+      border-left: 4px solid var(--color-bg-lightgray);
+      padding: 15px;
+      border-radius: 8px;
+      font-size: 1.2rem;
+      flex: 1;
+      display: block;
+      /* Change from flex to block */
+      text-align: left;
+      overflow-y: auto;
+      line-height: 1.4;
+    }
+
+    /* District alert headers */
+    .district-alert-header {
+      margin: 15px 0 8px 0;
+      padding: 8px 12px;
+      background: #e8f4fd;
+      border-radius: 5px;
+      border-left: 4px solid #2c5aa0;
+      font-weight: 600;
+    }
+
+    .district-alert-header b {
+      color: #2c5aa0;
+    }
+
+    .district-alert-header:hover {
+      /*transform: scale(1.1) rotate(45deg);*/
+    }
+
+    .district-alert-box:hover,
+    .province-summary-header:hover {
+      animation: float 1.4s ease-in-out infinite;
+      cursor: pointer;
+    }
+
+    /* Province summary styling */
+    .province-summary-header {
+      margin: 20px 0 10px 0;
+      padding: 10px 12px;
+      background: #fff3cd;
+      border-radius: 5px;
+      border-left: 4px solid #ffc107;
+      font-weight: 600;
+    }
+
+    .province-summary-header b {
+      color: #856404;
+    }
+
+    .province-summary-text {
+      margin: 5px 0;
+      padding: 0 12px;
+      color: #666;
+    }
+
+    /* Regular alert lines */
+    .alert-line {
+      margin: 5px 0;
+      padding: 0 12px;
+      line-height: 1.4;
+    }
+
+    /* Make sure the alert content scrolls properly */
+    .sidebar-scrollable {
+      flex: 1;
+      overflow-y: auto;
+      min-height: 0;
+    }
+
+    .alert-content::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    .alert-content::-webkit-scrollbar-track {
+      background: rgba(0, 0, 0, 0.1);
+      border-radius: 3px;
+    }
+
+    .alert-content::-webkit-scrollbar-thumb {
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 3px;
+    }
+
+    .district-table {
+      margin-top: 20px;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+
+    .district-table h6 {
+      /*color: #1f77b4;*/
+      color: var(--color-bg-text);
+      margin-bottom: 10px;
+      padding-bottom: 5px;
+      /*border-bottom: 2px solid #eaf3fb;*/
+      border-bottom: var(--color-bg-lightgray);
+    }
+
+    .table-responsive {
+      max-height: 350px;
+      overflow-y: auto;
+      /*border: 1px solid #dee2e6;*/
+      border: var(--color-bg-lightgray);
+      border-radius: 6px;
+      position: relative;
+      --district-header-height: 44px;
+    }
+
+    .table thead tr.district-row th {
+      position: sticky;
+      top: 0;
+      z-index: 7;
+      /*background: #ffffff;*/
+      background: var(--color-bg-lightgray);
+      padding: 8px 12px;
+      font-weight: 600;
+    }
+
+    .table thead tr.column-row th {
+      position: sticky;
+      top: var(--district-header-height);
+      z-index: 6;
+      /*background: #eaf3fb;*/
+      background: var(--color-bg-lightgray);
+    }
+
+    table {
+      width: 100%;
+      font-size: 1.2rem;
+      table-layout: fixed;
+      word-wrap: break-word;
+    }
+
+    ::-webkit-scrollbar {
+      width: 6px;
+    }
+
+    ::-webkit-scrollbar-track {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb {
+      background: rgba(255, 255, 255, 0.3);
+      border-radius: 3px;
+    }
+
+    ::-webkit-scrollbar-thumb:hover {
+      background: rgba(255, 255, 255, 0.5);
+    }
+
+    .footer {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      /*background: linear-gradient(135deg, #1f77b4 0%, #17a2b8 100%);*/
+      background: var(--color-bg-dark);
+      /*border-top: 1px solid #dee2e6;*/
+      border-top: 1px solid var(--color-bg-lightgray);
+      text-align: center;
+      padding: 3px 0;
+      font-size: 0.85rem;
+      /*color: #fff;*/
+      color: var(--color-bg-lightgray);
+      z-index: 9999;
+    }
+
+    .top-header {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      /*background: linear-gradient(135deg, #1f77b4 0%, #17a2b8 100%);*/
+      background: var(--color-bg-dark);
+      color: white;
+      padding: 10px 20px;
+      height: 70px;
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+    }
+
+    .top-header .logo {
+      height: 70px;
+      margin-right: auto;
+    }
+
+    .top-header .title {
+      font-size: 2.5rem;
+      font-weight: 700;
+      text-align: center;
+      flex-grow: 1;
+    }
+
+    .loading-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0, 0, 0, 0.5);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 10000;
+    }
+
+    .loading-spinner {
+      background: white;
+      padding: 20px 40px;
+      border-radius: 10px;
+      text-align: center;
+    }
+
+    .spinner-border {
+      width: 3rem;
+      height: 3rem;
+    }
+
+    /* Add these to your existing CSS */
+
+    .selected-district-header {
+      background: #e8f4fd;
+      padding: 12px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      border-left: 4px solid #2c5aa0;
+    }
+
+    .selected-district-header h6 {
+      margin: 0;
+      color: #2c5aa0;
+      font-weight: 600;
+    }
+
+    .selected-district-header small {
+      font-size: 0.8rem;
+    }
+
+    .district-alert-content {
+      padding: 10px 0;
+    }
+
+    .alert-message {
+      background: white;
+      padding: 15px;
+      border-radius: 8px;
+      border: 1px solid #e0e0e0;
+      line-height: 1.5;
+    }
+
+    .selected-district {
+      color: #2c5aa0 !important;
+      font-weight: bold !important;
+    }
+
+    .no-alerts {
+      text-align: center;
+      padding: 40px 20px;
+      color: #666;
+      font-style: italic;
+    }
+
+    .leaflet-marker-icon {
+      cursor: pointer !important;
+    }
+
+    .leaflet-marker-icon:hover {
+      filter: brightness(1.2);
+    }
+
+    .district-alert-header,
+    .province-summary-header {
+      animation: fadeSlideIn 0.8s ease-out;
+    }
+
+    @keyframes float {
+      0% {
+        transform: translateY(0);
+      }
+
+      50% {
+        transform: translateY(-8px);
+      }
+
+      100% {
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes fadeSlideIn {
+      0% {
+        opacity: 0;
+        transform: translateY(-10px);
+      }
+
+      100% {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+  </style>
+
+
+</head>
+
+<body>
+  <!-- Loading Overlay -->
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="loading-spinner">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <p class="mt-3" id="loadingText">Loading...</p>
+    </div>
+  </div>
+
+  <!-- Top Header -->
+  <div class="top-header">
+    <img src="static/NDMA_Pakistan_Logo.png" alt="App Logo" class="logo" />
+    <h4 class="title">
+      <span id="typed-title"></span>
+    </h4>
+    <!-- Typed.js CDN -->
+    <script src="https://cdn.jsdelivr.net/npm/typed.js@2.0.12"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        new Typed('#typed-title', {
+          strings: ['NEOC AI-Based Early Warning System'],
+          typeSpeed: 45,
+          backSpeed: 0,
+          showCursor: true,
+          loop: false
+        });
+      });
+    </script>
+    </h4>
+  </div>
+
+  <div class="dashboard-container">
+    <!-- Left Sidebar -->
+    <div class="sidebar-left">
+      <div class="sidebar-section">
+        <label class="form-label">Forecast Days</label>
+        <select class="form-select mb-3" name="forecast_days" id="forecast_days">
+          {% for days in range(1, 8) %}
+          <option value="{{ days }}" {% if days==selected_forecast_days %}selected{% endif %}>
+            {{ days }} day{% if days > 1 %}s{% endif %}
+          </option>
+          {% endfor %}
+        </select>
+
+        <label class="form-label">Select Region</label>
+        <select class="form-select mb-3" name="province" id="province">
+          {% for p in provinces %}
+          <option value="{{ p }}" {% if p==selected_province %}selected{% endif %}>{{ p }}</option>
+          {% endfor %}
+        </select>
+
+        <label class="form-label">Filter Districts</label>
+        <div class="d-grid gap-2 mb-2">
+          <button type="button" class="btn btn-sidebar" onclick="selectAllDistricts()">
+            <i class="fas fa-check-circle"></i> Select All
+          </button>
+          <button type="button" class="btn btn-sidebar" onclick="deselectAllDistricts()">
+            <i class="fas fa-times-circle"></i> Deselect All
+          </button>
+        </div>
+
+        <div class="district-filter" id="districtFilter">
+          {% for district in districts %}
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="districts" value="{{ district }}"
+              id="district-{{ loop.index }}" {% if district in selected_districts or selected_districts|length==0
+              %}checked{% endif %}>
+            <label class="form-check-label" for="district-{{ loop.index }}">
+              {{ district }}
+            </label>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="d-grid gap-2">
+        <button type="button" class="btn btn-sidebar" onclick="generateForecast()">
+          <i class="fas fa-search"></i> Get Forecast
+        </button>
+        <button type="button" class="btn btn-sidebar" onclick="generateAlerts()">
+          <i class="fas fa-bell"></i> Generate Alerts
+        </button>
+        <button type="button" class="btn btn-sidebar" onclick="generateForecastAndAlerts()">
+          <i class="fas fa-bolt"></i> Generate Forecast & Alerts
+        </button>
+        <button type="button" class="btn btn-sidebar"
+          style="background: rgba(220, 53, 69, 0.2); border-color: rgba(220, 53, 69, 0.3);" onclick="purgeCache()">
+          <i class="fas fa-trash-alt"></i> Purge Cache
+        </button>
+      </div>
+    </div>
+
+    <!-- Center Map -->
+    <div class="map-container">
+      <div class="map-content">
+        {{ map_html | safe }}
+      </div>
+    </div>
+
+    <!-- Right Sidebar -->
+    <div class="sidebar-right">
+      <div class="alert-header">
+        <h6><i class="fas fa-exclamation-triangle"></i> Alerts for <span id="currentProvince">{{ selected_province
+            }}</span></h6>
+      </div>
+      <div class="sidebar-scrollable">
+        <div class="alert-content" id="alertContent">
+          No alerts generated. Please select districts and click "Generate Alerts".
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Footer -->
+  <footer class="footer">
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+  <script>
+    // Global variables
+    let currentProvince = "{{ selected_province }}";
+    let currentForecastDays = {{ selected_forecast_days }};
+    let currentSelectedDistrict = null;
+
+    // Show loading overlay
+    function showLoading(text = "Loading...") {
+      document.getElementById('loadingText').textContent = text;
+      document.getElementById('loadingOverlay').style.display = 'flex';
+    }
+
+    // Hide loading overlay
+    function hideLoading() {
+      document.getElementById('loadingOverlay').style.display = 'none';
+    }
+
+    // Show notification
+    function showNotification(message, type = 'success') {
+      console.log(`${type}: ${message}`);
+      alert(`${type.toUpperCase()}: ${message}`);
+    }
+
+    // Get selected districts
+    function getSelectedDistricts() {
+      const checkboxes = document.querySelectorAll('#districtFilter input[type="checkbox"]:checked');
+      return Array.from(checkboxes).map(cb => cb.value);
+    }
+
+    // Update districts list when province changes
+    async function updateDistrictsForProvince(province) {
+      showLoading('Loading districts...');
+
+      try {
+        const response = await fetch(`/get_districts/${province}`);
+        const data = await response.json();
+
+        const districtFilter = document.getElementById('districtFilter');
+        districtFilter.innerHTML = '';
+
+        data.districts.forEach((district, index) => {
+          const div = document.createElement('div');
+          div.className = 'form-check';
+
+          const input = document.createElement('input');
+          input.className = 'form-check-input';
+          input.type = 'checkbox';
+          input.name = 'districts';
+          input.value = district;
+          input.id = `district-${index + 1}`;
+          input.checked = true;
+
+          const label = document.createElement('label');
+          label.className = 'form-check-label';
+          label.htmlFor = `district-${index + 1}`;
+          label.textContent = district;
+
+          // Add click event to load district alert when label is clicked
+          label.style.cursor = 'pointer';
+          label.addEventListener('click', () => {
+            loadDistrictAlert(province, district);
+          });
+
+          div.appendChild(input);
+          div.appendChild(label);
+          districtFilter.appendChild(div);
+        });
+
+        currentProvince = province;
+        document.getElementById('currentProvince').textContent = province;
+
+      } catch (error) {
+        console.error('Error loading districts:', error);
+        showNotification('Failed to load districts', 'error');
+      } finally {
+        hideLoading();
+      }
+    }
+
+    // Load and display alert for a specific district
+    async function loadDistrictAlert(province, district) {
+      const forecastDays = document.getElementById('forecast_days').value;
+
+      showLoading(`Loading alert for ${district}...`);
+
+      try {
+        const response = await fetch(`/get_district_alert/${province}/${district}/${forecastDays}`);
+        const result = await response.json();
+
+        if (result.status === 'success') {
+          // Update the alert header to show current district
+          document.getElementById('currentProvince').textContent = `${province} - ${district}`;
+
+          // Format and display the alert
+          const alertContent = document.getElementById('alertContent');
+          alertContent.innerHTML = formatSingleDistrictAlert(district, result.alert);
+
+          // Highlight the selected district
+          currentSelectedDistrict = district;
+          highlightSelectedDistrict(district);
+
+        } else {
+          document.getElementById('alertContent').innerHTML =
+            `<div class="no-alerts">${result.alert}</div>`;
+        }
+      } catch (error) {
+        console.error('Error loading district alert:', error);
+        document.getElementById('alertContent').innerHTML =
+          '<div class="no-alerts">Error loading alert. Please try again.</div>';
+      } finally {
+        hideLoading();
+      }
+    }
+
+    // Format alert for a single district
+    function formatSingleDistrictAlert(district, alertText) {
+      if (!alertText) {
+        return `<div class="no-alerts">No alert available for ${district}.</div>`;
+      }
+
+      let html = `
+            <div class="selected-district-header">
+                <h6><i class="fas fa-map-marker-alt"></i> ${district}</h6>
+                <small class="text-muted">Click on other districts in the map or list to view their alerts</small>
+            </div>
+            <hr>
+            <div class="district-alert-content">
+                <div class="alert-message">
+        `;
+
+      // Clean up the alert text
+      let cleanAlert = alertText;
+
+      // Remove the district name pattern if present
+      const districtPattern = new RegExp(`\\*\\*${district}\\s+Weather Alert\\*\\*\\s*:?\\s*`, 'i');
+      cleanAlert = cleanAlert.replace(districtPattern, '');
+
+      // Remove any remaining ** markers
+      cleanAlert = cleanAlert.replace(/\*\*/g, '');
+
+      html += cleanAlert;
+      html += `</div></div>`;
+      return html;
+    }
+
+    // Highlight the selected district in the filter list
+    function highlightSelectedDistrict(district) {
+      // Remove previous highlights
+      const allLabels = document.querySelectorAll('#districtFilter .form-check-label');
+      allLabels.forEach(label => {
+        label.classList.remove('selected-district');
+        label.style.fontWeight = 'normal';
+        label.style.backgroundColor = 'transparent';
+      });
+
+      // Highlight current district
+      const districtCheckboxes = document.querySelectorAll('#districtFilter input[type="checkbox"]');
+      districtCheckboxes.forEach(checkbox => {
+        if (checkbox.value === district) {
+          const label = checkbox.nextElementSibling;
+          if (label) {
+            label.classList.add('selected-district');
+            label.style.fontWeight = 'bold';
+            label.style.backgroundColor = 'rgba(44, 90, 160, 0.2)';
+            label.style.padding = '2px 5px';
+            label.style.borderRadius = '3px';
+          }
+        }
+      });
+    }
+
+    // Generate forecast via AJAX
+    async function generateForecast() {
+      const province = document.getElementById('province').value;
+      const forecastDays = document.getElementById('forecast_days').value;
+      const districts = getSelectedDistricts();
+
+      showLoading(`Generating ${forecastDays} day(s) forecast...`);
+
+      try {
+        const response = await fetch('/generate_forecast', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            province: province,
+            districts: districts,
+            forecast_days: parseInt(forecastDays)
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.status === 'success') {
+          showNotification(result.message, 'success');
+          // Refresh map if needed
+          // window.location.reload();
+        } else {
+          showNotification(result.message, 'error');
+        }
+      } catch (error) {
+        console.error('Error generating forecast:', error);
+        showNotification('Failed to generate forecast', 'error');
+      } finally {
+        hideLoading();
+      }
+    }
+
+    // Purge cache via AJAX
+    async function purgeCache() {
+      const province = document.getElementById('province').value;
+      const forecastDays = document.getElementById('forecast_days').value;
+      const districts = getSelectedDistricts();
+
+      const confirmMsg = districts.length > 0
+        ? `Are you sure you want to purge cache for ${districts.length} selected district(s)?`
+        : `Are you sure you want to purge cache for ALL districts in ${province}?`;
+
+      if (!confirm(confirmMsg + '\nThis will require fetching fresh data from the API.')) {
+        return;
+      }
+
+      showLoading('Purging cache...');
+
+      try {
+        const response = await fetch('/purge_cache', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            province: province,
+            districts: districts,
+            forecast_days: parseInt(forecastDays)
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.status === 'success') {
+          showNotification(result.message, 'success');
+        } else {
+          showNotification(result.message, 'error');
+        }
+      } catch (error) {
+        console.error('Error purging cache:', error);
+        showNotification('Failed to purge cache', 'error');
+      } finally {
+        hideLoading();
+      }
+    }
+
+    // Generate alerts via AJAX
+    async function generateAlerts() {
+      const province = document.getElementById('province').value;
+      const forecastDays = document.getElementById('forecast_days').value;
+
+      showLoading(`Generating alerts for ${forecastDays} day(s)...`);
+
+      try {
+        const response = await fetch('/generate_alerts', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            province: province,
+            forecast_days: parseInt(forecastDays)
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.status === 'success') {
+          showNotification(result.message);
+          // Show all alerts initially
+          document.getElementById('alertContent').innerHTML = formatAlertText(result.alert_text);
+          await refreshMap();
+        } else {
+          showNotification(result.message, 'error');
+        }
+      } catch (error) {
+        console.error('Error generating alerts:', error);
+        showNotification('Failed to generate alerts: ' + error.message, 'error');
+      } finally {
+        hideLoading();
+      }
+    }
+
+    // Refresh map after generating forecasts or alerts
+    async function refreshMap() {
+      const forecastDays = document.getElementById('forecast_days').value;
+
+      showLoading('Refreshing map...');
+
+      try {
+        const response = await fetch(`/refresh_map/${forecastDays}`);
+        const result = await response.json();
+
+        if (result.map_html) {
+          const mapContainer = document.querySelector('.map-content');
+          mapContainer.innerHTML = result.map_html;
+        }
+      } catch (error) {
+        console.error('Error refreshing map:', error);
+      } finally {
+        hideLoading();
+      }
+    }
+
+    function formatAlertText(alertText) {
+      if (!alertText) return '<div class="no-alerts">No alerts generated.</div>';
+
+      let html = `
+            <div class="selected-district-header">
+                <h6><i class="fas fa-list"></i> All District Alerts</h6>
+                <small class="text-muted">Click on any district in the map or list to view individual alerts</small>
+            </div>
+            <hr>
+        `;
+
+      // Parse text to group by district
+      const districtAlerts = {};
+      let regionSummary = "";
+
+      // Regex to find "**District**: Alert" blocks
+      const districtRegex = /\*\*([^*]+?)\*\*:\s*([\s\S]*?)(?=\*\*|\n\s*Region's Summary|$)/g;
+      let match;
+
+      while ((match = districtRegex.exec(alertText)) !== null) {
+        const district = match[1].trim();
+        const alertMsg = match[2].trim();
+
+        if (districtAlerts[district]) {
+          districtAlerts[district] += " " + alertMsg;
+        } else {
+          districtAlerts[district] = alertMsg;
+        }
+      }
+
+      // Extract Region's Summary
+      const summaryMatch = alertText.match(/Region's Summary:\s*([\s\S]*)$/);
+      if (summaryMatch) {
+        regionSummary = summaryMatch[1].trim();
+      }
+
+      // Render District Alerts
+      for (const [district, msg] of Object.entries(districtAlerts)) {
+        html += `
+          <div class="district-alert-box" style="background-color: rgba(23, 162, 184, 0.1); border-left: 4px solid #17a2b8; padding: 10px; margin-bottom: 10px; border-radius: 4px;">
+            <div class="district-alert-header" style="color: #0c5460; margin-bottom: 5px; background: transparent; padding: 0; border: none;">
+              <b>${district}</b>
+            </div>
+            <div class="alert-line" style="font-size: 0.9em; color: #333;">
+              ${msg}
+            </div>
+          </div>
+        `;
+      }
+
+      // Render Region Summary
+      if (regionSummary) {
+        html += `
+          <div class="province-summary-header" style="background-color: rgba(255, 193, 7, 0.1); border-left: 4px solid #ffc107; padding: 10px; margin-top: 20px; border-radius: 4px;">
+            <div style="color: #856404; margin-bottom: 5px;"><b>Region's Summary</b></div>
+            <div style="font-size: 0.9em; color: #333;">${regionSummary}</div>
+          </div>
+        `;
+      }
+
+      // Fallback if regex fails (e.g. raw text display)
+      if (Object.keys(districtAlerts).length === 0 && !regionSummary) {
+        html += `<div class="alert-line">${alertText.replace(/\n/g, '<br>')}</div>`;
+      }
+
+      return html;
+    }
+
+    // Function to load all alerts
+    async function loadAllAlerts() {
+      const days = document.getElementById('forecast_days').value;
+
+      try {
+        const response = await fetch(`/get_all_alerts/${days}`);
+        const data = await response.json();
+        console.log('Alerts loaded successfully');
+      } catch (error) {
+        console.error('Error loading alerts:', error);
+      }
+    }
+
+    function selectAllDistricts() {
+      const checkboxes = document.querySelectorAll('#districtFilter input[type="checkbox"]');
+      checkboxes.forEach(checkbox => checkbox.checked = true);
+    }
+
+    function deselectAllDistricts() {
+      const checkboxes = document.querySelectorAll('#districtFilter input[type="checkbox"]');
+      checkboxes.forEach(checkbox => checkbox.checked = false);
+    }
+
+    // Generate both forecasts and alerts
+    async function generateForecastAndAlerts() {
+      const province = document.getElementById('province').value;
+      const forecastDays = document.getElementById('forecast_days').value;
+      const districts = getSelectedDistricts();
+
+      showLoading(`Generating forecasts and alerts for ${forecastDays} day(s)...`);
+
+      try {
+        const response = await fetch('/generate_forecast_and_alerts', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            province: province,
+            districts: districts,
+            forecast_days: parseInt(forecastDays)
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.status === 'success') {
+          showNotification(result.message);
+          document.getElementById('alertContent').innerHTML = formatAlertText(result.alert_text);
+          await refreshMap();
+        } else {
+          showNotification(result.message, 'error');
+        }
+      } catch (error) {
+        console.error('Error generating forecasts and alerts:', error);
+        showNotification('Failed to generate forecasts and alerts: ' + error.message, 'error');
+      } finally {
+        hideLoading();
+      }
+    }
+
+    // Update province when changed
+    document.getElementById('province').addEventListener('change', function () {
+      const selectedProvince = this.value;
+      updateDistrictsForProvince(selectedProvince);
+      currentSelectedDistrict = null; // Reset selected district
+    });
+
+    // Update the forecast days change event listener
+    document.getElementById('forecast_days').addEventListener('change', function () {
+      currentForecastDays = this.value;
+      refreshMapOnDaysChange();
+    });
+
+    // Refresh map when days change
+    async function refreshMapOnDaysChange() {
+      const forecastDays = document.getElementById('forecast_days').value;
+
+      showLoading('Refreshing map...');
+
+      try {
+        const response = await fetch(`/refresh_map/${forecastDays}`);
+        const result = await response.json();
+
+        if (result.map_html) {
+          const mapContainer = document.querySelector('.map-content');
+          mapContainer.innerHTML = result.map_html;
+        }
+      } catch (error) {
+        console.error('Error refreshing map:', error);
+      } finally {
+        hideLoading();
+      }
+    }
+  </script>
+</body>
+
+</html>
