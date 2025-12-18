@@ -710,7 +710,22 @@
 
           // Format and display the alert
           const alertContent = document.getElementById('alertContent');
-          alertContent.innerHTML = formatSingleDistrictAlert(district, result.alert);
+          const formattedHtml = formatSingleDistrictAlert(district, result.alert);
+          alertContent.innerHTML = formattedHtml;
+
+          // Apply typing animation to the alert message
+          const alertMsgElement = alertContent.querySelector('.typing-alert-message');
+          if (alertMsgElement) {
+            const fullText = alertMsgElement.innerHTML;
+            alertMsgElement.innerHTML = '';
+            new Typed(alertMsgElement, {
+              strings: [fullText],
+              typeSpeed: 15,
+              showCursor: false,
+              loop: false,
+              contentType: 'html'
+            });
+          }
 
           // Highlight the selected district
           currentSelectedDistrict = district;
@@ -742,7 +757,7 @@
               </div>
               <hr>
               <div class="district-alert-content">
-                  <div class="alert-message">
+                  <div class="alert-message typing-alert-message">
           `;
 
       // Clean up the alert text
@@ -968,7 +983,7 @@
             <div class="district-alert-header" style="color: #0c5460; margin-bottom: 5px; background: transparent; padding: 0; border: none;">
               <b>${district}</b>
             </div>
-            <div class="alert-line" style="font-size: 0.9em; color: #333;">
+            <div class="alert-line all-alerts-message" style="font-size: 0.9em; color: #333;">
               ${msg}
             </div>
           </div>
@@ -980,14 +995,14 @@
         html += `
           <div class="province-summary-header" style="background-color: rgba(255, 193, 7, 0.1); border-left: 4px solid #ffc107; padding: 10px; margin-top: 20px; border-radius: 4px;">
             <div style="color: #856404; margin-bottom: 5px;"><b>Region's Summary</b></div>
-            <div style="font-size: 0.9em; color: #333;">${regionSummary}</div>
+            <div class="all-alerts-message" style="font-size: 0.9em; color: #333;">${regionSummary}</div>
           </div>
         `;
       }
 
       // Fallback if regex fails (e.g. raw text display)
       if (Object.keys(districtAlerts).length === 0 && !regionSummary) {
-        html += `<div class="alert-line">${alertText.replace(/\n/g, '<br>')}</div>`;
+        html += `<div class="alert-line all-alerts-message">${alertText.replace(/\n/g, '<br>')}</div>`;
       }
 
       return html;
@@ -1041,7 +1056,23 @@
 
         if (result.status === 'success') {
           showNotification(result.message);
-          document.getElementById('alertContent').innerHTML = formatAlertText(result.alert_text);
+          const alertContent = document.getElementById('alertContent');
+          alertContent.innerHTML = formatAlertText(result.alert_text);
+
+          // Typing animation for full alerts - summarize into a single string for better visual
+          const allMessages = Array.from(alertContent.querySelectorAll('.all-alerts-message'));
+          allMessages.forEach(el => {
+            const fullText = el.innerHTML;
+            el.innerHTML = '';
+            new Typed(el, {
+              strings: [fullText],
+              typeSpeed: 10,
+              showCursor: false,
+              loop: false,
+              contentType: 'html'
+            });
+          });
+
           await refreshMap();
         } else {
           showNotification(result.message, 'error');

@@ -112,20 +112,20 @@ class MapService:
         for layer in basemaps.values():
             layer.add_to(m)
 
-        # Add CSS for breathing animation with toggle support
+        # Add CSS for coolwarm palette animation with toggle support
         animation_css = """
         <style>
-        @keyframes breathing {
-            0% { fill-opacity: 0.3; stroke-width: 0.9; }
-            50% { fill-opacity: 0.8; stroke-width: 3; }
-            100% { fill-opacity: 0.3; stroke-width: 0.9; }
+        @keyframes coolwarm-pulse {
+            0% { fill: #3b4cc0 !important; stroke: #3b4cc0 !important; fill-opacity: 0.4; stroke-width: 1; }
+            50% { fill: #b40426 !important; stroke: #b40426 !important; fill-opacity: 0.8; stroke-width: 3; }
+            100% { fill: #3b4cc0 !important; stroke: #3b4cc0 !important; fill-opacity: 0.4; stroke-width: 1; }
         }
         .blinking-district {
             /* Animation is only active if .blinking-on class is on body */
             animation: none;
         }
         body.blinking-on .blinking-district {
-            animation: breathing 3s ease-in-out infinite;
+            animation: coolwarm-pulse 4s ease-in-out infinite;
         }
         </style>
         """
@@ -184,9 +184,9 @@ class MapService:
                 }
                 
                 if is_selected:
-                    style["fillColor"] = "#ffff00" # Yellow
-                    style["color"] = "#ffcc00"
-                    style["fillOpacity"] = 0.6
+                    style["fillColor"] = "#3b4cc0" # Start with cool blue
+                    style["color"] = "#3b4cc0"
+                    style["fillOpacity"] = 0.5
                 
                 return style
 
@@ -226,9 +226,9 @@ class MapService:
                                 var element = layer._path || (layer.getElement ? layer.getElement() : null);
                                 if (element) {
                                     element.classList.add('blinking-district');
-                                    // Randomize delay and duration for organic effect
-                                    var delay = (Math.random() * 3).toFixed(2) + 's';
-                                    var duration = (2 + Math.random() * 2).toFixed(2) + 's';
+                                    // Randomize delay and duration for organic alternating effect
+                                    var delay = (Math.random() * -4).toFixed(2) + 's'; 
+                                    var duration = (3 + Math.random() * 2).toFixed(2) + 's';
                                     element.style.animationDelay = delay;
                                     element.style.animationDuration = duration;
                                 }
@@ -249,25 +249,7 @@ class MapService:
                 m.get_root().html.add_child(folium.Element(blinking_js % (gj.get_name(), json.dumps(selected_districts_upper))))
 
 
-            # Add district labels
-            for _, row in districts_gpd.iterrows():
-                lon, lat = row.geometry.centroid.x, row.geometry.centroid.y
-                folium.map.Marker(
-                    [lat, lon],
-                    icon=folium.DivIcon(
-                        html=f"""
-                        <div style="
-                            font-size: 12px;
-                            font-weight: bold;
-                            color: black;
-                            text-shadow: 1px 1px 1px white;
-                            text-align: center;
-                        ">
-                        {row["DISTRICT"]}
-                        </div>
-                        """
-                    ),
-                ).add_to(m)
+            # Hide static district names as they are visible on hover
 
             m.fit_bounds(gj.get_bounds())
 
