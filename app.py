@@ -396,6 +396,8 @@ def refresh_map(forecast_days):
         return jsonify({"error": "Invalid forecast days"}), 400
     
     active_basemap = request.args.get("basemap", "Mapbox Satellite")
+    selected_districts_str = request.args.get("districts", "")
+    selected_districts = selected_districts_str.split(",") if selected_districts_str else []
     
     all_districts = {
         district: coords
@@ -403,7 +405,12 @@ def refresh_map(forecast_days):
         for district, coords in province_districts.items()
     }
 
-    map_html = map_service.create_map(all_districts, forecast_days, active_basemap=active_basemap)
+    map_html = map_service.create_map(
+        all_districts, 
+        forecast_days, 
+        active_basemap=active_basemap,
+        selected_districts=selected_districts
+    )
     return jsonify({"map_html": map_html})
 
 

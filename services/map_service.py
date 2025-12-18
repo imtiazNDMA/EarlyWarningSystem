@@ -25,7 +25,8 @@ class MapService:
         self, 
         locations: Dict[str, Tuple[float, float]], 
         forecast_days: int = 1,
-        active_basemap: str = "Mapbox Satellite"
+        active_basemap: str = "Mapbox Satellite",
+        selected_districts: list = None
     ) -> str:
         """
         Create an interactive map with weather data markers
@@ -34,12 +35,16 @@ class MapService:
             locations: Dict of district_name -> (lat, lon)
             forecast_days: Number of forecast days for data display
             active_basemap: Name of the basemap to show by default
+            selected_districts: List of districts to highlight with animation
 
         Returns:
             HTML representation of the map
         """
         if not self.mapbox_token:
             raise ValueError("Mapbox token not configured")
+
+        if selected_districts is None:
+            selected_districts = []
 
         tileurl = f"https://api.mapbox.com/v4/mapbox.satellite/{{z}}/{{x}}/{{y}}@2x.png?access_token={self.mapbox_token}"
         
@@ -105,6 +110,25 @@ class MapService:
         for layer in basemaps.values():
             layer.add_to(m)
 
+        # Add CSS for breathing animation
+        animation_css = """
+        <style>
+        @keyframes breathing {
+            0% { fill-opacity: 0.3; stroke-width: 0.9; }
+            50% { fill-opacity: 0.8; stroke-width: 3; }
+            100% { fill-opacity: 0.3; stroke-width: 0.9; }
+        }
+        .blinking-1 {
+            animation: breathing 3s ease-in-out infinite;
+        }
+        .blinking-2 {
+            animation: breathing 3s ease-in-out infinite;
+            animation-delay: 1.5s;
+        }
+        </style>
+        """
+        m.get_root().header.add_child(folium.Element(animation_css))
+
         # Add JS to notify parent of basemap changes
         js_code = """
         <script>
@@ -125,15 +149,27 @@ class MapService:
             districts_gpd = gpd.read_file("static/boundary/district.geojson")
             pakistan_boundary = json.loads(districts_gpd.to_json())
 
+            def get_style(feature):
+                district_name = feature['properties']['DISTRICT']
+                is_selected = district_name in selected_districts
+                
+                style = {
+                    "color": "black",
+                    "weight": 0.9,
+                    "fillOpacity": 0.3,
+                }
+                
+                if is_selected:
+                    style["fillColor"] = "#ffff00" # Yellow
+                    style["color"] = "#ffcc00"
+                    style["fillOpacity"] = 0.6
+                
+                return style
 
             gj = folium.GeoJson(
                 pakistan_boundary,
                 name="Pakistan District Boundary",
-                style_function=lambda x: {
-                    "color": "black",
-                    "weight": 0.9,
-                    "fillOpacity": 0.3,
-                },
+                style_function=get_style,
                 tooltip=folium.features.GeoJsonTooltip(
                     fields=["DISTRICT"], aliases=["DISTRICT:"], localize=True
                 ),
@@ -144,6 +180,31 @@ class MapService:
                     "fillOpacity": 0.7,
                 },
             ).add_to(m)
+
+            # Apply blinking classes to selected districts
+            if selected_districts:
+                blinking_js = """
+                <script>
+                document.addEventListener('DOMContentLoaded', function() {
+                    var gjLayer = %s;
+                    var selectedDistricts = %s;
+                    var count = 0;
+                    
+                    gjLayer.eachLayer(function(layer) {
+                        var district = layer.feature.properties.DISTRICT;
+                        if (selectedDistricts.includes(district)) {
+                            var className = (count %% 2 === 0) ? 'blinking-1' : 'blinking-2';
+                            if (layer._path) {
+                                layer._path.classList.add(className);
+                            }
+                            count++;
+                        }
+                    });
+                });
+                </script>
+                """
+                m.get_root().html.add_child(folium.Element(blinking_js % (gj.get_name(), json.dumps(selected_districts))))
+
 
             # Add district labels
             for _, row in districts_gpd.iterrows():
