@@ -380,17 +380,17 @@ class MapService:
                 <span style="font-size: 0.8em; color: #666; background: #f0f0f0; padding: 2px 6px; border-radius: 10px;">{province}</span>
             </div>
             
-            <div style="background: linear-gradient(135deg, #17a2b8 0%, #117a8b 100%); color: white; padding: 12px; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">
-                <div style="font-size: 0.9em; font-weight: bold; margin-bottom: 5px; text-transform: uppercase; letter-spacing: 1px;">Nowcasting</div>
+            <div style="background: linear-gradient(135deg, #183B4E 0%, #224d64 100%); color: white; padding: 16px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.15);">
+                <div style="font-size: 0.9em; font-weight: bold; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1.2px; color: #b7e806;">Nowcasting</div>
         """
 
         if current_weather:
             temp = current_weather.get('temperature', 'N/A')
             wind = current_weather.get('windspeed', 'N/A')
             popup_html += f"""
-                <div style="display: flex; align-items: center; gap: 15px;">
-                    <div style="font-size: 2em;">&#127777; {temp}°C</div>
-                    <div style="font-size: 0.9em; opacity: 0.9;">
+                <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 5px;">
+                    <div style="font-size: 2.2em; font-weight: 700; color: #F3F3E0;">&#127777; {temp}°C</div>
+                    <div style="font-size: 1em; opacity: 0.9; font-weight: 500;">
                         &#128168; {wind} km/h
                     </div>
                 </div>
@@ -400,14 +400,14 @@ class MapService:
             today = forecast_data[0]
             snow_html = f"<span>&#10052; {today['Snowfall (cm)']}cm</span>" if today.get('Snowfall (cm)', 0) > 0 else ""
             popup_html += f"""
-                <div style="margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.85em;">
-                    <div style="display: flex; justify-content: space-between; margin-bottom: 4px;">
+                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.9em; color: #F3F3E0;">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-weight: 500;">
                         <span>H: {today['Max Temp (°C)']}° | L: {today['Min Temp (°C)']}°</span>
                         <span>&#127783; {today['Precipitation (mm)']}mm</span>
                     </div>
-                    <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px;">
+                    <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 10px; opacity: 0.9;">
                         <span>&#127782; {today['Precipitation Chance (%)']}%</span>
-                        <span>&#127786; Gusts: {today['Wind Gusts (km/h)']}km/h</span>
+                        <span>&#127786; {today['Wind Gusts (km/h)']} km/h</span>
                         <span>&#9728; UV: {today['UV Index Max']}</span>
                         {snow_html}
                     </div>
@@ -418,9 +418,9 @@ class MapService:
 
         if forecast_data:
             popup_html += f"""
-            <div style="display: flex; justify-content: center; margin-top: 10px;">
+            <div style="display: flex; justify-content: center; margin-top: 15px;">
                 <button onclick="window.parent.loadDistrictAlert('{province}', '{district}')"
-                        style="background: #007bff; color: white; border: none; padding: 8px 16px; border-radius: 20px; cursor: pointer; font-weight: 600; font-size: 0.9em; transition: all 0.3s ease; box-shadow: 0 2px 4px rgba(0,123,255,0.3);">
+                        style="background: #b7e806; color: #183B4E; border: none; padding: 10px 22px; border-radius: 25px; cursor: pointer; font-weight: 700; font-size: 0.95em; transition: all 0.3s ease; box-shadow: 0 4px 15px rgba(183, 232, 6, 0.3); border: 1px solid rgba(0,0,0,0.1);">
                 &#128203; View Detailed Alert
                 </button>
             </div>
