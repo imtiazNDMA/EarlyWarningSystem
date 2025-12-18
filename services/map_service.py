@@ -38,23 +38,64 @@ class MapService:
             raise ValueError("Mapbox token not configured")
 
         tileurl = f"https://api.mapbox.com/v4/mapbox.satellite/{{z}}/{{x}}/{{y}}@2x.png?access_token={self.mapbox_token}"
-        tile_a = "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+        
+        # Define multiple basemaps
+        basemaps = {
+            "Mapbox Satellite": folium.TileLayer(
+                tiles=tileurl,
+                attr="&copy; <a href='https://www.mapbox.com/about/maps/'>Mapbox</a>",
+                name="Mapbox Satellite",
+                overlay=False,
+                control=True
+            ),
+            "OpenStreetMap": folium.TileLayer(
+                tiles="openstreetmap",
+                name="OpenStreetMap",
+                overlay=False,
+                control=True
+            ),
+            "CartoDB Positron": folium.TileLayer(
+                tiles="cartodbpositron",
+                name="CartoDB Positron (Light)",
+                overlay=False,
+                control=True
+            ),
+            "CartoDB Dark Matter": folium.TileLayer(
+                tiles="cartodbdark_matter",
+                name="CartoDB Dark Matter (Dark)",
+                overlay=False,
+                control=True
+            ),
+            "OpenTopoMap": folium.TileLayer(
+                tiles="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+                attr='Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)',
+                name="OpenTopoMap (Topographic)",
+                overlay=False,
+                control=True
+            )
+        }
 
         if not locations:
             m = folium.Map(
                 location=[33.6844, 73.0479],
                 zoom_start=5,
-                tiles=tileurl,
-                attr="&copy; OpenStreetMap contributors",
+                tiles=None # We will add tiles manually
             )
+            for layer in basemaps.values():
+                layer.add_to(m)
+            folium.LayerControl().add_to(m)
             return m._repr_html_()
 
         m = folium.Map(
             location=[33.6844, 73.0479],
             zoom_start=5,
-            tiles=tileurl,
-            attr="&copy; OpenStreetMap contributors",
+            tiles=None # We will add tiles manually
         )
+        
+        # Add all basemaps to the map
+        for layer in basemaps.values():
+            layer.add_to(m)
+
 
         # Add GeoJSON boundary layer
         try:
@@ -143,6 +184,7 @@ class MapService:
                 icon=folium.Icon(color=color, icon="info-sign"),
             ).add_to(cluster)
 
+        folium.LayerControl().add_to(m)
         return m._repr_html_()
 
     def _load_forecast_data(self, province: str, district: str, days: int) -> Tuple[list, dict]:
