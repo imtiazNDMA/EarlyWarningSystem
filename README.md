@@ -36,15 +36,15 @@ graph TD
     end
     
     subgraph "Data Persistence"
-        WeatherSvc <-->|Read/Write| DB[(SQLite Database)]
+        WeatherSvc <-->|Read/Write| DB[("SQLite Database")]
         AlertSvc <-->|Read/Write| DB
         MapSvc <-->|Read Only| DB
     end
     
     subgraph "External Services"
-        WeatherSvc <-->|API| OpenMeteo[Weather API]
-        AlertSvc <-->|Inference| Ollama[Local LLM (Llama 3)]
-        MapSvc -->|Tiles| Mapbox[Mapbox API]
+        WeatherSvc <-->|API| OpenMeteo["Weather API"]
+        AlertSvc <-->|Inference| Ollama["Local LLM (Llama 3)"]
+        MapSvc -->|Tiles| Mapbox["Mapbox API"]
     end
 ```
 
