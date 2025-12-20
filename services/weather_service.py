@@ -11,6 +11,10 @@ from typing import Dict, List, Optional, Tuple
 import pandas as pd
 from config import Config
 from utils.validation import sanitize_filename
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
+import database
+from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +26,33 @@ class WeatherService:
         self.base_url = Config.BASE_URL
         self.cache_time = Config.CACHE_TIME
         os.makedirs("static/weatherdata", exist_ok=True)
+        self._cache_index = {}
+        self._last_index_update = 0
+        self._index_ttl = 60  # Refresh index every 60 seconds
+        self._district_to_province = {}
+        self._province_index_built = False
+
+        # Setup connection pooling for better performance
+        self.session = requests.Session()
+
+        # Configure retry strategy
+        retry_strategy = Retry(
+            total=3,
+            backoff_factor=1,
+            status_forcelist=[500, 502, 503, 504],
+        )
+
+        # Configure connection pooling
+        adapter = HTTPAdapter(
+            pool_connections=10,  # Number of connection pools
+            pool_maxsize=20,  # Maximum number of connections in pool
+            max_retries=retry_strategy,
+        )
+
+        self.session.mount("http://", adapter)
+        self.session.mount("https://", adapter)
+
+        logger.info("Connection pooling initialized with 10 pools, 20 max connections")
 
     def get_bulk_weather_data(
         self,
@@ -48,15 +79,25 @@ class WeatherService:
         uncached = []
         cached_data = {}
 
-        # Check cache first
+        # Update cache index for faster lookups
+        self._update_cache_index(forecast_days, province)
+
+        # Check cache using index (O(1) lookups instead of O(n) file operations)
+        current_time = time.time()
         for district_name, (lat, lon) in districts.items():
-            cache_file = f"static/weatherdata/weather_{forecast_days}_{province}_{sanitize_filename(district_name)}.json"
+            sanitized_district = sanitize_filename(district_name)
+            cache_file = f"static/weatherdata/weather_{forecast_days}_{province}_{sanitized_district}.json"
+
+            # Check index first (O(1) operation)
+            cache_info = self._cache_index.get(sanitized_district)
+
             if (
-                os.path.exists(cache_file)
-                and (time.time() - os.path.getmtime(cache_file)) < cache_time
+                cache_info
+                and cache_info["exists"]
+                and (current_time - cache_info["mtime"]) < cache_time
             ):
                 try:
-                    with open(cache_file, "r", encoding="utf-8") as f:
+                    with open(cache_info["filepath"], "r", encoding="utf-8") as f:
                         cached_data[district_name] = json.load(f)
                     logger.debug(f"Loaded cached data for {district_name}")
                 except Exception as e:
@@ -94,7 +135,9 @@ class WeatherService:
         }
 
         try:
-            response = requests.get(self.base_url, params=params, timeout=Config.API_TIMEOUT)
+            response = self.session.get(
+                self.base_url, params=params, timeout=Config.API_TIMEOUT
+            )
             bulk = response.json() if response.status_code == 200 else None
         except Exception as e:
             logger.error(f"Bulk request failed: {e}")
@@ -124,12 +167,27 @@ class WeatherService:
                 district_name, lat, lon, cache_file = uncached[0]
                 _save(district_name, bulk, cache_file)
             else:
-                # Fallback for unexpected structure (shouldn't happen with correct API usage)
-                daily = bulk["daily"]
-                for i, (district_name, lat, lon, cache_file) in enumerate(uncached):
-                    # This logic is likely flawed for multi-day, but keeping as fallback for now
-                    # Ideally we should fallback to individual requests if structure doesn't match
-                    pass
+                # Fallback for unexpected structure - use individual requests
+                logger.info(
+                    "Bulk response structure unexpected, falling back to individual requests"
+                )
+                for district_name, lat, lon, cache_file in uncached:
+                    params["latitude"], params["longitude"] = lat, lon
+                    try:
+                        response = self.session.get(
+                            self.base_url, params=params, timeout=Config.API_TIMEOUT
+                        )
+                        if response.status_code == 200:
+                            data = response.json()
+                            _save(district_name, data, cache_file)
+                        else:
+                            logger.error(
+                                f"Failed to fetch data for {district_name}: HTTP {response.status_code}"
+                            )
+                    except Exception as e:
+                        logger.error(
+                            f"Failed individual request for {district_name}: {e}"
+                        )
 
         else:
             # Fallback to individual requests
@@ -137,7 +195,9 @@ class WeatherService:
             for district_name, lat, lon, cache_file in uncached:
                 params["latitude"], params["longitude"] = lat, lon
                 try:
-                    response = requests.get(self.base_url, params=params, timeout=Config.API_TIMEOUT)
+                    response = self.session.get(
+                        self.base_url, params=params, timeout=Config.API_TIMEOUT
+                    )
                     if response.status_code == 200:
                         data = response.json()
                         _save(district_name, data, cache_file)
@@ -155,48 +215,17 @@ class WeatherService:
     ) -> Optional[dict]:
         """
         Get weather forecast for a specific district
-
-        Args:
-            province: Province name
-            district: District name
-            days: Number of forecast days
-
-        Returns:
-            Weather data dict or None if not found
         """
-        filename = f"static/weatherdata/weather_{days}_{province}_{sanitize_filename(district)}.json"
-        try:
-            with open(filename, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except FileNotFoundError:
-            logger.warning(f"Weather data not found for {province}/{district}/{days}")
-            return None
-        except Exception as e:
-            logger.error(
-                f"Error loading weather data for {province}/{district}/{days}: {e}"
-            )
-            return None
+        cache_key = f"weather_{days}_{province}_{sanitize_filename(district)}"
+        cache_result = database.get_raw_weather_cache(cache_key)
+        
+        if cache_result:
+            return cache_result[0]
+        
+        return None
 
     def purge_cache(self, province: str, districts: List[str], days: int) -> int:
         """
-        Purge cache for specific districts
-        
-        Args:
-            province: Province name
-            districts: List of district names
-            days: Forecast days
-            
-        Returns:
-            Number of files deleted
+        Purge cache for specific districts (Delegated to database)
         """
-        count = 0
-        for district in districts:
-            filename = f"static/weatherdata/weather_{days}_{province}_{sanitize_filename(district)}.json"
-            try:
-                if os.path.exists(filename):
-                    os.remove(filename)
-                    count += 1
-                    logger.info(f"Deleted cache file: {filename}")
-            except Exception as e:
-                logger.error(f"Error deleting cache file {filename}: {e}")
-        return count
+        return database.purge_cache_db(province, districts, days)

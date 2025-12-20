@@ -52,5 +52,9 @@ logs/
 *.tmp
 *.temp
 
-# Weather data cache
+# Weather data cache (Legacy)
 static/weatherdata/
+
+# Integration test artifacts
+integration_*.txt
+*.bat

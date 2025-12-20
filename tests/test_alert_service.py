@@ -13,12 +13,26 @@ class TestAlertService:
     """Test cases for AlertService"""
 
     def setup_method(self):
-        """Set up test fixtures"""
+        """Set up test fixtures with mocks"""
+        # Patch ChatOllama to avoid connection attempts
+        self.ollama_patcher = patch("services.alert_service.ChatOllama")
+        self.mock_ollama = self.ollama_patcher.start()
+        
+        # Patch database
+        self.db_patcher = patch("services.alert_service.database")
+        self.mock_db = self.db_patcher.start()
+        
         self.service = AlertService()
+
+    def teardown_method(self):
+        """Clean up patches"""
+        self.ollama_patcher.stop()
+        self.db_patcher.stop()
 
     def test_init(self):
         """Test AlertService initialization"""
         assert self.service.client is not None
+        assert self.mock_ollama.called
 
     def test_parse_district_alerts_valid(self):
         """Test parsing valid district alerts"""
@@ -28,9 +42,9 @@ class TestAlertService:
         
         Region's Summary: Overall conditions are favorable.
         """
-        
+
         alerts = self.service.parse_district_alerts(llm_text)
-        
+
         assert len(alerts) == 2
         assert "Islamabad" in alerts
         assert "Rawalpindi" in alerts
@@ -48,77 +62,91 @@ class TestAlertService:
         alerts = self.service.parse_district_alerts(llm_text)
         assert len(alerts) == 0
 
-    @patch('services.alert_service.ChatOllama')
-    def test_generate_alert_success(self, mock_ollama):
+    def test_generate_alert_success(self):
         """Test successful alert generation"""
-        # Mock the Ollama response
+        # Mock the client instance returned by ChatOllama()
+        mock_client = MagicMock()
+        self.mock_ollama.return_value = mock_client
+        
+        # Mock response
         mock_response = MagicMock()
         mock_response.content = "**Lahore Weather Alert** Test alert"
-        
-        mock_client = MagicMock()
         mock_client.invoke.return_value = mock_response
-        mock_ollama.return_value = mock_client
-        
-        # Create test service with mocked client
-        service = AlertService()
-        service.client = mock_client
-        
+
+        # Re-init service to pick up the mock return value if needed
+        # But self.service.client is already set to the return value of the previous mock run in setup?
+        # AlertService init calls ChatOllama().
+        # self.mock_ollama returned a MagicMock() by default.
+        # So self.service.client IS that mock.
+        # We just need to configure it.
+        self.service.client.invoke.return_value = mock_response
+
         # Create test forecast data
         forecasts = {
-            "Lahore": pd.DataFrame({
-                "Date": ["2024-01-01"],
-                "Max Temp (°C)": [25.0],
-                "Min Temp (°C)": [15.0],
-                "Precipitation (mm)": [0.0],
-                "Precipitation Chance (%)": [10],
-                "Wind Speed (km/h)": [15.0],
-                "Wind Gusts (km/h)": [20.0],
-                "Weather Code": [0],
-                "Snowfall (cm)": [0.0],
-                "UV Index Max": [5.0]
-            })
+            "Lahore": pd.DataFrame(
+                {
+                    "Date": ["2024-01-01"],
+                    "Max Temp (°C)": [25.0],
+                    "Min Temp (°C)": [15.0],
+                    "Precipitation (mm)": [0.0],
+                    "Precipitation Chance (%)": [10],
+                    "Wind Speed (km/h)": [15.0],
+                    "Wind Gusts (km/h)": [20.0],
+                    "Weather Code": [0],
+                    "Snowfall (cm)": [0.0],
+                    "UV Index Max": [5.0],
+                }
+            )
         }
-        
-        alert_text = service.generate_alert("Punjab", forecasts)
-        
-        assert "Lahore" in alert_text
-        assert mock_client.invoke.called
 
-    @patch('builtins.open', create=True)
-    @patch('os.makedirs')
-    def test_save_district_alerts(self, mock_makedirs, mock_open):
-        """Test saving district alerts to files"""
+        alert_text = self.service.generate_alert("Punjab", forecasts)
+
+        assert "Lahore" in alert_text
+        assert self.service.client.invoke.called
+
+    def test_save_district_alerts(self):
+        """Test saving district alerts to database"""
         alerts = {
             "Lahore": "Test alert for Lahore",
-            "Karachi": "Test alert for Karachi"
+            "Karachi": "Test alert for Karachi",
         }
-        
-        self.service.save_district_alerts(alerts, 1, "Punjab")
-        
-        # Verify makedirs was called
-        mock_makedirs.assert_called()
-        
-        # Verify files were written
-        assert mock_open.call_count >= 2
 
-    @patch('builtins.open', create=True)
-    @patch('os.path.exists')
-    def test_get_alert_found(self, mock_exists, mock_open):
-        """Test getting an existing alert"""
-        mock_exists.return_value = True
-        mock_data = {"district": "Lahore", "alert": "Test alert"}
-        mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(mock_data)
+        self.service.save_district_alerts(alerts, 1, "Punjab")
+
+        # Verify database.save_alert was called twice
+        assert self.mock_db.save_alert.call_count == 2
         
+        # Check calls - order isn't guaranteed in dict so checking any_call is safer
+        # But verifying args using call_args_list or assert_any_call
+        self.mock_db.save_alert.assert_any_call("Punjab", "Lahore", 1, "Test alert for Lahore")
+        self.mock_db.save_alert.assert_any_call("Punjab", "Karachi", 1, "Test alert for Karachi")
+
+    def test_get_alert_found(self):
+        """Test getting an existing alert from DB"""
+        self.mock_db.get_alert.return_value = "Test alert content"
+
         result = self.service.get_alert("Punjab", "Lahore", 1)
-        
+
         assert result is not None
         assert result["district"] == "Lahore"
+        assert result["alert"] == "Test alert content"
+        self.mock_db.get_alert.assert_called_with("Punjab", "Lahore", 1)
 
-    @patch('os.path.exists')
-    def test_get_alert_not_found(self, mock_exists):
-        """Test getting a non-existent alert"""
-        mock_exists.return_value = False
-        
+    def test_get_alert_not_found(self):
+        """Test getting a non-existent alert from DB"""
+        self.mock_db.get_alert.return_value = None
+
         result = self.service.get_alert("Punjab", "NonExistent", 1)
-        
+
         assert result is None
+
+    def test_purge_cache(self):
+        """Test purging cache via DB"""
+        self.mock_db.purge_cache_db.return_value = 5
+        
+        count = self.service.purge_cache("Punjab", ["Lahore"], 1)
+        
+        assert count == 5
+        self.mock_db.purge_cache_db.assert_called_with("Punjab", ["Lahore"], 1)
+
+

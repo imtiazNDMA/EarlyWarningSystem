@@ -8,7 +8,7 @@ from utils.validation import (
     validate_district,
     validate_forecast_days,
     sanitize_filename,
-    validate_api_request_data
+    validate_api_request_data,
 )
 
 
@@ -94,30 +94,24 @@ class TestValidation:
         data = {
             "province": "Punjab",
             "districts": ["Lahore", "Faisalabad"],
-            "forecast_days": 3
+            "forecast_days": 3,
         }
-        
+
         is_valid, message = validate_api_request_data(data)
         assert is_valid is True
 
     def test_validate_api_request_data_invalid_province(self):
         """Test validating API request with invalid province"""
-        data = {
-            "province": "InvalidProvince",
-            "forecast_days": 3
-        }
-        
+        data = {"province": "InvalidProvince", "forecast_days": 3}
+
         is_valid, message = validate_api_request_data(data)
         assert is_valid is False
         assert "province" in message.lower()
 
     def test_validate_api_request_data_invalid_days(self):
         """Test validating API request with invalid forecast days"""
-        data = {
-            "province": "Punjab",
-            "forecast_days": 10
-        }
-        
+        data = {"province": "Punjab", "forecast_days": 10}
+
         is_valid, message = validate_api_request_data(data)
         assert is_valid is False
         assert "forecast days" in message.lower()

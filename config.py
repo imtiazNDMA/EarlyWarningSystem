@@ -17,13 +17,15 @@ class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "dev_secret_key_change_in_production")
     DEBUG = os.getenv("FLASK_DEBUG", "True").lower() == "true"
     ENV = os.getenv("FLASK_ENV", "development")
-    
+
     # Security Configuration
-    MAX_CONTENT_LENGTH = int(os.getenv("MAX_CONTENT_LENGTH", 16 * 1024 * 1024))  # 16MB default
+    MAX_CONTENT_LENGTH = int(
+        os.getenv("MAX_CONTENT_LENGTH", 16 * 1024 * 1024)
+    )  # 16MB default
     MAX_DISTRICTS_PER_REQUEST = int(os.getenv("MAX_DISTRICTS_PER_REQUEST", 100))
 
     # API Configuration
-    OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1")
+    OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "phi3")
     OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     MAPBOX_TOKEN = os.getenv("MAPBOX_TOKEN")
     BASE_URL = os.getenv("BASE_URL", "https://api.open-meteo.com/v1/forecast")
@@ -34,7 +36,7 @@ class Config:
     CACHE_TIME = int(os.getenv("CACHE_TIME", 43200))  # 12 hours
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
     LOG_FILE = os.getenv("LOG_FILE", "app.log")
-    
+
     # CORS Configuration
     CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*").split(",")
 
@@ -49,15 +51,18 @@ class Config:
             raise ValueError(
                 f"Missing required environment variables: {', '.join(missing)}"
             )
-        
+
         # Check for insecure secret key in production
-        if cls.ENV == "production" and cls.SECRET_KEY == "dev_secret_key_change_in_production":
+        if (
+            cls.ENV == "production"
+            and cls.SECRET_KEY == "dev_secret_key_change_in_production"
+        ):
             raise ValueError(
                 "Cannot use default SECRET_KEY in production. Set a secure SECRET_KEY environment variable."
             )
 
         return True
-    
+
     @classmethod
     def generate_secret_key(cls) -> str:
         """Generate a secure random secret key"""
