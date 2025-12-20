@@ -26,9 +26,7 @@ class WeatherService:
         self.base_url = Config.BASE_URL
         self.cache_time = Config.CACHE_TIME
         os.makedirs("static/weatherdata", exist_ok=True)
-        self._cache_index = {}
-        self._last_index_update = 0
-        self._index_ttl = 60  # Refresh index every 60 seconds
+        # SQLite is now used for caching
         self._district_to_province = {}
         self._province_index_built = False
 
@@ -79,34 +77,34 @@ class WeatherService:
         uncached = []
         cached_data = {}
 
-        # Update cache index for faster lookups
-        self._update_cache_index(forecast_days, province)
-
-        # Check cache using index (O(1) lookups instead of O(n) file operations)
         current_time = time.time()
         for district_name, (lat, lon) in districts.items():
             sanitized_district = sanitize_filename(district_name)
-            cache_file = f"static/weatherdata/weather_{forecast_days}_{province}_{sanitized_district}.json"
+            cache_key = f"weather_{forecast_days}_{province}_{sanitized_district}"
 
-            # Check index first (O(1) operation)
-            cache_info = self._cache_index.get(sanitized_district)
+            # Check DB cache
+            cache_result = database.get_raw_weather_cache(cache_key)
+            
+            hit = False
+            if cache_result:
+                data, created_at = cache_result
+                # Calculate age
+                age = 9999999
+                if isinstance(created_at, datetime):
+                     age = (datetime.now() - created_at).total_seconds()
+                elif isinstance(created_at, str):
+                    try:
+                        dt = datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S")
+                        age = (datetime.now() - dt).total_seconds()
+                    except:
+                         pass
 
-            if (
-                cache_info
-                and cache_info["exists"]
-                and (current_time - cache_info["mtime"]) < cache_time
-            ):
-                try:
-                    with open(cache_info["filepath"], "r", encoding="utf-8") as f:
-                        cached_data[district_name] = json.load(f)
-                    logger.debug(f"Loaded cached data for {district_name}")
-                except Exception as e:
-                    logger.warning(
-                        f"Error loading cached data for {district_name}: {e}"
-                    )
-                    uncached.append((district_name, lat, lon, cache_file))
-            else:
-                uncached.append((district_name, lat, lon, cache_file))
+                if age < cache_time:
+                    cached_data[district_name] = data
+                    hit = True
+            
+            if not hit:
+                uncached.append((district_name, lat, lon, cache_key))
 
         if not uncached:
             return cached_data
@@ -143,13 +141,11 @@ class WeatherService:
             logger.error(f"Bulk request failed: {e}")
             bulk = None
 
-        def _save(district_name: str, payload: dict, cache_file: str):
-            """Save data to cache file"""
+        def _save(district_name: str, payload: dict, cache_key: str):
+            """Save data to cache DB"""
             try:
-                with open(cache_file, "w", encoding="utf-8") as wf:
-                    json.dump(payload, wf, ensure_ascii=False, indent=2)
+                database.set_raw_weather_cache(cache_key, payload)
                 cached_data[district_name] = payload
-                logger.debug(f"Saved weather data for {district_name}")
             except Exception as e:
                 logger.error(f"Error saving weather data for {district_name}: {e}")
 
@@ -157,21 +153,21 @@ class WeatherService:
             for i, item in enumerate(bulk):
                 if i >= len(uncached):
                     break
-                district_name, lat, lon, cache_file = uncached[i]
+                district_name, lat, lon, cache_key = uncached[i]
                 if "daily" in item:
-                    _save(district_name, item, cache_file)
+                    _save(district_name, item, cache_key)
 
         elif isinstance(bulk, dict) and "daily" in bulk:
             # Single location response
             if len(uncached) == 1:
-                district_name, lat, lon, cache_file = uncached[0]
-                _save(district_name, bulk, cache_file)
+                district_name, lat, lon, cache_key = uncached[0]
+                _save(district_name, bulk, cache_key)
             else:
                 # Fallback for unexpected structure - use individual requests
                 logger.info(
                     "Bulk response structure unexpected, falling back to individual requests"
                 )
-                for district_name, lat, lon, cache_file in uncached:
+                for district_name, lat, lon, cache_key in uncached:
                     params["latitude"], params["longitude"] = lat, lon
                     try:
                         response = self.session.get(
@@ -179,7 +175,7 @@ class WeatherService:
                         )
                         if response.status_code == 200:
                             data = response.json()
-                            _save(district_name, data, cache_file)
+                            _save(district_name, data, cache_key)
                         else:
                             logger.error(
                                 f"Failed to fetch data for {district_name}: HTTP {response.status_code}"
@@ -192,7 +188,7 @@ class WeatherService:
         else:
             # Fallback to individual requests
             logger.info("Bulk request failed, falling back to individual requests")
-            for district_name, lat, lon, cache_file in uncached:
+            for district_name, lat, lon, cache_key in uncached:
                 params["latitude"], params["longitude"] = lat, lon
                 try:
                     response = self.session.get(
@@ -200,7 +196,7 @@ class WeatherService:
                     )
                     if response.status_code == 200:
                         data = response.json()
-                        _save(district_name, data, cache_file)
+                        _save(district_name, data, cache_key)
                     else:
                         logger.error(
                             f"Failed to fetch data for {district_name}: HTTP {response.status_code}"
