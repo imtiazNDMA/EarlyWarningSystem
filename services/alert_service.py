@@ -9,6 +9,7 @@ from config import Config
 from utils.validation import sanitize_filename
 from utils.retry import retry_on_failure
 import database
+from constants import WEATHER_CODE_DESCRIPTIONS
 
 logger = logging.getLogger(__name__)
 
@@ -108,7 +109,11 @@ class AlertService:
                     summary += f", Rain {row['Precipitation (mm)']}mm"
 
                 if "Weather Code" in row:
-                    summary += f" (Code {row['Weather Code']})"
+                    code = int(row["Weather Code"])
+                    description = WEATHER_CODE_DESCRIPTIONS.get(
+                        code, f"Unknown weather (Code {code})"
+                    )
+                    summary += f", {description}"
 
                 day_summaries.append(summary)
 
@@ -148,7 +153,9 @@ class AlertService:
             logger.error(f"Error generating alerts for {province}: {e}")
             raise
 
-    def save_district_alerts(self, alerts: Dict[str, str], forecast_days: int, province: str):
+    def save_district_alerts(
+        self, alerts: Dict[str, str], forecast_days: int, province: str
+    ):
         """
         Save district-level alerts to SQLite database
 

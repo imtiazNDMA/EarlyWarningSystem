@@ -277,6 +277,7 @@ def generate_alerts():
             return jsonify({"status": "error", "message": error_msg}), 400
 
         province = data.get("province", "Punjab")
+        districts = data.get("districts", [])
         forecast_days = data.get("forecast_days", 1)
 
     except Exception as e:
@@ -287,8 +288,13 @@ def generate_alerts():
         )
 
     try:
-        # First, ensure we have forecasts for all districts by generating them
-        districts_to_fetch = PROVINCES[province]
+        # Get selected districts or all districts in province
+        if not districts:
+            districts_to_fetch = PROVINCES[province]
+        else:
+            districts_to_fetch = {
+                d: PROVINCES[province][d] for d in districts if d in PROVINCES[province]
+            }
         weather_data = weather_service.get_bulk_weather_data(
             province, districts_to_fetch, forecast_days
         )
@@ -409,7 +415,9 @@ def refresh_map(forecast_days):
 
     active_basemap = request.args.get("basemap", "Mapbox Satellite")
     selected_districts_str = request.args.get("districts", "")
-    selected_districts = selected_districts_str.split(",") if selected_districts_str else []
+    selected_districts = (
+        selected_districts_str.split(",") if selected_districts_str else []
+    )
 
     # Get blinking state (default to True)
     blinking_active = request.args.get("blinking", "true").lower() == "true"
@@ -485,7 +493,9 @@ def generate_forecast_and_alerts():
         )
 
         if not weather_data:
-            return jsonify({"status": "error", "message": "Failed to fetch weather data."})
+            return jsonify(
+                {"status": "error", "message": "Failed to fetch weather data."}
+            )
 
         # Convert to DataFrames for alert generation
         forecasts = {}
