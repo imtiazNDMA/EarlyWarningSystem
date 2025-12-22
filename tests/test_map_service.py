@@ -84,20 +84,21 @@ class TestMapService:
 
         import json
 
-        mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(
-            mock_data
-        )
+        mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(mock_data)
 
-        result = self.service._load_forecast_data("Punjab", "Lahore", 1)
+        result = self.service._load_forecast_data("PUNJAB", "LAHORE", 1)
 
         assert result is not None
-        assert len(result) == 1
+        assert len(result) == 2  # Returns (forecast_data, current_weather)
+        forecast_data, current_weather = result
+        assert forecast_data is not None
+        assert len(forecast_data) == 1
 
     @patch("os.path.exists")
     def test_load_forecast_data_not_exists(self, mock_exists):
         """Test loading non-existent forecast data"""
         mock_exists.return_value = False
 
-        result = self.service._load_forecast_data("Punjab", "NonExistent", 1)
+        result = self.service._load_forecast_data("PUNJAB", "NONEXISTENT", 1)
 
-        assert result is None
+        assert result == (None, None)

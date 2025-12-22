@@ -17,7 +17,7 @@ MAX_FORECAST_DAYS = 7
 # File paths
 WEATHER_DATA_DIR = "static/weatherdata"
 BOUNDARY_DATA_DIR = "static/boundary"
-DISTRICT_BOUNDARY_FILE = "static/boundary/district.geojson"
+DISTRICT_BOUNDARY_FILE = "static/boundary/pakistan_districts_fixed.geojson"
 
 # Cache settings (in seconds)
 DEFAULT_CACHE_TIME = 43200  # 12 hours

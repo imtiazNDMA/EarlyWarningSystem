@@ -1,0 +1,15 @@
+Total features in GeoJSON: 161
+Not found in GeoJSON list: ['DIAMER', 'ROUNDU']
+
+{'District': 'Astore', 'Province': 'Gilgit_Baltistan'}
+{'District': 'Ghanche', 'Province': 'Gilgit_Baltistan'}
+{'District': 'Ghizer', 'Province': 'Gilgit_Baltistan'}
+{'District': 'Gilgit', 'Province': 'Gilgit_Baltistan'}
+{'District': 'Hunza', 'Province': 'Gilgit_Baltistan'}
+{'District': 'Skardu', 'Province': 'Gilgit_Baltistan'}
+{'District': 'Nagar', 'Province': 'Gilgit_Baltistan'}
+{'District': 'Kharmang', 'Province': 'Gilgit_Baltistan'}
+{'District': 'Shigar', 'Province': 'Gilgit_Baltistan'}
+{'District': 'Darel', 'Province': 'Gilgit_Baltistan'}
+{'District': 'Tangir', 'Province': 'Gilgit_Baltistan'}
+{'District': 'Gupis-Yasin', 'Province': 'Gilgit_Baltistan'}

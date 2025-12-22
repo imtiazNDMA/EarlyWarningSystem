@@ -10,14 +10,14 @@ logger = logging.getLogger(__name__)
 
 # Allowed provinces
 ALLOWED_PROVINCES = {
-    "Islamabad",
-    "Pothohar",
-    "Punjab",
-    "Sindh",
-    "Khyber Pakhtunkhwa",
-    "Balochistan",
-    "Azad Jammu & Kashmir",
-    "Gilgit-Baltistan",
+    "FEDERAL CAPITAL TERRITORY",
+    "AZAD KASHMIR",
+    "BALOCHISTAN",
+    "INDIAN OCCUPIED KASHMIR",
+    "GILGIT BALTISTAN",
+    "KHYBER PAKHTUNKHWA",
+    "PUNJAB",
+    "SINDH",
 }
 
 # Safe filename pattern

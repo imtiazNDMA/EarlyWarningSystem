@@ -17,15 +17,15 @@ def test_purge_cache_endpoint(client):
     """Test the cache purge endpoint"""
     # Create dummy cache files
     os.makedirs("static/weatherdata", exist_ok=True)
-    with open("static/weatherdata/weather_1_Punjab_Lahore.json", "w") as f:
+    with open("static/weatherdata/weather_1_PUNJAB_LAHORE.json", "w") as f:
         f.write("{}")
-    with open("static/weatherdata/alert_1_Punjab_Lahore.json", "w") as f:
+    with open("static/weatherdata/alert_1_PUNJAB_LAHORE.json", "w") as f:
         f.write("{}")
 
     # Test purge request
     response = client.post(
         "/purge_cache",
-        json={"province": "Punjab", "districts": ["Lahore"], "forecast_days": 1},
+        json={"province": "PUNJAB", "districts": ["LAHORE"], "forecast_days": 1},
     )
 
     assert response.status_code == 200
@@ -35,23 +35,21 @@ def test_purge_cache_endpoint(client):
     assert data["alerts_purged"] >= 1
 
     # Verify files are gone
-    assert not os.path.exists("static/weatherdata/weather_1_Punjab_Lahore.json")
-    assert not os.path.exists("static/weatherdata/alert_1_Punjab_Lahore.json")
+    assert not os.path.exists("static/weatherdata/weather_1_PUNJAB_LAHORE.json")
+    assert not os.path.exists("static/weatherdata/alert_1_PUNJAB_LAHORE.json")
 
 
 def test_purge_cache_all_districts(client):
     """Test purging all districts in a province"""
     # Create dummy cache files
     os.makedirs("static/weatherdata", exist_ok=True)
-    with open("static/weatherdata/weather_1_Punjab_Lahore.json", "w") as f:
+    with open("static/weatherdata/weather_1_PUNJAB_LAHORE.json", "w") as f:
         f.write("{}")
-    with open("static/weatherdata/weather_1_Punjab_Multan.json", "w") as f:
+    with open("static/weatherdata/weather_1_PUNJAB_MULTAN.json", "w") as f:
         f.write("{}")
 
     # Test purge request with no districts (implies all)
-    response = client.post(
-        "/purge_cache", json={"province": "Punjab", "forecast_days": 1}
-    )
+    response = client.post("/purge_cache", json={"province": "PUNJAB", "forecast_days": 1})
 
     assert response.status_code == 200
     data = json.loads(response.data)
@@ -59,5 +57,5 @@ def test_purge_cache_all_districts(client):
     assert data["weather_purged"] >= 2
 
     # Verify files are gone
-    assert not os.path.exists("static/weatherdata/weather_1_Punjab_Lahore.json")
-    assert not os.path.exists("static/weatherdata/weather_1_Punjab_Multan.json")
+    assert not os.path.exists("static/weatherdata/weather_1_PUNJAB_LAHORE.json")
+    assert not os.path.exists("static/weatherdata/weather_1_PUNJAB_MULTAN.json")

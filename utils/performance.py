@@ -53,8 +53,7 @@ def monitor_performance(operation_name: str = None):
 
                 # Log performance data
                 logger.info(
-                    f"PERF: {op_name} - {execution_time:.3f}s, "
-                    f"Memory: {memory_delta:+.2f}MB"
+                    f"PERF: {op_name} - {execution_time:.3f}s, " f"Memory: {memory_delta:+.2f}MB"
                 )
 
                 return result
@@ -72,9 +71,7 @@ def monitor_performance(operation_name: str = None):
                     }
                 )
 
-                logger.error(
-                    f"PERF ERROR: {op_name} - {execution_time:.3f}s, Error: {e}"
-                )
+                logger.error(f"PERF ERROR: {op_name} - {execution_time:.3f}s, Error: {e}")
                 raise
 
         return wrapper
@@ -109,9 +106,7 @@ def get_performance_summary() -> Dict[str, Any]:
             avg_time = sum(m["execution_time"] for m in successful) / len(successful)
             max_time = max(m["execution_time"] for m in successful)
             min_time = min(m["execution_time"] for m in successful)
-            avg_memory = sum(m.get("memory_delta", 0) for m in successful) / len(
-                successful
-            )
+            avg_memory = sum(m.get("memory_delta", 0) for m in successful) / len(successful)
         else:
             avg_time = max_time = min_time = avg_memory = 0
 

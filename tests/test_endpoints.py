@@ -34,7 +34,7 @@ class TestFlaskEndpoints:
 
     def test_get_districts_valid_province(self):
         """Test getting districts for valid province"""
-        response = self.client.get("/get_districts/Punjab")
+        response = self.client.get("/get_districts/PUNJAB")
         assert response.status_code == 200
         data = json.loads(response.data)
         assert "districts" in data
@@ -64,9 +64,7 @@ class TestFlaskEndpoints:
 
         response = self.client.post(
             "/generate_forecast",
-            data=json.dumps(
-                {"province": "Punjab", "districts": ["Lahore"], "forecast_days": 3}
-            ),
+            data=json.dumps({"province": "PUNJAB", "districts": ["LAHORE"], "forecast_days": 3}),
             content_type="application/json",
         )
 
@@ -88,9 +86,7 @@ class TestFlaskEndpoints:
 
         response = self.client.post(
             "/generate_forecast",
-            data=json.dumps(
-                {"province": "Punjab", "districts": districts, "forecast_days": 3}
-            ),
+            data=json.dumps({"province": "PUNJAB", "districts": districts, "forecast_days": 3}),
             content_type="application/json",
         )
 
@@ -116,7 +112,7 @@ class TestFlaskEndpoints:
             }
         }
 
-        response = self.client.get("/get_forecast/Punjab/Lahore/3")
+        response = self.client.get("/get_forecast/PUNJAB/LAHORE/3")
         assert response.status_code == 200
         data = json.loads(response.data)
         assert "forecast" in data

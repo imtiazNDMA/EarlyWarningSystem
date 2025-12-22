@@ -102,21 +102,21 @@ class AlertService:
             for _, row in df_prompt.iterrows():
                 # Basis: Date: Max/Min, Rain, Code
                 summary = f"{row.get('Date', 'N/A')}: High {row.get('Max Temp (°C)', 'N/A')}°C/Low {row.get('Min Temp (°C)', 'N/A')}°C"
-                
+
                 # Add conditionals
                 if "Precipitation (mm)" in row and row["Precipitation (mm)"] > 0:
                     summary += f", Rain {row['Precipitation (mm)']}mm"
-                
+
                 if "Weather Code" in row:
                     summary += f" (Code {row['Weather Code']})"
-                
+
                 day_summaries.append(summary)
 
             district_text = f"\n--- {district} ---\n" + "\n".join(day_summaries)
             forecast_texts.append(district_text)
 
         prompt = f"""
-        Generate weather alerts for {province} based on these district forecasts:
+        Act as an expert meteorologist and generate weather alerts for {province} based on these district forecasts:
         {"".join(forecast_texts)}
 
         Rules:
@@ -135,7 +135,7 @@ class AlertService:
         try:
             messages = [
                 SystemMessage(
-                    content="You generate daily weather alerts for Pakistan. Always use the format: **DISTRICT_NAME**: followed by the alert description."
+                    content="Act as an expert meteorologist and generate daily weather alerts for Pakistan. Always use the format: **DISTRICT_NAME**: followed by the alert description."
                 ),
                 HumanMessage(content=prompt),
             ]
@@ -148,9 +148,7 @@ class AlertService:
             logger.error(f"Error generating alerts for {province}: {e}")
             raise
 
-    def save_district_alerts(
-        self, alerts: Dict[str, str], forecast_days: int, province: str
-    ):
+    def save_district_alerts(self, alerts: Dict[str, str], forecast_days: int, province: str):
         """
         Save district-level alerts to SQLite database
 
@@ -159,7 +157,7 @@ class AlertService:
             forecast_days: Number of forecast days
             province: Province name
         """
-        
+
         for district, msg in alerts.items():
             database.save_alert(province, district, forecast_days, msg)
             logger.debug(f"Saved DB alert for {province}/{district}")
@@ -176,11 +174,11 @@ class AlertService:
         Returns:
             Alert data dict or None if not found
         """
-        
+
         alert_text = database.get_alert(province, district, days)
         if alert_text:
             return {"district": district, "alert": alert_text}
-        
+
         # Fallback to check if legacy file exists (optional, maybe not needed if we want fully clean switch)
         # For now, let's just return None to encourage DB usage
         return None

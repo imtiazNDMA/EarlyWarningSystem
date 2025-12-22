@@ -17,9 +17,13 @@ class TestValidation:
 
     def test_validate_province_valid(self):
         """Test validating valid provinces"""
-        assert validate_province("Punjab") is True
-        assert validate_province("Sindh") is True
-        assert validate_province("Balochistan") is True
+        assert validate_province("PUNJAB") is True
+        assert validate_province("SINDH") is True
+        assert validate_province("BALOCHISTAN") is True
+        assert validate_province("AZAD KASHMIR") is True
+        assert validate_province("GILGIT BALTISTAN") is True
+        assert validate_province("KHYBER PAKHTUNKHWA") is True
+        assert validate_province("FEDERAL CAPITAL TERRITORY") is True
 
     def test_validate_province_invalid(self):
         """Test validating invalid provinces"""
@@ -92,8 +96,8 @@ class TestValidation:
     def test_validate_api_request_data_valid(self):
         """Test validating valid API request data"""
         data = {
-            "province": "Punjab",
-            "districts": ["Lahore", "Faisalabad"],
+            "province": "PUNJAB",
+            "districts": ["LAHORE", "FAISALABAD"],
             "forecast_days": 3,
         }
 
@@ -110,7 +114,7 @@ class TestValidation:
 
     def test_validate_api_request_data_invalid_days(self):
         """Test validating API request with invalid forecast days"""
-        data = {"province": "Punjab", "forecast_days": 10}
+        data = {"province": "PUNJAB", "forecast_days": 10}
 
         is_valid, message = validate_api_request_data(data)
         assert is_valid is False

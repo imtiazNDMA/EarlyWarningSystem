@@ -58,6 +58,7 @@ map_service = MapService()
 
 # Initialize Database
 import database
+
 database.init_db()
 
 # Replaced in-memory cache with SQLite
@@ -187,7 +188,7 @@ def get_all_alerts(days):
 
     # Fetch alerts from SQLite
     db_alerts = database.get_all_alerts(days)
-    
+
     # Merge DB alerts into the response structure
     for province, districts_data in db_alerts.items():
         if province in all_alerts:
@@ -366,7 +367,7 @@ def index():
     Returns:
         Rendered HTML template
     """
-    province = "Punjab"
+    province = "PUNJAB"
     selected_districts = []
     forecast_days = 1
 
@@ -408,9 +409,7 @@ def refresh_map(forecast_days):
 
     active_basemap = request.args.get("basemap", "Mapbox Satellite")
     selected_districts_str = request.args.get("districts", "")
-    selected_districts = (
-        selected_districts_str.split(",") if selected_districts_str else []
-    )
+    selected_districts = selected_districts_str.split(",") if selected_districts_str else []
 
     # Get blinking state (default to True)
     blinking_active = request.args.get("blinking", "true").lower() == "true"
@@ -486,9 +485,7 @@ def generate_forecast_and_alerts():
         )
 
         if not weather_data:
-            return jsonify(
-                {"status": "error", "message": "Failed to fetch weather data."}
-            )
+            return jsonify({"status": "error", "message": "Failed to fetch weather data."})
 
         # Convert to DataFrames for alert generation
         forecasts = {}
@@ -521,6 +518,7 @@ def generate_forecast_and_alerts():
 
     except Exception as ex:
         return jsonify({"status": "error", "ollama": "error", "message": str(ex)}), 503
+
 
 # Add exception handling to purge_cache endpoint
 @app.route("/purge_cache", methods=["POST"])

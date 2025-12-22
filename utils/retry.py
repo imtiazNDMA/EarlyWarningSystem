@@ -39,9 +39,7 @@ def retry_on_failure(max_attempts: int = 3, delay: float = 1.0, backoff: float =
                         time.sleep(current_delay)
                         current_delay *= backoff
                     else:
-                        logger.error(
-                            f"All {max_attempts} attempts failed for {func.__name__}: {e}"
-                        )
+                        logger.error(f"All {max_attempts} attempts failed for {func.__name__}: {e}")
 
             # If all attempts failed, raise the last exception
             raise last_exception
@@ -51,9 +49,7 @@ def retry_on_failure(max_attempts: int = 3, delay: float = 1.0, backoff: float =
     return decorator
 
 
-def safe_api_call(
-    func: Callable, fallback_value: Any = None, log_errors: bool = True
-) -> Callable:
+def safe_api_call(func: Callable, fallback_value: Any = None, log_errors: bool = True) -> Callable:
     """
     Wrapper to safely call an API function with fallback
 

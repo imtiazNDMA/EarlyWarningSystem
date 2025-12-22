@@ -84,25 +84,25 @@ class WeatherService:
 
             # Check DB cache
             cache_result = database.get_raw_weather_cache(cache_key)
-            
+
             hit = False
             if cache_result:
                 data, created_at = cache_result
                 # Calculate age
                 age = 9999999
                 if isinstance(created_at, datetime):
-                     age = (datetime.now() - created_at).total_seconds()
+                    age = (datetime.now() - created_at).total_seconds()
                 elif isinstance(created_at, str):
                     try:
                         dt = datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S")
                         age = (datetime.now() - dt).total_seconds()
                     except:
-                         pass
+                        pass
 
                 if age < cache_time:
                     cached_data[district_name] = data
                     hit = True
-            
+
             if not hit:
                 uncached.append((district_name, lat, lon, cache_key))
 
@@ -133,9 +133,7 @@ class WeatherService:
         }
 
         try:
-            response = self.session.get(
-                self.base_url, params=params, timeout=Config.API_TIMEOUT
-            )
+            response = self.session.get(self.base_url, params=params, timeout=Config.API_TIMEOUT)
             bulk = response.json() if response.status_code == 200 else None
         except Exception as e:
             logger.error(f"Bulk request failed: {e}")
@@ -181,9 +179,7 @@ class WeatherService:
                                 f"Failed to fetch data for {district_name}: HTTP {response.status_code}"
                             )
                     except Exception as e:
-                        logger.error(
-                            f"Failed individual request for {district_name}: {e}"
-                        )
+                        logger.error(f"Failed individual request for {district_name}: {e}")
 
         else:
             # Fallback to individual requests
@@ -206,18 +202,16 @@ class WeatherService:
 
         return cached_data
 
-    def get_weather_forecast(
-        self, province: str, district: str, days: int
-    ) -> Optional[dict]:
+    def get_weather_forecast(self, province: str, district: str, days: int) -> Optional[dict]:
         """
         Get weather forecast for a specific district
         """
         cache_key = f"weather_{days}_{province}_{sanitize_filename(district)}"
         cache_result = database.get_raw_weather_cache(cache_key)
-        
+
         if cache_result:
             return cache_result[0]
-        
+
         return None
 
     def purge_cache(self, province: str, districts: List[str], days: int) -> int:

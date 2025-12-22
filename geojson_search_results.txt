@@ -1,0 +1,1 @@
+{'OBJECTID': 47, 'Shape_Leng': 3.18864002982, 'Shape_Le_1': 3.18864002982, 'Shape_Area': 0.41814361608, 'District': 'Diamir', 'Province': 'Gilgit_Baltistan', 'Country': 'Pakistan'}
