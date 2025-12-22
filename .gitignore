@@ -75,3 +75,6 @@ coverage.xml
 
 # Jupyter notebooks (development artifacts)
 *.ipynb
+
+# ignore agents.md
+AGENTS.md

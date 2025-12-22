@@ -5,10 +5,6 @@ Data models and constants for Early Warnings Weather Dashboard
 from typing import Dict, Tuple
 
 
-"""gdf = gpd.read_file("static/boundary/district.geojson")
-gdf["centroids"] = gdf.geometry.centroid
-"""
-
 PROVINCES: Dict[str, Dict[str, Tuple[float, float]]] = {
     "FEDERAL CAPITAL TERRITORY": {"ISLAMABAD": (33.66508854571285, 73.12121495291125)},
     "AZAD KASHMIR": {
