@@ -1,6 +1,0 @@
-Columns: ['OBJECTID', 'Shape_Leng', 'Shape_Le_1', 'Shape_Area', 'District', 'Province', 'Country', 'geometry']
-
-First 3 rows:
-Row 0: {'OBJECTID': 1, 'Shape_Leng': 1.59411564717, 'Shape_Le_1': 1.59411564717, 'Shape_Area': 0.06775800011, 'District': 'Bagh', 'Province': 'Azad_Kashmir', 'Country': 'Pakistan'}
-Row 1: {'OBJECTID': 2, 'Shape_Leng': 1.98788819579, 'Shape_Le_1': 1.98788819579, 'Shape_Area': 0.11704699881, 'District': 'Bhimber', 'Province': 'Azad_Kashmir', 'Country': 'Pakistan'}
-Row 2: {'OBJECTID': 3, 'Shape_Leng': 1.30041584881, 'Shape_Le_1': 1.30041584881, 'Shape_Area': 0.06668300095, 'District': 'Jhelum_Valley', 'Province': 'Azad_Kashmir', 'Country': 'Pakistan'}

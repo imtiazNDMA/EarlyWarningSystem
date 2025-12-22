@@ -58,3 +58,20 @@ static/weatherdata/
 # Integration test artifacts
 integration_*.txt
 *.bat
+
+# Development and analysis scripts
+*_search.py
+check_*.py
+inspect_*.py
+verify_*.py
+compare_*.py
+
+# Analysis output files
+*_mismatches.txt
+*search_results.txt
+*inspection.txt
+*columns.txt
+coverage.xml
+
+# Jupyter notebooks (development artifacts)
+*.ipynb

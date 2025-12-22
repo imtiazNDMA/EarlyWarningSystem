@@ -1,6 +1,0 @@
-{'OBJECTID': 17, 'Shape_Leng': 2.34802844934, 'Shape_Le_1': 2.34802844934, 'Shape_Area': 0.1564191147, 'District': 'Jaffarabad', 'Province': 'Balochistan', 'Country': 'Pakistan'}
-{'OBJECTID': 24, 'Shape_Leng': 4.42403814958, 'Shape_Le_1': 4.42403814958, 'Shape_Area': 0.28203653084, 'District': 'Killa_Abdullah', 'Province': 'Balochistan', 'Country': 'Pakistan'}
-{'OBJECTID': 25, 'Shape_Leng': 6.9106785822, 'Shape_Le_1': 6.9106785822, 'Shape_Area': 1.17106816092, 'District': 'Killa_Saifullah', 'Province': 'Balochistan', 'Country': 'Pakistan'}
-{'OBJECTID': 27, 'Shape_Leng': 11.8732810829, 'Shape_Le_1': 11.8732810829, 'Shape_Area': 1.2652730777, 'District': 'Lasbela', 'Province': 'Balochistan', 'Country': 'Pakistan'}
-{'OBJECTID': 80, 'Shape_Leng': 2.10055942004, 'Shape_Le_1': 2.10055942004, 'Shape_Area': 0.15815008467, 'District': 'Lower_Dir', 'Province': 'Khyber_Pakhtunkhwa', 'Country': 'Pakistan'}
-{'OBJECTID': 95, 'Shape_Leng': 3.60832876956, 'Shape_Le_1': 3.60832876956, 'Shape_Area': 0.36973832396, 'District': 'Upper_Dir', 'Province': 'Khyber_Pakhtunkhwa', 'Country': 'Pakistan'}
