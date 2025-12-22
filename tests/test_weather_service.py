@@ -66,5 +66,5 @@ class TestWeatherService:
         with patch("builtins.open", mock_open(read_data=json.dumps(mock_data))):
             result = self.service.get_bulk_weather_data("PUNJAB", {"LAHORE": (31.5204, 74.3587)}, 1)
 
-        assert "Lahore" in result
-        assert result["Lahore"] == mock_data
+        assert "LAHORE" in result
+        assert result["LAHORE"] == mock_data
