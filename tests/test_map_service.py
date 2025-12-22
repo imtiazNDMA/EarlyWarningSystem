@@ -18,28 +18,25 @@ class TestMapService:
         """Test MapService initialization"""
         assert self.service.mapbox_token is not None
 
-    @patch('services.map_service.folium.Map')
-    @patch('services.map_service.gpd.read_file')
+    @patch("services.map_service.folium.Map")
+    @patch("services.map_service.gpd.read_file")
     def test_create_map_with_locations(self, mock_read_file, mock_map):
         """Test creating map with locations"""
-        locations = {
-            "Lahore": (31.5204, 74.3587),
-            "Karachi": (24.8607, 67.0011)
-        }
-        
+        locations = {"Lahore": (31.5204, 74.3587), "Karachi": (24.8607, 67.0011)}
+
         # Mock GeoDataFrame
         mock_gdf = MagicMock()
         mock_gdf.to_json.return_value = '{"type": "FeatureCollection", "features": []}'
         mock_gdf.iterrows.return_value = []
         mock_read_file.return_value = mock_gdf
-        
+
         # Mock Map instance
         mock_map_instance = MagicMock()
         mock_map_instance._repr_html_.return_value = "<div>Map HTML</div>"
         mock_map.return_value = mock_map_instance
-        
+
         result = self.service.create_map(locations, 1)
-        
+
         assert result is not None
         assert "Map HTML" in result
 
@@ -66,8 +63,8 @@ class TestMapService:
         color = self.service._get_marker_color(forecast_data)
         assert color == "red"
 
-    @patch('builtins.open', create=True)
-    @patch('os.path.exists')
+    @patch("builtins.open", create=True)
+    @patch("os.path.exists")
     def test_load_forecast_data_exists(self, mock_exists, mock_open):
         """Test loading existing forecast data"""
         mock_exists.return_value = True
@@ -81,23 +78,27 @@ class TestMapService:
                 "windspeed_10m_max": [15.0],
                 "windgusts_10m_max": [20.0],
                 "snowfall_sum": [0.0],
-                "uv_index_max": [5.0]
+                "uv_index_max": [5.0],
             }
         }
-        
-        import json
-        mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(mock_data)
-        
-        result = self.service._load_forecast_data("Punjab", "Lahore", 1)
-        
-        assert result is not None
-        assert len(result) == 1
 
-    @patch('os.path.exists')
+        import json
+
+        mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(mock_data)
+
+        result = self.service._load_forecast_data("PUNJAB", "LAHORE", 1)
+
+        assert result is not None
+        assert len(result) == 2  # Returns (forecast_data, current_weather)
+        forecast_data, current_weather = result
+        assert forecast_data is not None
+        assert len(forecast_data) == 1
+
+    @patch("os.path.exists")
     def test_load_forecast_data_not_exists(self, mock_exists):
         """Test loading non-existent forecast data"""
         mock_exists.return_value = False
-        
-        result = self.service._load_forecast_data("Punjab", "NonExistent", 1)
-        
-        assert result is None
+
+        result = self.service._load_forecast_data("PUNJAB", "NONEXISTENT", 1)
+
+        assert result == (None, None)

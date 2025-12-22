@@ -701,7 +701,7 @@
       showLoading(`Loading alert for ${district}...`);
 
       try {
-        const response = await fetch(`/get_district_alert/${province}/${district}/${forecastDays}`);
+        const response = await fetch(`/get_alert/${province}/${district}/${forecastDays}`);
         const result = await response.json();
 
         if (result.status === 'success') {

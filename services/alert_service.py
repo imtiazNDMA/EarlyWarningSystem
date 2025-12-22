@@ -8,6 +8,8 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from config import Config
 from utils.validation import sanitize_filename
 from utils.retry import retry_on_failure
+import database
+from constants import WEATHER_CODE_DESCRIPTIONS
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +26,7 @@ class AlertService:
 
     def parse_district_alerts(self, llm_text: str) -> Dict[str, str]:
         """
-        Parse district alerts from LLM response
+        Parse district alerts from LLM response using streaming approach for better performance
 
         Args:
             llm_text: Raw text response from LLM
@@ -33,20 +35,47 @@ class AlertService:
             Dict of district_name -> alert_text
         """
         alerts = {}
+        logger.debug(f"Parsing LLM Response of length: {len(llm_text)}")
 
-        # Pattern for: **District Name**: Alert description
-        pattern = (
-            r"\*\*([^*]+?)\*\*:\s*(.*?)(?=\s*\*\*|\s*Region's Summary|\Z)"
-        )
-        logger.debug(f"Raw LLM Response: {llm_text}")
-        matches = re.findall(pattern, llm_text, re.DOTALL | re.MULTILINE)
+        # Streaming parser - split by ** markers instead of complex regex
+        # This is more efficient than regex on large texts
+        sections = llm_text.split("**")
 
-        for district, msg in matches:
-            d_name = district.strip()
-            if d_name in alerts:
-                alerts[d_name] += " " + msg.strip()
-            else:
-                alerts[d_name] = msg.strip()
+        current_district = None
+        current_alert = ""
+
+        for i, section in enumerate(sections):
+            section = section.strip()
+            if not section:
+                continue
+
+            # First section might be before any ** markers
+            if i == 0 and not section.startswith("**"):
+                continue
+
+            # Split district name from alert content
+            if ":" in section:
+                district_part, alert_part = section.split(":", 1)
+                district_name = district_part.strip()
+                alert_content = alert_part.strip()
+
+                # Check if this looks like a valid district entry (non-empty district name)
+                if district_name and not district_name.lower().startswith("region"):
+                    if district_name in alerts:
+                        alerts[district_name] += " " + alert_content
+                    else:
+                        alerts[district_name] = alert_content
+
+        # Fallback: try regex if streaming parser didn't find alerts
+        if not alerts:
+            logger.debug("Streaming parser found no alerts, trying regex fallback")
+            pattern = r"\*\*([^*]+?)\*\*:\s*(.*?)(?=\s*\*\*|\s*Region's Summary|\Z)"
+            matches = re.findall(pattern, llm_text, re.DOTALL | re.MULTILINE)
+
+            for district, msg in matches:
+                d_name = district.strip()
+                if d_name:
+                    alerts[d_name] = msg.strip()
 
         logger.debug(f"Parsed {len(alerts)} district alerts")
         return alerts
@@ -65,10 +94,34 @@ class AlertService:
         """
         forecast_texts = []
         for district, df in forecasts.items():
-            forecast_texts.append(f"\n--- {district} ---\n{df.to_string(index=False)}")
+            # Optimize dataframe for prompt - select only essential columns to save tokens
+            # Create a copy to avoid modifying the original
+            df_prompt = df.copy()
+
+            # Compact text format
+            day_summaries = []
+            for _, row in df_prompt.iterrows():
+                # Basis: Date: Max/Min, Rain, Code
+                summary = f"{row.get('Date', 'N/A')}: High {row.get('Max Temp (°C)', 'N/A')}°C/Low {row.get('Min Temp (°C)', 'N/A')}°C"
+
+                # Add conditionals
+                if "Precipitation (mm)" in row and row["Precipitation (mm)"] > 0:
+                    summary += f", Rain {row['Precipitation (mm)']}mm"
+
+                if "Weather Code" in row:
+                    code = int(row["Weather Code"])
+                    description = WEATHER_CODE_DESCRIPTIONS.get(
+                        code, f"Unknown weather (Code {code})"
+                    )
+                    summary += f", {description}"
+
+                day_summaries.append(summary)
+
+            district_text = f"\n--- {district} ---\n" + "\n".join(day_summaries)
+            forecast_texts.append(district_text)
 
         prompt = f"""
-        Generate weather alerts for {province} based on these district forecasts:
+        Act as an expert meteorologist and generate weather alerts for {province} based on these district forecasts:
         {"".join(forecast_texts)}
 
         Rules:
@@ -86,7 +139,9 @@ class AlertService:
 
         try:
             messages = [
-                SystemMessage(content="You generate daily weather alerts for Pakistan. Always use the format: **DISTRICT_NAME**: followed by the alert description."),
+                SystemMessage(
+                    content="Act as an expert meteorologist and generate daily weather alerts for Pakistan. Always use the format: **DISTRICT_NAME**: followed by the alert description."
+                ),
                 HumanMessage(content=prompt),
             ]
             response = self.client.invoke(messages)
@@ -102,34 +157,21 @@ class AlertService:
         self, alerts: Dict[str, str], forecast_days: int, province: str
     ):
         """
-        Save district-level alerts to cache files
+        Save district-level alerts to SQLite database
 
         Args:
             alerts: Dict of district_name -> alert_text
             forecast_days: Number of forecast days
             province: Province name
         """
-        import os
-
-        os.makedirs("static/weatherdata", exist_ok=True)
 
         for district, msg in alerts.items():
-            district_file = f"static/weatherdata/alert_{forecast_days}_{province}_{sanitize_filename(district)}.json"
-            try:
-                with open(district_file, "w", encoding="utf-8") as f:
-                    json.dump(
-                        {"district": district, "alert": msg},
-                        f,
-                        ensure_ascii=False,
-                        indent=2,
-                    )
-                logger.debug(f"Saved alert for {province}/{district}")
-            except Exception as e:
-                logger.error(f"Error saving alert for {province}/{district}: {e}")
+            database.save_alert(province, district, forecast_days, msg)
+            logger.debug(f"Saved DB alert for {province}/{district}")
 
     def get_alert(self, province: str, district: str, days: int) -> Optional[dict]:
         """
-        Get alert for a specific district
+        Get alert for a specific district from SQLite
 
         Args:
             province: Province name
@@ -139,40 +181,25 @@ class AlertService:
         Returns:
             Alert data dict or None if not found
         """
-        import os
 
-        filename = f"static/weatherdata/alert_{days}_{province}_{sanitize_filename(district)}.json"
-        try:
-            with open(filename, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except FileNotFoundError:
-            logger.warning(f"Alert not found for {province}/{district}/{days}")
-            return None
-        except Exception as e:
-            logger.error(f"Error loading alert for {province}/{district}/{days}: {e}")
-            return None
+        alert_text = database.get_alert(province, district, days)
+        if alert_text:
+            return {"district": district, "alert": alert_text}
+
+        # Fallback to check if legacy file exists (optional, maybe not needed if we want fully clean switch)
+        # For now, let's just return None to encourage DB usage
+        return None
 
     def purge_cache(self, province: str, districts: List[str], days: int) -> int:
         """
-        Purge alert cache for specific districts
-        
+        Purge alert cache for specific districts (Delegated to database module)
+
         Args:
             province: Province name
             districts: List of district names
             days: Forecast days
-            
+
         Returns:
-            Number of files deleted
+            Number of files/rows deleted
         """
-        import os
-        count = 0
-        for district in districts:
-            filename = f"static/weatherdata/alert_{days}_{province}_{sanitize_filename(district)}.json"
-            try:
-                if os.path.exists(filename):
-                    os.remove(filename)
-                    count += 1
-                    logger.info(f"Deleted alert cache file: {filename}")
-            except Exception as e:
-                logger.error(f"Error deleting alert cache file {filename}: {e}")
-        return count
+        return database.purge_cache_db(province, districts, days)

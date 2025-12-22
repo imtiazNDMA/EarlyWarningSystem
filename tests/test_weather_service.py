@@ -41,7 +41,7 @@ class TestWeatherService:
         # Mock file operations
         with patch("builtins.open", mock_open(read_data=json.dumps(mock_data))):
             with patch("os.path.exists", return_value=True):
-                result = self.service.get_weather_forecast("Punjab", "Lahore", 1)
+                result = self.service.get_weather_forecast("PUNJAB", "LAHORE", 1)
 
         assert result == mock_data
 
@@ -49,7 +49,7 @@ class TestWeatherService:
     def test_get_weather_forecast_not_found(self, mock_get):
         """Test weather forecast not found"""
         with patch("os.path.exists", return_value=False):
-            result = self.service.get_weather_forecast("Punjab", "Lahore", 1)
+            result = self.service.get_weather_forecast("PUNJAB", "LAHORE", 1)
 
         assert result is None
 
@@ -64,9 +64,7 @@ class TestWeatherService:
         mock_data = {"daily": {"time": ["2024-01-01"], "temperature_2m_max": [25.0]}}
 
         with patch("builtins.open", mock_open(read_data=json.dumps(mock_data))):
-            result = self.service.get_bulk_weather_data(
-                "Punjab", {"Lahore": (31.5204, 74.3587)}, 1
-            )
+            result = self.service.get_bulk_weather_data("PUNJAB", {"LAHORE": (31.5204, 74.3587)}, 1)
 
         assert "Lahore" in result
         assert result["Lahore"] == mock_data

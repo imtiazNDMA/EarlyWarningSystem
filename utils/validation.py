@@ -10,14 +10,14 @@ logger = logging.getLogger(__name__)
 
 # Allowed provinces
 ALLOWED_PROVINCES = {
-    "Islamabad",
-    "Pothohar",
-    "Punjab",
-    "Sindh",
-    "Khyber Pakhtunkhwa",
-    "Balochistan",
-    "Azad Jammu & Kashmir",
-    "Gilgit-Baltistan",
+    "FEDERAL CAPITAL TERRITORY",
+    "AZAD KASHMIR",
+    "BALOCHISTAN",
+    "INDIAN OCCUPIED KASHMIR",
+    "GILGIT BALTISTAN",
+    "KHYBER PAKHTUNKHWA",
+    "PUNJAB",
+    "SINDH",
 }
 
 # Safe filename pattern
@@ -70,18 +70,22 @@ def sanitize_filename(name: str) -> str:
     """Sanitize filename to prevent path traversal"""
     if not name or not isinstance(name, str):
         return ""
-    
+
     # Remove any path components to prevent directory traversal
     import os
+
     name = os.path.basename(name.strip())
-    
+
+    # Check if filename starts with dot before sanitizing
+    starts_with_dot = name.startswith(".")
+
     # Replace any remaining unsafe characters
     sanitized = re.sub(r"[^A-Za-z0-9_\-]", "_", name)
-    
+
     # Prevent empty filenames or filenames starting with dots
-    if not sanitized or sanitized.startswith('.'):
-        sanitized = "default_" + sanitized
-    
+    if not sanitized or starts_with_dot:
+        sanitized = "default_" + sanitized.lstrip("._")
+
     return sanitized
 
 
@@ -101,6 +105,16 @@ def validate_api_request_data(data: dict) -> tuple[bool, str]:
     districts = data.get("districts", [])
     if districts and not isinstance(districts, list):
         return False, "Districts must be a list"
+
+    # Validate district count to prevent resource exhaustion
+    from config import Config
+
+    max_districts = Config.MAX_DISTRICTS_PER_REQUEST
+    if districts and len(districts) > max_districts:
+        return (
+            False,
+            f"Too many districts. Maximum {max_districts} allowed per request.",
+        )
 
     # Validate districts if provided
     if districts:
