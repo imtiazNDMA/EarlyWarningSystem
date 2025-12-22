@@ -604,7 +604,7 @@ class MapService:
 
             if has_alert and is_critical:
                 button_style = "background: #ff4444; color: white; animation: pulse 2s infinite;"
-                button_text = "&#9888; CRITICAL ALERT - View Details"
+                button_text = "&#9888; CRITICAL ALERT"
             elif has_alert:
                 button_style = "background: #ff8c00; color: white;"
                 button_text = "&#128203; View Weather Alert"
