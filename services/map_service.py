@@ -399,25 +399,68 @@ class MapService:
         alert_data_cache = {}
         current_weather_cache = {}
 
-        logger.debug(f"Pre-loading data for {len(actual_locations)} districts")
+        logger.debug(f"Pre-loading data for {len(actual_locations)} districts using batch queries")
 
-        # Load all forecast data in batch
-        for district, (lat, lon) in actual_locations.items():
+        # Build batch query lists
+        weather_cache_keys = []
+        alert_query_tuples = []
+        
+        for district in actual_locations.keys():
             province = district_to_province.get(district, "Unknown")
+            cache_key = f"weather_{forecast_days}_{province}_{sanitize_filename(district)}"
+            weather_cache_keys.append(cache_key)
+            alert_query_tuples.append((province, district, forecast_days))
 
-            # Load forecast data once per district
-            forecast_data, current_weather = self._load_forecast_data(
-                province, district, forecast_days
-            )
-            forecast_data_cache[district] = forecast_data
-            current_weather_cache[district] = current_weather
+        # Execute batch queries
+        weather_batch = database.get_raw_weather_cache_batch(weather_cache_keys)
+        alerts_batch = database.get_alerts_batch(alert_query_tuples)
 
-            # Load alert data once per district
-            alert_data = self._load_alert_data(province, district, forecast_days)
-            alert_data_cache[district] = alert_data
+        # Process batch results
+        for district in actual_locations.keys():
+            province = district_to_province.get(district, "Unknown")
+            cache_key = f"weather_{forecast_days}_{province}_{sanitize_filename(district)}"
+            
+            # Process weather data
+            if cache_key in weather_batch:
+                weather_data, _ = weather_batch[cache_key]
+                current_weather = weather_data.get("current_weather")
+                daily = weather_data.get("daily", {})
+                
+                current_weather_cache[district] = current_weather
+                
+                if daily:
+                    try:
+                        forecast_days_data = []
+                        time_data = daily.get("time", [])
+                        for i in range(min(forecast_days, len(time_data))):
+                            day_data = {
+                                "Date": time_data[i],
+                                "Max Temp (°C)": daily.get("temperature_2m_max", [])[i],
+                                "Min Temp (°C)": daily.get("temperature_2m_min", [])[i],
+                                "Precipitation (mm)": daily.get("precipitation_sum", [])[i] or 0,
+                                "Precipitation Chance (%)": daily.get("precipitation_probability_max", [])[i],
+                                "Wind Speed (km/h)": daily.get("windspeed_10m_max", [])[i],
+                                "Wind Gusts (km/h)": daily.get("windgusts_10m_max", [])[i],
+                                "Snowfall (cm)": daily.get("snowfall_sum", [])[i] or 0,
+                                "UV Index Max": daily.get("uv_index_max", [])[i],
+                            }
+                            forecast_days_data.append(day_data)
+                        forecast_data_cache[district] = forecast_days_data
+                    except Exception as e:
+                        logger.error(f"Error processing forecast for {district}: {e}")
+                        forecast_data_cache[district] = None
+                else:
+                    forecast_data_cache[district] = None
+            else:
+                forecast_data_cache[district] = None
+                current_weather_cache[district] = None
+            
+            # Process alert data
+            alert_key = (province, district, forecast_days)
+            alert_data_cache[district] = alerts_batch.get(alert_key, "No alert available")
 
         logger.debug(
-            f"Pre-loaded {len(forecast_data_cache)} forecast entries and {len(alert_data_cache)} alert entries"
+            f"Batch loaded {len(forecast_data_cache)} forecast entries and {len(alert_data_cache)} alert entries"
         )
 
         for district, (lat, lon) in actual_locations.items():
