@@ -4,11 +4,16 @@ import pandas as pd
 import json
 import logging
 import os
+import time
 
 # Import configuration and services
 from config import Config
 from models import PROVINCES
-from constants import ERROR_INVALID_PROVINCE, ERROR_INVALID_DISTRICT, ERROR_INVALID_FORECAST_DAYS
+from constants import (
+    ERROR_INVALID_PROVINCE,
+    ERROR_INVALID_DISTRICT,
+    ERROR_INVALID_FORECAST_DAYS,
+)
 from services.weather_service import WeatherService
 from services.alert_service import AlertService
 from services.map_service import MapService
@@ -20,9 +25,13 @@ from utils.validation import (
     validate_forecast_days,
     sanitize_filename,
 )
+from utils.background import background_tasks
 
 # Configure logging
-os.makedirs(os.path.dirname(Config.LOG_FILE) if os.path.dirname(Config.LOG_FILE) else ".", exist_ok=True)
+os.makedirs(
+    os.path.dirname(Config.LOG_FILE) if os.path.dirname(Config.LOG_FILE) else ".",
+    exist_ok=True,
+)
 logging.basicConfig(
     level=getattr(logging, Config.LOG_LEVEL),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -37,7 +46,9 @@ app.config["MAX_CONTENT_LENGTH"] = Config.MAX_CONTENT_LENGTH
 
 # Enable CORS with proper configuration
 if Config.CORS_ORIGINS == ["*"]:
-    logger.warning("CORS is configured to allow all origins. This is not recommended for production.")
+    logger.warning(
+        "CORS is configured to allow all origins. This is not recommended for production."
+    )
     CORS(app)
 else:
     CORS(app, origins=Config.CORS_ORIGINS)
@@ -46,6 +57,45 @@ else:
 weather_service = WeatherService()
 alert_service = AlertService()
 map_service = MapService()
+
+# Initialize Database
+import database
+
+database.init_db()
+
+# Replaced in-memory cache with SQLite
+# _dataframe_cache = {}
+
+
+def create_weather_dataframe(daily: dict, cache_key: str | None = None) -> pd.DataFrame:
+    """Create weather DataFrame with SQLite caching"""
+    if cache_key:
+        cached_df = database.get_weather_cache(cache_key)
+        if cached_df is not None:
+            logger.debug(f"Using SQLite cached DataFrame for {cache_key}")
+            return cached_df
+
+    df = pd.DataFrame(
+        {
+            "Date": daily.get("time", []),
+            "Max Temp (°C)": daily.get("temperature_2m_max", []),
+            "Min Temp (°C)": daily.get("temperature_2m_min", []),
+            "Precipitation (mm)": daily.get("precipitation_sum", []),
+            "Precipitation Chance (%)": daily.get("precipitation_probability_max", []),
+            "Wind Speed (km/h)": daily.get("windspeed_10m_max", []),
+            "Wind Gusts (km/h)": daily.get("windgusts_10m_max", []),
+            "Weather Code": daily.get("weathercode", []),
+            "Snowfall (cm)": daily.get("snowfall_sum", []),
+            "UV Index Max": daily.get("uv_index_max", []),
+        }
+    )
+
+    # Cache if key provided
+    if cache_key:
+        database.set_weather_cache(cache_key, df)
+        logger.debug(f"Cached DataFrame to SQLite for {cache_key}")
+
+    return df
 
 
 # Map creation is now handled by MapService
@@ -88,22 +138,10 @@ def get_forecast(province, district, days):
             }
         )
 
-    # Convert to DataFrame format for display
+    # Convert to DataFrame format for display with caching
     daily = data["daily"]
-    df = pd.DataFrame(
-        {
-            "Date": daily["time"],
-            "Max Temp (°C)": daily["temperature_2m_max"],
-            "Min Temp (°C)": daily["temperature_2m_min"],
-            "Precipitation (mm)": daily["precipitation_sum"],
-            "Precipitation Chance (%)": daily["precipitation_probability_max"],
-            "Wind Speed (km/h)": daily["windspeed_10m_max"],
-            "Wind Gusts (km/h)": daily["windgusts_10m_max"],
-            "Weather Code": daily["weathercode"],
-            "Snowfall (cm)": daily["snowfall_sum"],
-            "UV Index Max": daily["uv_index_max"],
-        }
-    )
+    cache_key = f"forecast_{province}_{district}_{days}"
+    df = create_weather_dataframe(daily, cache_key)
 
     return jsonify(
         {
@@ -137,30 +175,28 @@ def get_alert(province, district, days):
 
 @app.route("/get_all_alerts/<int:days>")
 def get_all_alerts(days):
-    """Return all alerts for all provinces and districts"""
+    """Return all alerts for all provinces and districts - optimized with SQLite"""
     # Validate forecast days
     if not validate_forecast_days(days):
         logger.warning(f"Invalid forecast days in get all alerts request: {days}")
         return jsonify({"error": "Invalid forecast days"}), 400
+
+    # Initialize all provinces with empty alerts
     all_alerts = {}
-
     for province in PROVINCES.keys():
-        province_alerts = {}
+        all_alerts[province] = {}
         for district in PROVINCES[province].keys():
-            filename = (
-                f"static/weatherdata/alert_{days}_{province}_"
-                f"{sanitize_filename(district)}.json"
-            )
-            try:
-                with open(filename, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    province_alerts[district] = data.get(
-                        "alert", "⚠️ No alert available"
-                    )
-            except FileNotFoundError:
-                province_alerts[district] = "⚠️ No alert generated yet."
+            all_alerts[province][district] = "⚠️ No alert generated yet."
 
-        all_alerts[province] = province_alerts
+    # Fetch alerts from SQLite
+    db_alerts = database.get_all_alerts(days)
+
+    # Merge DB alerts into the response structure
+    for province, districts_data in db_alerts.items():
+        if province in all_alerts:
+            for district, alert_text in districts_data.items():
+                if district in all_alerts[province]:
+                    all_alerts[province][district] = alert_text
 
     return jsonify(all_alerts)
 
@@ -193,13 +229,6 @@ def generate_forecast():
         province = data.get("province", "Punjab")
         districts = data.get("districts", [])
         forecast_days = data.get("forecast_days", 1)
-        
-        # Validate district count
-        if districts and len(districts) > Config.MAX_DISTRICTS_PER_REQUEST:
-            return jsonify({
-                "status": "error",
-                "message": f"Too many districts. Maximum {Config.MAX_DISTRICTS_PER_REQUEST} allowed per request."
-            }), 400
 
     except Exception as e:
         logger.error(f"Error parsing forecast request: {e}")
@@ -216,9 +245,9 @@ def generate_forecast():
             d: PROVINCES[province][d] for d in districts if d in PROVINCES[province]
         }
 
-    weather_data = weather_service.get_bulk_weather_data(
-        province, districts_to_fetch, forecast_days
-    )
+        weather_data = weather_service.get_bulk_weather_data(
+            province, districts_to_fetch, forecast_days, cache_time=0
+        )
 
     # Return success status
     return jsonify(
@@ -250,6 +279,7 @@ def generate_alerts():
             return jsonify({"status": "error", "message": error_msg}), 400
 
         province = data.get("province", "Punjab")
+        districts = data.get("districts", [])
         forecast_days = data.get("forecast_days", 1)
 
     except Exception as e:
@@ -260,76 +290,76 @@ def generate_alerts():
         )
 
     try:
-        # First, ensure we have forecasts for all districts by generating them
-        districts_to_fetch = PROVINCES[province]
-        weather_data = weather_service.get_bulk_weather_data(
-            province, districts_to_fetch, forecast_days
-        )
+        # Get selected districts or all districts in province
+        if not districts:
+            districts_to_fetch = PROVINCES[province]
+        else:
+            districts_to_fetch = {
+                d: PROVINCES[province][d] for d in districts if d in PROVINCES[province]
+            }
 
-        if not weather_data:
-            return jsonify(
-                {
-                    "status": "error",
-                    "message": (
-                        "Failed to fetch weather data. Please check your "
-                        "internet connection and try again."
-                    ),
-                }
+        # Define the background task function
+        def generate_alerts_task():
+            """Background task for generating alerts"""
+            weather_data = weather_service.get_bulk_weather_data(
+                province, districts_to_fetch, forecast_days, cache_time=0
             )
 
-        # Convert to DataFrames
-        forecasts = {}
-        for d, data in weather_data.items():
-            daily = data["daily"]
-            # Ensure data is in list format for DataFrame
-            df_data = {}
-            for key in [
-                "time",
-                "temperature_2m_max",
-                "temperature_2m_min",
-                "precipitation_sum",
-                "precipitation_probability_max",
-                "windspeed_10m_max",
-                "windgusts_10m_max",
-                "weathercode",
-                "snowfall_sum",
-                "uv_index_max",
-            ]:
-                value = daily.get(key)
-                if not isinstance(value, list):
-                    value = [value]
-                df_data[key] = value
+            if not weather_data:
+                logger.error("Failed to fetch weather data for alert generation")
+                return None
 
-            df = pd.DataFrame(
-                {
-                    "Date": df_data["time"],
-                    "Max Temp (°C)": df_data["temperature_2m_max"],
-                    "Min Temp (°C)": df_data["temperature_2m_min"],
-                    "Precipitation (mm)": df_data["precipitation_sum"],
-                    "Precipitation Chance (%)": df_data[
-                        "precipitation_probability_max"
-                    ],
-                    "Wind Speed (km/h)": df_data["windspeed_10m_max"],
-                    "Wind Gusts (km/h)": df_data["windgusts_10m_max"],
-                    "Weather Code": df_data["weathercode"],
-                    "Snowfall (cm)": df_data["snowfall_sum"],
-                    "UV Index Max": df_data["uv_index_max"],
-                }
-            )
-            forecasts[d] = df
+            # Convert to DataFrames
+            forecasts = {}
+            for d, data in weather_data.items():
+                daily = data["daily"]
+                # Normalize data to ensure all values are lists for DataFrame creation
+                normalized_daily = {}
+                for key in [
+                    "time",
+                    "temperature_2m_max",
+                    "temperature_2m_min",
+                    "precipitation_sum",
+                    "precipitation_probability_max",
+                    "windspeed_10m_max",
+                    "windgusts_10m_max",
+                    "weathercode",
+                    "snowfall_sum",
+                    "uv_index_max",
+                ]:
+                    value = daily.get(key)
+                    normalized_daily[key] = value if isinstance(value, list) else [value]
 
-        # Generate alerts using AlertService
-        alert_text = alert_service.generate_alert(province, forecasts)
-        alerts = alert_service.parse_district_alerts(alert_text)
+                cache_key = f"alerts_{province}_{forecast_days}_{d}"
+                df = create_weather_dataframe(normalized_daily, cache_key)
+                forecasts[d] = df
 
-        # Save district-level alerts
-        alert_service.save_district_alerts(alerts, forecast_days, province)
+            # Generate alerts using AlertService
+            alert_text = alert_service.generate_alert(province, forecasts)
+            alerts = alert_service.parse_district_alerts(alert_text)
 
-        return jsonify(
-            {
+            # Purge old alerts before saving new ones to ensure fresh data
+            alert_service.purge_cache(province, list(forecasts.keys()), forecast_days)
+
+            # Save district-level alerts
+            alert_service.save_district_alerts(alerts, forecast_days, province)
+            
+            return {
                 "status": "success",
                 "message": f"Alerts generated for {province}",
                 "alert_text": alert_text,
+                "province": province,
+            }
+
+        # Start background task
+        task_id = f"alerts_{province}_{forecast_days}_{time.time()}"
+        background_tasks.run_task(task_id, generate_alerts_task)
+
+        return jsonify(
+            {
+                "status": "processing",
+                "message": f"Alert generation started for {province}. This may take a few minutes.",
+                "task_id": task_id,
                 "province": province,
             }
         )
@@ -339,7 +369,7 @@ def generate_alerts():
         return jsonify(
             {
                 "status": "error",
-                "message": "Failed to generate alerts. Please try again later.",
+                "message": "Failed to start alert generation. Please try again later.",
             }
         )
 
@@ -355,7 +385,7 @@ def index():
     Returns:
         Rendered HTML template
     """
-    province = "Punjab"
+    province = "PUNJAB"
     selected_districts = []
     forecast_days = 1
 
@@ -394,14 +424,16 @@ def refresh_map(forecast_days):
     if not validate_forecast_days(forecast_days):
         logger.warning(f"Invalid forecast days in refresh map request: {forecast_days}")
         return jsonify({"error": "Invalid forecast days"}), 400
-    
+
     active_basemap = request.args.get("basemap", "Mapbox Satellite")
     selected_districts_str = request.args.get("districts", "")
-    selected_districts = selected_districts_str.split(",") if selected_districts_str else []
-    
+    selected_districts = (
+        selected_districts_str.split(",") if selected_districts_str else []
+    )
+
     # Get blinking state (default to True)
     blinking_active = request.args.get("blinking", "true").lower() == "true"
-    
+
     all_districts = {
         district: coords
         for province_districts in PROVINCES.values()
@@ -409,11 +441,11 @@ def refresh_map(forecast_days):
     }
 
     map_html = map_service.create_map(
-        all_districts, 
-        forecast_days, 
+        all_districts,
+        forecast_days,
         active_basemap=active_basemap,
         selected_districts=selected_districts,
-        blinking_active=blinking_active
+        blinking_active=blinking_active,
     )
     return jsonify({"map_html": map_html})
 
@@ -469,7 +501,7 @@ def generate_forecast_and_alerts():
 
         # Generate forecasts
         weather_data = weather_service.get_bulk_weather_data(
-            province, districts_to_fetch, forecast_days
+            province, districts_to_fetch, forecast_days, cache_time=0
         )
 
         if not weather_data:
@@ -485,26 +517,17 @@ def generate_forecast_and_alerts():
             for key in daily:
                 if not isinstance(daily[key], list):
                     daily[key] = [daily[key]]
-            
-            df = pd.DataFrame(
-                {
-                    "Date": daily["time"],
-                    "Max Temp (°C)": daily["temperature_2m_max"],
-                    "Min Temp (°C)": daily["temperature_2m_min"],
-                    "Precipitation (mm)": daily["precipitation_sum"],
-                    "Precipitation Chance (%)": daily["precipitation_probability_max"],
-                    "Wind Speed (km/h)": daily["windspeed_10m_max"],
-                    "Wind Gusts (km/h)": daily["windgusts_10m_max"],
-                    "Weather Code": daily["weathercode"],
-                    "Snowfall (cm)": daily["snowfall_sum"],
-                    "UV Index Max": daily["uv_index_max"],
-                }
-            )
+
+            cache_key = f"combined_{province}_{forecast_days}_{d}"
+            df = create_weather_dataframe(daily, cache_key)
             forecasts[d] = df
 
         # Generate alerts
         alert_text = alert_service.generate_alert(province, forecasts)
         alerts = alert_service.parse_district_alerts(alert_text)
+
+        # Purge old alerts before saving new ones to ensure fresh data
+        alert_service.purge_cache(province, list(forecasts.keys()), forecast_days)
 
         # Save district-level alerts
         alert_service.save_district_alerts(alerts, forecast_days, province)
@@ -518,62 +541,11 @@ def generate_forecast_and_alerts():
             }
         )
 
-    except Exception as e:
-        logger.error(f"Error in generate_forecast_and_alerts: {e}", exc_info=True)
-        return jsonify(
-            {
-                "status": "error",
-                "message": "Failed to generate forecasts and alerts. Please try again later.",
-            }
-        )
+    except Exception as ex:
+        return jsonify({"status": "error", "ollama": "error", "message": str(ex)}), 503
 
 
-@app.route("/get_district_alert/<province>/<district>/<int:days>")
-def get_district_alert(province, district, days):
-    """Get alert for a specific district"""
-    # Validate parameters
-    if not validate_province(province):
-        logger.warning(f"Invalid province in district alert request: {province}")
-        return jsonify({"error": "Invalid province"}), 400
-
-    if not validate_district(district):
-        logger.warning(f"Invalid district in district alert request: {district}")
-        return jsonify({"error": "Invalid district"}), 400
-
-    if not validate_forecast_days(days):
-        logger.warning(f"Invalid forecast days in district alert request: {days}")
-        return jsonify({"error": "Invalid forecast days"}), 400
-
-    data = alert_service.get_alert(province, district, days)
-    if not data:
-        return jsonify(
-            {
-                "district": district,
-                "province": province,
-                "alert": "⚠️ No alert generated yet. Please generate alerts first.",
-                "status": "error",
-            }
-        )
-
-    return jsonify(
-        {
-            "district": district,
-            "province": province,
-            "alert": data.get("alert", "⚠️ No alert available"),
-            "status": "success",
-        }
-    )
-
-    return jsonify(
-        {
-            "district": district,
-            "province": province,
-            "alert": data.get("alert", "⚠️ No alert available"),
-            "status": "success",
-        }
-    )
-
-
+# Add exception handling to purge_cache endpoint
 @app.route("/purge_cache", methods=["POST"])
 def purge_cache():
     """Purge cache for selected districts"""
@@ -581,31 +553,34 @@ def purge_cache():
         data = request.get_json()
         if not data:
             return jsonify({"status": "error", "message": "Invalid JSON data"}), 400
-            
+
         province = data.get("province")
         districts = data.get("districts", [])
         forecast_days = data.get("forecast_days", 1)
-        
+
         if not validate_province(province):
             return jsonify({"status": "error", "message": "Invalid province"}), 400
-            
+
         # If no districts provided, purge all for the province
         if not districts:
             districts = list(PROVINCES.get(province, {}).keys())
-            
-        weather_count = weather_service.purge_cache(province, districts, forecast_days)
-        alert_count = alert_service.purge_cache(province, districts, forecast_days)
-        
-        return jsonify({
-            "status": "success",
-            "message": f"Cache purged successfully. Deleted {weather_count} weather and {alert_count} alert files.",
-            "weather_purged": weather_count,
-            "alerts_purged": alert_count
-        })
-        
+
+        # Database purge handles both alerts and weather cache
+        purged_count = database.purge_cache_db(province, districts, forecast_days)
+
+        return jsonify(
+            {
+                "status": "success",
+                "message": f"Cache purged successfully. Deleted approx {purged_count} records.",
+                "purged_count": purged_count,
+            }
+        )
+
     except Exception as e:
         logger.error(f"Error purging cache: {e}")
         return jsonify({"status": "error", "message": "Failed to purge cache"}), 500
+
+
 @app.route("/health")
 def health_check():
     """Health check endpoint for monitoring"""
@@ -615,4 +590,4 @@ def health_check():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port="5000")
+    app.run(debug=True, host="0.0.0.0", port=5001)

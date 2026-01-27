@@ -20,7 +20,10 @@ def check_ollama_status():
             if any(Config.OLLAMA_MODEL in name for name in model_names):
                 return True, f"Ollama accessible, model {Config.OLLAMA_MODEL} found"
             else:
-                return True, f"Ollama accessible, but model {Config.OLLAMA_MODEL} NOT found"
+                return (
+                    True,
+                    f"Ollama accessible, but model {Config.OLLAMA_MODEL} NOT found",
+                )
         else:
             return False, f"Ollama returned status {response.status_code}"
     except Exception as e:
@@ -37,9 +40,9 @@ def check_openmeteo_api():
                 "latitude": 33.6844,
                 "longitude": 73.0479,
                 "daily": "temperature_2m_max",
-                "forecast_days": 1
+                "forecast_days": 1,
             },
-            timeout=5
+            timeout=5,
         )
         if response.status_code == 200:
             return True, "Open-Meteo API accessible"
@@ -53,6 +56,7 @@ def check_openmeteo_api():
 def check_file_system():
     """Check if file system is writable"""
     import os
+
     try:
         test_file = "static/weatherdata/.health_check"
         os.makedirs("static/weatherdata", exist_ok=True)
@@ -68,7 +72,7 @@ def check_file_system():
 def get_health_status():
     """
     Get overall health status of the application
-    
+
     Returns:
         dict: Health status information
     """
@@ -77,16 +81,13 @@ def get_health_status():
         "openmeteo_api": check_openmeteo_api(),
         "file_system": check_file_system(),
     }
-    
+
     all_healthy = all(status for status, _ in checks.values())
-    
+
     return {
         "status": "healthy" if all_healthy else "unhealthy",
         "checks": {
-            name: {
-                "status": "pass" if status else "fail",
-                "message": message
-            }
+            name: {"status": "pass" if status else "fail", "message": message}
             for name, (status, message) in checks.items()
-        }
+        },
     }
