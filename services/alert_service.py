@@ -1,12 +1,10 @@
 import re
-import json
 import logging
 from typing import Dict, List, Optional
 import pandas as pd
 from langchain_ollama import ChatOllama
 from langchain_core.messages import SystemMessage, HumanMessage
 from config import Config
-from utils.validation import sanitize_filename
 from utils.retry import retry_on_failure
 import database
 from constants import WEATHER_CODE_DESCRIPTIONS
@@ -40,9 +38,6 @@ class AlertService:
         # Streaming parser - split by ** markers instead of complex regex
         # This is more efficient than regex on large texts
         sections = llm_text.split("**")
-
-        current_district = None
-        current_alert = ""
 
         for i, section in enumerate(sections):
             section = section.strip()
@@ -125,10 +120,11 @@ class AlertService:
         {"".join(forecast_texts)}
 
         Rules:
-        - Write a short alert for each district.
+        - Write a short alert for each district listed above.
         - Use this exact format for each district: **DISTRICT_NAME**: Alert description here.
         - End with a region's summary.
-        - Make sure to use the exact district names as provided.
+        - Make sure to use the exact district names and their forecasts as provided.
+        - IMPORTANT: Only generate alerts for the districts whose forecasts are provided above. Do not generate alerts for any other districts.
 
         Example format:
         **Islamabad**: Expect sunny weather with highs of 25°C.
@@ -146,6 +142,7 @@ class AlertService:
             ]
             response = self.client.invoke(messages)
             alert_text = response.content
+            print(alert_text)  # For debugging purposes
             logger.info(f"Generated alerts for {province} ({len(forecasts)} districts)")
             return alert_text
 

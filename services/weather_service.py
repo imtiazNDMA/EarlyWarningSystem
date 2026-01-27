@@ -15,6 +15,7 @@ from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 import database
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 logger = logging.getLogger(__name__)
 
@@ -109,96 +110,54 @@ class WeatherService:
         if not uncached:
             return cached_data
 
-        # Try bulk request
-        lats = ",".join(str(lat) for (_, lat, _, _) in uncached)
-        lons = ",".join(str(lon) for (_, _, lon, _) in uncached)
-
-        params = {
-            "latitude": lats,
-            "longitude": lons,
-            "daily": [
-                "temperature_2m_max",
-                "temperature_2m_min",
-                "precipitation_sum",
-                "precipitation_probability_max",
-                "windspeed_10m_max",
-                "windgusts_10m_max",
-                "weathercode",
-                "snowfall_sum",
-                "uv_index_max",
-            ],
-            "timezone": Config.TIMEZONE,
-            "forecast_days": forecast_days,
-            "current_weather": "true",
-        }
-
-        try:
-            response = self.session.get(self.base_url, params=params, timeout=Config.API_TIMEOUT)
-            bulk = response.json() if response.status_code == 200 else None
-        except Exception as e:
-            logger.error(f"Bulk request failed: {e}")
-            bulk = None
-
-        def _save(district_name: str, payload: dict, cache_key: str):
-            """Save data to cache DB"""
+        # Parallel fetching for uncached districts
+        def fetch_single_district(district_info):
+            """Fetch weather for a single district"""
+            district_name, lat, lon, cache_key = district_info
+            params = {
+                "latitude": lat,
+                "longitude": lon,
+                "daily": [
+                    "temperature_2m_max",
+                    "temperature_2m_min",
+                    "precipitation_sum",
+                    "precipitation_probability_max",
+                    "windspeed_10m_max",
+                    "windgusts_10m_max",
+                    "weathercode",
+                    "snowfall_sum",
+                    "uv_index_max",
+                ],
+                "timezone": Config.TIMEZONE,
+                "forecast_days": forecast_days,
+                "current_weather": "true",
+            }
             try:
-                database.set_raw_weather_cache(cache_key, payload)
-                cached_data[district_name] = payload
+                response = self.session.get(self.base_url, params=params, timeout=Config.API_TIMEOUT)
+                if response.status_code == 200:
+                    data = response.json()
+                    return (district_name, data, cache_key, None)
+                else:
+                    return (district_name, None, cache_key, f"HTTP {response.status_code}")
             except Exception as e:
-                logger.error(f"Error saving weather data for {district_name}: {e}")
+                return (district_name, None, cache_key, str(e))
 
-        if isinstance(bulk, list):
-            for i, item in enumerate(bulk):
-                if i >= len(uncached):
-                    break
-                district_name, lat, lon, cache_key = uncached[i]
-                if "daily" in item:
-                    _save(district_name, item, cache_key)
-
-        elif isinstance(bulk, dict) and "daily" in bulk:
-            # Single location response
-            if len(uncached) == 1:
-                district_name, lat, lon, cache_key = uncached[0]
-                _save(district_name, bulk, cache_key)
-            else:
-                # Fallback for unexpected structure - use individual requests
-                logger.info(
-                    "Bulk response structure unexpected, falling back to individual requests"
-                )
-                for district_name, lat, lon, cache_key in uncached:
-                    params["latitude"], params["longitude"] = lat, lon
+        # Use ThreadPoolExecutor for parallel fetching (limit to 15 workers to avoid overwhelming API)
+        logger.info(f"Fetching weather data for {len(uncached)} districts in parallel")
+        with ThreadPoolExecutor(max_workers=15) as executor:
+            futures = {executor.submit(fetch_single_district, info): info for info in uncached}
+            
+            for future in as_completed(futures):
+                district_name, data, cache_key, error = future.result()
+                if data:
                     try:
-                        response = self.session.get(
-                            self.base_url, params=params, timeout=Config.API_TIMEOUT
-                        )
-                        if response.status_code == 200:
-                            data = response.json()
-                            _save(district_name, data, cache_key)
-                        else:
-                            logger.error(
-                                f"Failed to fetch data for {district_name}: HTTP {response.status_code}"
-                            )
+                        database.set_raw_weather_cache(cache_key, data)
+                        cached_data[district_name] = data
+                        logger.debug(f"Fetched and cached weather for {district_name}")
                     except Exception as e:
-                        logger.error(f"Failed individual request for {district_name}: {e}")
-
-        else:
-            # Fallback to individual requests
-            logger.info("Bulk request failed, falling back to individual requests")
-            for district_name, lat, lon, cache_key in uncached:
-                params["latitude"], params["longitude"] = lat, lon
-                try:
-                    response = self.session.get(
-                        self.base_url, params=params, timeout=Config.API_TIMEOUT
-                    )
-                    if response.status_code == 200:
-                        data = response.json()
-                        _save(district_name, data, cache_key)
-                    else:
-                        logger.error(
-                            f"Failed to fetch data for {district_name}: HTTP {response.status_code}"
-                        )
-                except Exception as e:
-                    logger.error(f"Failed individual request for {district_name}: {e}")
+                        logger.error(f"Error saving weather data for {district_name}: {e}")
+                else:
+                    logger.error(f"Failed to fetch data for {district_name}: {error}")
 
         return cached_data
 
@@ -208,7 +167,6 @@ class WeatherService:
         """
         cache_key = f"weather_{days}_{province}_{sanitize_filename(district)}"
         cache_result = database.get_raw_weather_cache(cache_key)
-
         if cache_result:
             return cache_result[0]
 

@@ -1,9 +1,10 @@
 import sqlite3
 import json
 import logging
-from typing import Optional, Dict, List, Any, Tuple
+from typing import Optional, Dict, List, Tuple
 from datetime import datetime
 import pandas as pd
+from config import Config
 
 logger = logging.getLogger(__name__)
 
@@ -48,19 +49,35 @@ def init_db():
 
 
 def get_weather_cache(cache_key: str) -> Optional[pd.DataFrame]:
-    """Retrieve weather data from cache"""
+    """Retrieve weather data from cache, checking expiration"""
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
-            cursor.execute("SELECT data FROM weather_cache WHERE cache_key = ?", (cache_key,))
+            cursor.execute(
+                "SELECT data, created_at FROM weather_cache WHERE cache_key = ?",
+                (cache_key,),
+            )
             row = cursor.fetchone()
 
             if row:
-                data_dict = json.loads(row[0])
-                # Convert back to DataFrame
-                # We expect data_dict to be suitable for pd.DataFrame.from_dict or similar
-                # Ideally we stored it as records
-                return pd.DataFrame.from_records(data_dict)
+                data_json, created_at_str = row
+                try:
+                    # Parse SQLite timestamp format
+                    if isinstance(created_at_str, str):
+                        created_at = datetime.strptime(
+                            created_at_str, "%Y-%m-%d %H:%M:%S"
+                        )
+                    else:
+                        created_at = created_at_str
+                    age = (datetime.now() - created_at).total_seconds()
+                    if age < Config.CACHE_TIME:
+                        data_dict = json.loads(data_json)
+                        # Convert back to DataFrame
+                        return pd.DataFrame.from_records(data_dict)
+                except Exception as e:
+                    logger.warning(
+                        f"Error parsing created_at for weather cache {cache_key}: {e}"
+                    )
             return None
     except Exception as e:
         logger.error(f"Error retrieving weather cache for {cache_key}: {e}")
@@ -73,13 +90,18 @@ def get_raw_weather_cache(cache_key: str) -> Optional[Tuple[dict, datetime]]:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT data, created_at FROM weather_cache WHERE cache_key = ?", (cache_key,)
+                "SELECT data, created_at FROM weather_cache WHERE cache_key = ?",
+                (cache_key,),
             )
             row = cursor.fetchone()
 
             if row:
                 data_dict = json.loads(row[0])
-                created_at = datetime.fromisoformat(row[1]) if isinstance(row[1], str) else row[1]
+                created_at = (
+                    datetime.fromisoformat(row[1])
+                    if isinstance(row[1], str)
+                    else row[1]
+                )
                 # SQLite timestamp might be string
                 if isinstance(created_at, str):
                     try:
@@ -150,43 +172,74 @@ def save_alert(province: str, district: str, forecast_days: int, alert_text: str
 
 
 def get_alert(province: str, district: str, forecast_days: int) -> Optional[str]:
-    """Retrieve alert from database"""
+    """Retrieve alert from database, checking cache expiration"""
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT alert_text FROM alerts 
+                SELECT alert_text, created_at FROM alerts
                 WHERE province = ? AND district = ? AND forecast_days = ?
             """,
                 (province, district, forecast_days),
             )
             row = cursor.fetchone()
-            return row[0] if row else None
+            if row:
+                alert_text, created_at_str = row
+                try:
+                    # Parse SQLite timestamp format
+                    if isinstance(created_at_str, str):
+                        created_at = datetime.strptime(
+                            created_at_str, "%Y-%m-%d %H:%M:%S"
+                        )
+                    else:
+                        created_at = created_at_str
+                    age = (datetime.now() - created_at).total_seconds()
+                    if age < Config.CACHE_TIME:
+                        return alert_text
+                except Exception as e:
+                    logger.warning(
+                        f"Error parsing created_at for alert {province}/{district}: {e}"
+                    )
+            return None
     except Exception as e:
         logger.error(f"Error retrieving alert for {province}/{district}: {e}")
         return None
 
 
 def get_all_alerts(forecast_days: int) -> Dict[str, Dict[str, str]]:
-    """Retrieve all alerts for a specific forecast duration"""
+    """Retrieve all alerts for a specific forecast duration, checking cache expiration"""
     alerts = {}
     try:
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT province, district, alert_text FROM alerts 
+                SELECT province, district, alert_text, created_at FROM alerts
                 WHERE forecast_days = ?
             """,
                 (forecast_days,),
             )
             rows = cursor.fetchall()
 
-            for province, district, alert_text in rows:
-                if province not in alerts:
-                    alerts[province] = {}
-                alerts[province][district] = alert_text
+            for province, district, alert_text, created_at_str in rows:
+                try:
+                    # Parse SQLite timestamp format
+                    if isinstance(created_at_str, str):
+                        created_at = datetime.strptime(
+                            created_at_str, "%Y-%m-%d %H:%M:%S"
+                        )
+                    else:
+                        created_at = created_at_str
+                    age = (datetime.now() - created_at).total_seconds()
+                    if age < Config.CACHE_TIME:
+                        if province not in alerts:
+                            alerts[province] = {}
+                        alerts[province][district] = alert_text
+                except Exception as e:
+                    logger.warning(
+                        f"Error parsing created_at for alert {province}/{district}: {e}"
+                    )
 
         return alerts
     except Exception as e:
@@ -204,7 +257,7 @@ def purge_cache_db(province: str, districts: List[str], forecast_days: int) -> i
                 # Delete all for province
                 cursor.execute(
                     """
-                    DELETE FROM alerts 
+                    DELETE FROM alerts
                     WHERE province = ? AND forecast_days = ?
                 """,
                     (province, forecast_days),
@@ -216,7 +269,7 @@ def purge_cache_db(province: str, districts: List[str], forecast_days: int) -> i
 
                 cursor.execute(
                     """
-                    DELETE FROM weather_cache 
+                    DELETE FROM weather_cache
                     WHERE cache_key LIKE ? OR cache_key LIKE ?
                 """,
                     (
@@ -231,7 +284,7 @@ def purge_cache_db(province: str, districts: List[str], forecast_days: int) -> i
             for district in districts:
                 cursor.execute(
                     """
-                    DELETE FROM alerts 
+                    DELETE FROM alerts
                     WHERE province = ? AND district = ? AND forecast_days = ?
                 """,
                     (province, district, forecast_days),
@@ -243,7 +296,7 @@ def purge_cache_db(province: str, districts: List[str], forecast_days: int) -> i
                 # alerts_{province}_{forecast_days}_{district}
                 cursor.execute(
                     """
-                    DELETE FROM weather_cache 
+                    DELETE FROM weather_cache
                     WHERE cache_key = ? OR cache_key = ?
                 """,
                     (
@@ -257,3 +310,105 @@ def purge_cache_db(province: str, districts: List[str], forecast_days: int) -> i
     except Exception as e:
         logger.error(f"Error purging cache from DB: {e}")
         return 0
+
+
+def get_raw_weather_cache_batch(
+    cache_keys: List[str],
+) -> Dict[str, Tuple[dict, datetime]]:
+    """Retrieve multiple raw JSON weather data from cache in a single query"""
+    results = {}
+    if not cache_keys:
+        return results
+
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            # SQLite allows many parameters, but it's safe to batch them if > 999
+            # For now assuming < 999 keys
+            placeholders = ",".join(["?"] * len(cache_keys))
+            query = f"SELECT cache_key, data, created_at FROM weather_cache WHERE cache_key IN ({placeholders})"
+            cursor.execute(query, cache_keys)
+            rows = cursor.fetchall()
+
+            for key, data_json, created_at_str in rows:
+                try:
+                    data_dict = json.loads(data_json)
+                    created_at = (
+                        datetime.fromisoformat(created_at_str)
+                        if isinstance(created_at_str, str)
+                        else created_at_str
+                    )
+                    if isinstance(created_at, str):
+                        try:
+                            created_at = datetime.strptime(
+                                created_at, "%Y-%m-%d %H:%M:%S"
+                            )
+                        except ValueError:
+                            pass
+                    results[key] = (data_dict, created_at)
+                except Exception as e:
+                    logger.warning(
+                        f"Error parsing batch weather cache for {key}: {e}"
+                    )
+                    continue
+
+            return results
+    except Exception as e:
+        logger.error(f"Error retrieving batch weather cache: {e}")
+        return results
+
+
+def get_alerts_batch(
+    province_district_days: List[Tuple[str, str, int]]
+) -> Dict[Tuple[str, str, int], str]:
+    """Retrieve multiple alerts in a single query
+    
+    Args:
+        province_district_days: List of (province, district, forecast_days) tuples
+        
+    Returns:
+        Dict mapping (province, district, forecast_days) -> alert_text
+    """
+    results = {}
+    if not province_district_days:
+        return results
+
+    try:
+        with sqlite3.connect(DB_FILE) as conn:
+            cursor = conn.cursor()
+            
+            # Build query with OR conditions for each tuple
+            conditions = []
+            params = []
+            for province, district, days in province_district_days:
+                conditions.append("(province = ? AND district = ? AND forecast_days = ?)")
+                params.extend([province, district, days])
+            
+            query = f"""
+                SELECT province, district, forecast_days, alert_text, created_at 
+                FROM alerts 
+                WHERE {' OR '.join(conditions)}
+            """
+            cursor.execute(query, params)
+            rows = cursor.fetchall()
+
+            for province, district, forecast_days, alert_text, created_at_str in rows:
+                try:
+                    # Parse SQLite timestamp format
+                    if isinstance(created_at_str, str):
+                        created_at = datetime.strptime(created_at_str, "%Y-%m-%d %H:%M:%S")
+                    else:
+                        created_at = created_at_str
+                    age = (datetime.now() - created_at).total_seconds()
+                    if age < Config.CACHE_TIME:
+                        results[(province, district, forecast_days)] = alert_text
+                except Exception as e:
+                    logger.warning(
+                        f"Error parsing batch alert for {province}/{district}: {e}"
+                    )
+                    continue
+
+            return results
+    except Exception as e:
+        logger.error(f"Error retrieving batch alerts: {e}")
+        return results
