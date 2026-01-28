@@ -100,7 +100,6 @@ def create_weather_dataframe(daily: dict, cache_key: str | None = None) -> pd.Da
 
 # Map creation is now handled by MapService
 
-
 # AJAX endpoint to get forecast for a district
 @app.route("/get_forecast/<province>/<district>/<int:days>")
 def get_forecast(province, district, days):

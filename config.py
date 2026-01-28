@@ -24,7 +24,7 @@ class Config:
 
     # API Configuration
     OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1")
-    OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
+    OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://172.18.1.152:11434")
     MAPBOX_TOKEN = os.getenv("MAPBOX_TOKEN")
     BASE_URL = os.getenv("BASE_URL", "https://api.open-meteo.com/v1/forecast")
     API_TIMEOUT = int(os.getenv("API_TIMEOUT", 30))

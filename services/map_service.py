@@ -164,6 +164,12 @@ class MapService:
             )
             for layer in basemaps.values():
                 layer.add_to(m)
+            popup_js = f"""
+                <script>
+                window.districtPopups = {json.dumps(popup_html_map)};
+                </script>
+                """
+            m.get_root().html.add_child(folium.Element(popup_js))
             folium.LayerControl().add_to(m)
             return m._repr_html_()
 
@@ -284,6 +290,47 @@ class MapService:
                     "fillOpacity": 0.7,
                 },
             ).add_to(m)
+            district_popup_js = f"""
+                <script>
+                (function() {{
+                    var gjLayerName = "{gj.get_name()}";
+
+                    function attachPopups() {{
+                        var layer = window[gjLayerName];
+                        if (!layer) {{
+                            setTimeout(attachPopups, 150);
+                            return;
+                        }}
+
+                        layer.eachLayer(function(l) {{
+                            l.on("click", function(e) {{
+                                var props = l.feature.properties;
+                                var district = (props.District || props.DISTRICT || "")
+                                                .replace(/ /g, "_")
+                                                .toUpperCase();
+
+                                var html = window.districtPopups[district];
+                                if (!html) return;
+
+                                L.popup({{
+                                    maxWidth: 480,
+                                    closeButton: true,
+                                    autoPan: true
+                                }})
+                                .setLatLng(e.latlng)
+                                .setContent(
+                                    "<div class='district-popup' style='font-size:1.6em'>" + html + "</div>"
+                                )
+                                .openOn(e.target._map);
+                            }});
+                        }});
+                    }}
+
+                    attachPopups();
+                }})();
+                </script>
+                """
+            m.get_root().html.add_child(folium.Element(district_popup_js))
 
             # Apply blinking classes to selected districts
             if selected_districts:
@@ -404,12 +451,20 @@ class MapService:
         # Build batch query lists
         weather_cache_keys = []
         alert_query_tuples = []
-        
+        popup_html_map = {}
         for district in actual_locations.keys():
             province = district_to_province.get(district, "Unknown")
             cache_key = f"weather_{forecast_days}_{province}_{sanitize_filename(district)}"
             weather_cache_keys.append(cache_key)
             alert_query_tuples.append((province, district, forecast_days))
+            popup_html_map[district.replace(" ", "_").upper()] = self._build_popup_html(
+                district,
+                province,
+                forecast_days,
+                forecast_data_cache.get(district),
+                alert_data_cache.get(district),
+                current_weather_cache.get(district),
+            )
 
         # Execute batch queries
         weather_batch = database.get_raw_weather_cache_batch(weather_cache_keys)
@@ -463,6 +518,8 @@ class MapService:
             f"Batch loaded {len(forecast_data_cache)} forecast entries and {len(alert_data_cache)} alert entries"
         )
 
+        
+
         for district, (lat, lon) in actual_locations.items():
             province = district_to_province.get(district, "Unknown")
 
@@ -480,21 +537,57 @@ class MapService:
                 alert_data,
                 current_weather,
             )
+            popup_html_map[district.replace(" ", "_").upper()] = popup_html
 
             # Set marker color based on precipitation
             color = self._get_marker_color(forecast_data)
 
             # Create marker at district centroid
-            folium.Marker(
-                [lat, lon],
+            #folium.Marker(
+            #    [lat, lon],
+            #    popup=folium.Popup(
+            #        f"<div class='district-popup' style='font-size: 1.6em;' contenteditable='false'>{popup_html}</div>",
+            #        max_width=450,
+            #    ),
+            #    icon=folium.Icon(color=color, icon="info-sign"),
+            #).add_to(marker_layer)
+
+            folium.CircleMarker(
+                location=[lat, lon],
+                radius=6,
                 popup=folium.Popup(
                     f"<div class='district-popup' style='font-size: 1.6em;' contenteditable='false'>{popup_html}</div>",
                     max_width=450,
                 ),
-                icon=folium.Icon(color=color, icon="info-sign"),
+                color="white",
+                weight=1,
+                fill=True,
+                fill_color=color,
+                fill_opacity=0.9,
             ).add_to(marker_layer)
 
+            
+
+
+        popup_js = f"""
+            <script>
+            window.districtPopups = {json.dumps(popup_html_map)};
+            </script>
+            """
+        m.get_root().html.add_child(folium.Element(popup_js))
+
         folium.LayerControl().add_to(m)
+
+        cursor_css = """
+            <style>
+            .leaflet-marker-icon { display: none !important; }
+            .leaflet-interactive { cursor: pointer; }
+            .leaflet-interactive { outline: none !important; }
+
+            </style>
+            """
+        m.get_root().html.add_child(folium.Element(cursor_css))
+
         return m._repr_html_()
 
     def _load_forecast_data(self, province: str, district: str, days: int) -> Tuple[list, dict]:
