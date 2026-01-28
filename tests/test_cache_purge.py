@@ -1,9 +1,7 @@
 import pytest
 import json
-import os
+from unittest.mock import patch
 from app import app
-from services.weather_service import WeatherService
-from services.alert_service import AlertService
 
 
 @pytest.fixture
@@ -13,16 +11,12 @@ def client():
         yield client
 
 
-def test_purge_cache_endpoint(client):
+@patch("services.database.purge_cache_db")
+def test_purge_cache_endpoint(mock_purge, client):
     """Test the cache purge endpoint"""
-    # Create dummy cache files
-    os.makedirs("static/weatherdata", exist_ok=True)
-    with open("static/weatherdata/weather_1_PUNJAB_LAHORE.json", "w") as f:
-        f.write("{}")
-    with open("static/weatherdata/alert_1_PUNJAB_LAHORE.json", "w") as f:
-        f.write("{}")
+    mock_purge.return_value = 2
 
-    # Test purge request
+
     response = client.post(
         "/purge_cache",
         json={"province": "PUNJAB", "districts": ["LAHORE"], "forecast_days": 1},
@@ -31,31 +25,21 @@ def test_purge_cache_endpoint(client):
     assert response.status_code == 200
     data = json.loads(response.data)
     assert data["status"] == "success"
-    assert data["weather_purged"] >= 1
-    assert data["alerts_purged"] >= 1
-
-    # Verify files are gone
-    assert not os.path.exists("static/weatherdata/weather_1_PUNJAB_LAHORE.json")
-    assert not os.path.exists("static/weatherdata/alert_1_PUNJAB_LAHORE.json")
+    assert "purged_count" in data
+    assert data["purged_count"] == 2
+    mock_purge.assert_called_once()
 
 
-def test_purge_cache_all_districts(client):
+@patch("services.database.purge_cache_db")
+def test_purge_cache_all_districts(mock_purge, client):
     """Test purging all districts in a province"""
-    # Create dummy cache files
-    os.makedirs("static/weatherdata", exist_ok=True)
-    with open("static/weatherdata/weather_1_PUNJAB_LAHORE.json", "w") as f:
-        f.write("{}")
-    with open("static/weatherdata/weather_1_PUNJAB_MULTAN.json", "w") as f:
-        f.write("{}")
+    mock_purge.return_value = 5
 
-    # Test purge request with no districts (implies all)
     response = client.post("/purge_cache", json={"province": "PUNJAB", "forecast_days": 1})
 
     assert response.status_code == 200
     data = json.loads(response.data)
     assert data["status"] == "success"
-    assert data["weather_purged"] >= 2
-
-    # Verify files are gone
-    assert not os.path.exists("static/weatherdata/weather_1_PUNJAB_LAHORE.json")
-    assert not os.path.exists("static/weatherdata/weather_1_PUNJAB_MULTAN.json")
+    assert "purged_count" in data
+    assert data["purged_count"] == 5
+    mock_purge.assert_called_once()

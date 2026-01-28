@@ -1,9 +1,10 @@
 import sqlite3
 import json
 import logging
-from typing import Optional, Dict, List, Tuple
+from typing import Optional, Dict, List, Tuple, Generator
 from datetime import datetime
 import pandas as pd
+from contextlib import contextmanager
 from config import Config
 
 logger = logging.getLogger(__name__)
@@ -11,9 +12,39 @@ logger = logging.getLogger(__name__)
 DB_FILE = "weather.db"
 
 
+@contextmanager
+def get_db_connection() -> Generator[sqlite3.Connection, None, None]:
+    """
+    Context manager for database connections.
+    Handles connection creation, committing, and closing.
+    """
+    conn = None
+    try:
+        conn = sqlite3.connect(DB_FILE, timeout=10.0)
+        # Enable WAL mode for better concurrency
+        # conn.execute("PRAGMA journal_mode=WAL;") 
+        yield conn
+        conn.commit()
+    except sqlite3.Error as e:
+        if conn:
+            conn.rollback()
+        logger.error(f"Database error: {e}")
+        raise
+    except Exception as e:
+        if conn:
+            conn.rollback()
+        logger.error(f"Unexpected error during database operation: {e}")
+        raise
+    finally:
+        if conn:
+            conn.close()
+
+
 def init_db():
     """Initialize the SQLite database with required tables"""
     try:
+        # We don't use the context manager here because we might need specific setup logic
+        # or because we want to ensure specific PRAGMAs that stick (though for files it persists usually)
         with sqlite3.connect(DB_FILE) as conn:
             cursor = conn.cursor()
 
@@ -77,7 +108,7 @@ def init_db():
 def get_weather_cache(cache_key: str) -> Optional[pd.DataFrame]:
     """Retrieve weather data from cache, checking expiration"""
     try:
-        with sqlite3.connect(DB_FILE) as conn:
+        with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -89,7 +120,7 @@ def get_weather_cache(cache_key: str) -> Optional[pd.DataFrame]:
             row = cursor.fetchone()
 
             if row:
-                data_json, created_at_str = row
+                data_json, _ = row
                 try:
                     data_dict = json.loads(data_json)
                     # Convert back to DataFrame
@@ -98,19 +129,19 @@ def get_weather_cache(cache_key: str) -> Optional[pd.DataFrame]:
                     logger.warning(
                         f"Error parsing weather cache data for {cache_key}: {e}"
                     )
-                    # Remove corrupted cache entry
+                    # We need a new cursor or new transaction usually, but with this CM it commits at end.
+                    # To delete immediately, we can execute on same cursor.
                     cursor.execute("DELETE FROM weather_cache WHERE cache_key = ?", (cache_key,))
-                    conn.commit()
             return None
-    except Exception as e:
-        logger.error(f"Error retrieving weather cache for {cache_key}: {e}")
+    except Exception:
+        # Error logged in context manager
         return None
 
 
 def get_raw_weather_cache(cache_key: str) -> Optional[Tuple[dict, datetime]]:
     """Retrieve raw JSON weather data from cache with timestamp"""
     try:
-        with sqlite3.connect(DB_FILE) as conn:
+        with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -130,15 +161,14 @@ def get_raw_weather_cache(cache_key: str) -> Optional[Tuple[dict, datetime]]:
                 )
                 return data_dict, created_at
             return None
-    except Exception as e:
-        logger.error(f"Error retrieving raw weather cache for {cache_key}: {e}")
+    except Exception:
         return None
 
 
 def set_raw_weather_cache(cache_key: str, data: dict):
     """Save raw JSON weather data to cache with expiration"""
     try:
-        with sqlite3.connect(DB_FILE) as conn:
+        with get_db_connection() as conn:
             cursor = conn.cursor()
             data_json = json.dumps(data)
             expires_at = datetime.now().replace(microsecond=0) + pd.Timedelta(seconds=Config.CACHE_TIME)
@@ -150,15 +180,14 @@ def set_raw_weather_cache(cache_key: str, data: dict):
             """,
                 (cache_key, data_json, expires_at),
             )
-            conn.commit()
-    except Exception as e:
-        logger.error(f"Error saving raw weather cache for {cache_key}: {e}")
+    except Exception:
+        pass
 
 
 def set_weather_cache(cache_key: str, df: pd.DataFrame):
     """Save weather data to cache with expiration"""
     try:
-        with sqlite3.connect(DB_FILE) as conn:
+        with get_db_connection() as conn:
             cursor = conn.cursor()
             # Serialize DataFrame to JSON string
             data_json = df.to_json(orient="records", date_format="iso")
@@ -171,15 +200,14 @@ def set_weather_cache(cache_key: str, df: pd.DataFrame):
             """,
                 (cache_key, data_json, expires_at),
             )
-            conn.commit()
-    except Exception as e:
-        logger.error(f"Error saving weather cache for {cache_key}: {e}")
+    except Exception:
+        pass
 
 
 def save_alert(province: str, district: str, forecast_days: int, alert_text: str):
     """Save generated alert to database with expiration"""
     try:
-        with sqlite3.connect(DB_FILE) as conn:
+        with get_db_connection() as conn:
             cursor = conn.cursor()
             expires_at = datetime.now().replace(microsecond=0) + pd.Timedelta(seconds=Config.CACHE_TIME)
             
@@ -190,15 +218,14 @@ def save_alert(province: str, district: str, forecast_days: int, alert_text: str
             """,
                 (province, district, forecast_days, alert_text, expires_at),
             )
-            conn.commit()
-    except Exception as e:
-        logger.error(f"Error saving alert for {province}/{district}: {e}")
+    except Exception:
+        pass
 
 
 def get_alert(province: str, district: str, forecast_days: int) -> Optional[str]:
     """Retrieve alert from database, checking cache expiration"""
     try:
-        with sqlite3.connect(DB_FILE) as conn:
+        with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -211,8 +238,7 @@ def get_alert(province: str, district: str, forecast_days: int) -> Optional[str]
             if row:
                 return row[0]
             return None
-    except Exception as e:
-        logger.error(f"Error retrieving alert for {province}/{district}: {e}")
+    except Exception:
         return None
 
 
@@ -220,7 +246,7 @@ def get_all_alerts(forecast_days: int) -> Dict[str, Dict[str, str]]:
     """Retrieve all alerts for a specific forecast duration, checking cache expiration"""
     alerts = {}
     try:
-        with sqlite3.connect(DB_FILE) as conn:
+        with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute(
                 """
@@ -237,15 +263,15 @@ def get_all_alerts(forecast_days: int) -> Dict[str, Dict[str, str]]:
                 alerts[province][district] = alert_text
 
         return alerts
-    except Exception as e:
-        logger.error(f"Error retrieving all alerts: {e}")
+    except Exception:
+        logger.error(f"Error retrieving all alerts")
         return {}
 
 
 def purge_cache_db(province: str, districts: List[str], forecast_days: int) -> int:
     """Delete alerts from database for specific districts"""
     try:
-        with sqlite3.connect(DB_FILE) as conn:
+        with get_db_connection() as conn:
             cursor = conn.cursor()
 
             if not districts:
@@ -296,10 +322,8 @@ def purge_cache_db(province: str, districts: List[str], forecast_days: int) -> i
                     ),
                 )
 
-            conn.commit()
             return count
-    except Exception as e:
-        logger.error(f"Error purging cache from DB: {e}")
+    except Exception:
         return 0
 
 
@@ -312,7 +336,7 @@ def get_raw_weather_cache_batch(
         return results
 
     try:
-        with sqlite3.connect(DB_FILE) as conn:
+        with get_db_connection() as conn:
             cursor = conn.cursor()
             # SQLite allows many parameters, but it's safe to batch them if > 999
             # For now assuming < 999 keys
@@ -340,58 +364,71 @@ def get_raw_weather_cache_batch(
                     continue
 
             return results
-    except Exception as e:
-        logger.error(f"Error retrieving batch weather cache: {e}")
+    except Exception:
         return results
 
 
 def get_alerts_batch(
     province_district_days: List[Tuple[str, str, int]]
 ) -> Dict[Tuple[str, str, int], str]:
-    """Retrieve multiple alerts in a single query
-    
-    Args:
-        province_district_days: List of (province, district, forecast_days) tuples
-        
-    Returns:
-        Dict mapping (province, district, forecast_days) -> alert_text
-    """
+    """Retrieve multiple alerts in a single query"""
     results = {}
     if not province_district_days:
         return results
 
     try:
-        with sqlite3.connect(DB_FILE) as conn:
+        with get_db_connection() as conn:
             cursor = conn.cursor()
             
             # Build query with OR conditions for each tuple
-            conditions = []
-            params = []
-            for province, district, days in province_district_days:
-                conditions.append("(province = ? AND district = ? AND forecast_days = ?)")
-                params.extend([province, district, days])
+            # Note: A large number of ORs can be slow. A temporary table or IN clause on a composite key (not supported directly in simple SQL w/o tuple syntax) would be better.
+            # SQLite supports tuple IN clause: WHERE (a, b) IN ((1, 2), (3, 4)) in newer versions.
+            # Let's try the tuple syntax for optimization as requested by user ("SQL-side filtering")
             
             query = f"""
                 SELECT province, district, forecast_days, alert_text 
                 FROM alerts 
-                WHERE {' OR '.join(conditions)} AND expires_at > CURRENT_TIMESTAMP
+                WHERE (province, district, forecast_days) IN (VALUES {','.join(['(?, ?, ?)'] * len(province_district_days))})
+                AND expires_at > CURRENT_TIMESTAMP
             """
-            cursor.execute(query, params)
+            
+            # Flatten params
+            params = []
+            for item in province_district_days:
+                params.extend(item)
+                
+            try:
+                cursor.execute(query, params)
+            except sqlite3.OperationalError:
+                # Fallback to OR syntax if strict tuple syntax fails on older SQLite
+                logger.warning("Tuple syntax failed, falling back to OR conditions")
+                conditions = []
+                params = []
+                for province, district, days in province_district_days:
+                    conditions.append("(province = ? AND district = ? AND forecast_days = ?)")
+                    params.extend([province, district, days])
+                
+                query = f"""
+                    SELECT province, district, forecast_days, alert_text 
+                    FROM alerts 
+                    WHERE {' OR '.join(conditions)} AND expires_at > CURRENT_TIMESTAMP
+                """
+                cursor.execute(query, params)
+
             rows = cursor.fetchall()
 
             for province, district, forecast_days, alert_text in rows:
                 results[(province, district, forecast_days)] = alert_text
 
             return results
-    except Exception as e:
-        logger.error(f"Error retrieving batch alerts: {e}")
+    except Exception:
         return results
 
 
 def get_cache_stats() -> Dict[str, int]:
     """Get cache statistics for monitoring"""
     try:
-        with sqlite3.connect(DB_FILE) as conn:
+        with get_db_connection() as conn:
             cursor = conn.cursor()
             
             # Get weather cache count
@@ -415,8 +452,7 @@ def get_cache_stats() -> Dict[str, int]:
                 "expired_weather_count": expired_weather_count,
                 "expired_alerts_count": expired_alerts_count
             }
-    except Exception as e:
-        logger.error(f"Error retrieving cache stats: {e}")
+    except Exception:
         return {
             "weather_cache_count": 0,
             "alerts_count": 0,
@@ -428,7 +464,7 @@ def get_cache_stats() -> Dict[str, int]:
 def cleanup_expired_cache():
     """Remove expired cache entries"""
     try:
-        with sqlite3.connect(DB_FILE) as conn:
+        with get_db_connection() as conn:
             cursor = conn.cursor()
             
             # Delete expired weather cache entries
@@ -439,10 +475,7 @@ def cleanup_expired_cache():
             cursor.execute("DELETE FROM alerts WHERE expires_at <= CURRENT_TIMESTAMP")
             alerts_deleted = cursor.rowcount
             
-            conn.commit()
-            
             logger.info(f"Cleaned up {weather_deleted} expired weather cache entries and {alerts_deleted} expired alerts")
             return weather_deleted + alerts_deleted
-    except Exception as e:
-        logger.error(f"Error cleaning up expired cache: {e}")
+    except Exception:
         return 0

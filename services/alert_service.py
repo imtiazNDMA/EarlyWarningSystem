@@ -6,7 +6,7 @@ from langchain_ollama import ChatOllama
 from langchain_core.messages import SystemMessage, HumanMessage
 from config import Config
 from utils.retry import retry_on_failure
-import database
+from services import database
 from constants import WEATHER_CODE_DESCRIPTIONS
 
 logger = logging.getLogger(__name__)

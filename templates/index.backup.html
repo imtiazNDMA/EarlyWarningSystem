@@ -5,19 +5,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>NEOC AI Based Early Warning System</title>
-
-  <!-- Google Fonts -->
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-
-  <!-- External Stylesheets -->
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-
-  <!-- Neomorphic Design System -->
-  <link rel="stylesheet" href="{{ url_for('static', filename='css/neomorphic.css') }}">
-
 
   <style>
     /* Colors */
@@ -237,8 +226,8 @@
     }
 
     .alert-content {
-      background: #183B4E;
-      border-left: 4px solid #183B4E;
+      background: var(--color-bg-lightgray);
+      border-left: 4px solid var(--color-bg-lightgray);
       padding: 15px;
       border-radius: 8px;
       font-size: 1.2rem;
@@ -276,7 +265,7 @@
     .province-summary-header {
       margin: 20px 0 10px 0;
       padding: 10px 12px;
-      background: #183B4E;
+      background: #fff3cd;
       border-radius: 5px;
       border-left: 4px solid #ffc107;
       font-weight: 600;
@@ -464,7 +453,7 @@
     }
 
     #hello-text {
-      font-family: 'Segoe UI', sans-serif;
+      font-family: 'Segoe UI',  sans-serif;
       flex: 1;
       text-align: center;
       color: #ffffff;
@@ -542,32 +531,40 @@
   </div>
   <!-- Loading Overlay -->
   <div class="loading-overlay" id="loadingOverlay">
-    <div class="neo-card" style="width: 320px; text-align: center;">
-      <div class="neo-spinner mx-auto mb-4"></div>
-      <p id="loadingText" style="color: var(--neo-text-primary); font-weight: 500;">Loading...</p>
+    <div class="loading-spinner">
+      <div class="spinner-border text-primary" role="status">
+        <span class="visually-hidden">Loading...</span>
+      </div>
+      <p class="mt-3" id="loadingText">Loading...</p>
     </div>
   </div>
 
-  <!-- Mobile Toggle Buttons -->
-  <button class="neo-btn neo-btn-accent mobile-toggle mobile-toggle-left" onclick="toggleSidebar('left')"
-    aria-label="Toggle filters">
-    <i class="fas fa-sliders-h"></i>
-  </button>
-  <button class="neo-btn neo-btn-accent mobile-toggle mobile-toggle-right" onclick="toggleSidebar('right')"
-    aria-label="Toggle alerts">
-    <i class="fas fa-bell"></i>
-  </button>
-
-
+  <!-- Top Header -->
+  <!--<div class="top-header">
+    <img src="static/NDMA_Pakistan_Logo.png" alt="App Logo" class="logo" />
+    <h4 class="title">
+      <span id="typed-title"></span>
+    </h4>
+    <script src="https://cdn.jsdelivr.net/npm/typed.js@2.0.12"></script>
+    <script>
+      document.addEventListener('DOMContentLoaded', function () {
+        new Typed('#typed-title', {
+          strings: ['NEOC AI-Based Early Warning System'],
+          typeSpeed: 45,
+          backSpeed: 0,
+          showCursor: true,
+          loop: false
+        });
+      });
+    </script>
+  </div>-->
 
   <div class="dashboard-container">
     <!-- Left Sidebar -->
     <div class="sidebar-left">
       <div class="sidebar-section">
         <label class="form-label">Forecast Days</label>
-        <select class="form-select mb-3" name="forecast_days" id="forecast_days" data-bs-toggle="tooltip"
-          data-bs-placement="right" title="Number of days to forecast weather conditions"
-          aria-label="Select forecast duration">
+        <select class="form-select mb-3" name="forecast_days" id="forecast_days">
           {% for days in range(1, 8) %}
           <option value="{{ days }}" {% if days==selected_forecast_days %}selected{% endif %}>
             {{ days }} day{% if days > 1 %}s{% endif %}
@@ -576,40 +573,29 @@
         </select>
 
         <label class="form-label">Select Region</label>
-        <select class="form-select mb-3" name="province" id="province" data-bs-toggle="tooltip"
-          data-bs-placement="right" title="Choose a province to view district-level forecasts"
-          aria-label="Select province">
+        <select class="form-select mb-3" name="province" id="province">
           {% for p in provinces %}
           <option value="{{ p }}" {% if p==selected_province %}selected{% endif %}>{{ p }}</option>
           {% endfor %}
         </select>
 
         <label class="form-label">Filter Districts</label>
-
-        <!-- District Search -->
-        <div class="mb-3">
-          <input type="text" class="form-control neo-input" id="districtSearch" placeholder="🔍 Search districts..."
-            oninput="filterDistricts(this.value)" aria-label="Search districts">
-        </div>
-
         <div class="d-grid gap-2 mb-2">
-          <button type="button" class="neo-btn  neo-btn-sm" onclick="selectAllDistricts()"
-            aria-label="Select all districts">
+          <button type="button" class="btn btn-sidebar" onclick="selectAllDistricts()">
             <i class="fas fa-check-circle"></i> Select All
           </button>
-          <button type="button" class="neo-btn  neo-btn-sm" onclick="deselectAllDistricts()"
-            aria-label="Deselect all districts">
+          <button type="button" class="btn btn-sidebar" onclick="deselectAllDistricts()">
             <i class="fas fa-times-circle"></i> Deselect All
           </button>
         </div>
 
         <div class="district-filter" id="districtFilter">
           {% for district in districts %}
-          <div class="form-check d-flex align-items-center gap-2 mb-2">
-            <input class="neo-checkbox" type="checkbox" name="districts" value="{{ district }}"
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" name="districts" value="{{ district }}"
               id="district-{{ loop.index }}" {% if district in selected_districts or selected_districts|length==0
               %}checked{% endif %}>
-            <label class="form-check-label" for="district-{{ loop.index }}" style="cursor: pointer;">
+            <label class="form-check-label" for="district-{{ loop.index }}">
               {{ district }}
             </label>
           </div>
@@ -618,27 +604,21 @@
       </div>
 
       <div class="d-grid gap-2">
-        <button type="button" class="neo-btn neo-btn-accent" onclick="generateForecastAndAlerts()"
-          data-bs-toggle="tooltip" data-bs-placement="right"
-          title="Generate both weather forecasts and early warning alerts in one step" aria-label="Run full analysis">
-          <i class="fas fa-bolt"></i> <span>Run Analysis</span>
+        <button type="button" class="btn btn-sidebar" onclick="generateForecast()">
+          <i class="fas fa-search"></i> <span>Get Forecast</span>
         </button>
-      </div>
-
-      <div class="mt-4 pt-3" style="border-top: 1px solid rgba(255,255,255,0.1);">
-        <label class="form-label mb-2"
-          style="font-size: var(--text-xs); color: var(--neo-text-muted); text-transform: uppercase; letter-spacing: 1px;">System
-          Tools</label>
-        <div class="d-flex gap-2">
-          <button type="button" class="neo-btn neo-btn-sm flex-fill" id="blinkingToggle" onclick="toggleAnimation()"
-            data-bs-toggle="tooltip" data-bs-placement="top" title="Toggle map highlighting animation">
-            <i class="fas fa-eye"></i> <span>Animation</span>
-          </button>
-          <button type="button" class="neo-btn neo-btn-sm neo-btn-danger flex-fill" onclick="purgeCache()"
-            data-bs-toggle="tooltip" data-bs-placement="top" title="Force refresh by clearing data cache">
-            <i class="fas fa-trash-alt"></i> <span>Purge Cache</span>
-          </button>
-        </div>
+        <button type="button" class="btn btn-sidebar" onclick="generateAlerts()">
+          <i class="fas fa-bell"></i> <span>Generate Alerts</span>
+        </button>
+        <button type="button" class="btn btn-sidebar" onclick="generateForecastAndAlerts()">
+          <i class="fas fa-bolt"></i> <span>Generate Forecast & Alerts</span>
+        </button>
+        <button type="button" class="btn btn-sidebar" id="blinkingToggle" onclick="toggleAnimation()">
+          <i class="fas fa-eye"></i> <span>Disable Animation</span>
+        </button>
+        <button type="button" class="btn btn-sidebar btn-danger-sidebar" onclick="purgeCache()">
+          <i class="fas fa-trash-alt"></i> <span>Purge Cache</span>
+        </button>
       </div>
     </div>
 
@@ -657,30 +637,22 @@
       </div>
       <div class="sidebar-scrollable">
         <div class="alert-content" id="alertContent">
-          <div class="no-alerts">
-            <i class="fas fa-info-circle"
-              style="font-size: 3rem; color: var(--neo-text-muted); margin-bottom: var(--space-4);"></i>
-            <p style="margin: 0; font-size: var(--text-lg); font-weight: 600; color: var(--neo-text-secondary);">No
-              Alerts Yet</p>
-            <p style="margin-top: var(--space-2); font-size: var(--text-sm); color: var(--neo-text-muted);">Select
-              districts from the left sidebar and click <strong>"Generate Alerts"</strong> to view early warnings.</p>
-          </div>
+          No alerts generated. Please select districts and click "Generate Alerts".
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Scripts -->
-  <script src="https://cdn.jsdelivr.net/npm/typed.js@2.0.12"></script>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Footer -->
+  <footer class="footer">
+  </footer>
 
-  <!-- Toast Notification System -->
-  <script src="{{ url_for('static', filename='js/toast.js') }}"></script>
-
+   <script src="https://cdn.jsdelivr.net/npm/typed.js@2.0.12"></script>
+   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
     // Global variables
     let currentProvince = "{{ selected_province }}";
-    let currentForecastDays = Number("{{ selected_forecast_days or 1 }}");
+    let currentForecastDays = {{ selected_forecast_days }};
     let currentSelectedDistrict = null;
     let currentBasemap = "Mapbox Satellite";
     let isBlinkingActive = true;
@@ -702,10 +674,10 @@
       document.getElementById('loadingOverlay').style.display = 'none';
     }
 
-    // Show notification using toast system (REPLACED alert())
+    // Show notification
     function showNotification(message, type = 'success') {
       console.log(`${type}: ${message}`);
-      toast.show(message, type);
+      alert(`${type.toUpperCase()}: ${message}`);
     }
 
     // Get selected districts
@@ -727,10 +699,10 @@
 
         data.districts.forEach((district, index) => {
           const div = document.createElement('div');
-          div.className = 'form-check d-flex align-items-center gap-2 mb-2';
+          div.className = 'form-check';
 
           const input = document.createElement('input');
-          input.className = 'neo-checkbox';
+          input.className = 'form-check-input';
           input.type = 'checkbox';
           input.name = 'districts';
           input.value = district;
@@ -741,9 +713,9 @@
           label.className = 'form-check-label';
           label.htmlFor = `district-${index + 1}`;
           label.textContent = district;
-          label.style.cursor = 'pointer';
 
           // Add click event to load district alert when label is clicked
+          label.style.cursor = 'pointer';
           label.addEventListener('click', () => {
             loadDistrictAlert(province, district);
           });
@@ -1124,11 +1096,11 @@
       // Render District Alerts
       for (const [district, msg] of Object.entries(districtAlerts)) {
         html += `
-          <div class="district-alert-box">
-            <div class="district-alert-header">
-              <i class="fas fa-map-marker-alt"></i> ${district}
+          <div class="district-alert-box" style="background-color: rgba(23, 162, 184, 0.1); border-left: 4px solid #17a2b8; padding: 10px; margin-bottom: 10px; border-radius: 4px;">
+            <div class="district-alert-header" style="color: #0c5460; margin-bottom: 5px; background: transparent; padding: 0; border: none;">
+              <b>${district}</b>
             </div>
-            <div class="all-alerts-message">
+            <div class="alert-line all-alerts-message" style="font-size: 0.9em; color: #333;">
               ${msg}
             </div>
           </div>
@@ -1138,18 +1110,16 @@
       // Render Region Summary
       if (regionSummary) {
         html += `
-          <div class="province-summary-header">
-            <div class="summary-title">
-              <i class="fas fa-info-circle"></i> Region's Summary
-            </div>
-            <div class="all-alerts-message">${regionSummary}</div>
+          <div class="province-summary-header" style="background-color: rgba(255, 193, 7, 0.1); border-left: 4px solid #ffc107; padding: 10px; margin-top: 20px; border-radius: 4px;">
+            <div style="color: #856404; margin-bottom: 5px;"><b>Region's Summary</b></div>
+            <div class="all-alerts-message" style="font-size: 0.9em; color: #333;">${regionSummary}</div>
           </div>
         `;
       }
 
       // Fallback if regex fails (e.g. raw text display)
       if (Object.keys(districtAlerts).length === 0 && !regionSummary) {
-        html += `<div class="all-alerts-message">${alertText.replace(/\n/g, '<br>')}</div>`;
+        html += `<div class="alert-line all-alerts-message">${alertText.replace(/\n/g, '<br>')}</div>`;
       }
 
       return html;
@@ -1168,78 +1138,21 @@
       }
     }
 
-    // Filter districts based on search term
-    function filterDistricts(searchTerm) {
-      const checkboxes = document.querySelectorAll('#districtFilter .form-check');
-      const term = searchTerm.toLowerCase().trim();
-
-      let visibleCount = 0;
-      checkboxes.forEach(checkbox => {
-        const label = checkbox.querySelector('label').textContent.toLowerCase();
-        const isVisible = label.includes(term);
-        checkbox.style.display = isVisible ? 'block' : 'none';
-        if (isVisible) visibleCount++;
-      });
-
-      // Show message if no results
-      const existingMsg = document.getElementById('no-results-msg');
-      if (existingMsg) existingMsg.remove();
-
-      if (visibleCount === 0 && term) {
-        const msg = document.createElement('div');
-        msg.id = 'no-results-msg';
-        msg.className = 'text-muted text-center py-2';
-        msg.textContent = 'No districts found';
-        document.getElementById('districtFilter').appendChild(msg);
-      }
-    }
-
     function selectAllDistricts() {
       const checkboxes = document.querySelectorAll('#districtFilter input[type="checkbox"]');
-      checkboxes.forEach(checkbox => {
-        if (checkbox.parentElement.style.display !== 'none') {
-          checkbox.checked = true;
-        }
-      });
+      checkboxes.forEach(checkbox => checkbox.checked = true);
     }
 
     function deselectAllDistricts() {
       const checkboxes = document.querySelectorAll('#districtFilter input[type="checkbox"]');
-      checkboxes.forEach(checkbox => {
-        if (checkbox.parentElement.style.display !== 'none') {
-          checkbox.checked = false;
-        }
-      });
+      checkboxes.forEach(checkbox => checkbox.checked = false);
     }
-
-    // Keyboard shortcuts for accessibility
-    document.addEventListener('keydown', (e) => {
-      // Ctrl+G or Ctrl+A: Run Full Analysis
-      if ((e.ctrlKey && e.key === 'g') || (e.ctrlKey && e.key === 'a' && e.target.tagName !== 'INPUT' && e.target.tagName !== 'TEXTAREA')) {
-        e.preventDefault();
-        generateForecastAndAlerts();
-      }
-      // Escape: Clear search
-      if (e.key === 'Escape') {
-        const searchInput = document.getElementById('districtSearch');
-        if (searchInput && searchInput.value) {
-          searchInput.value = '';
-          filterDistricts('');
-          searchInput.focus();
-        }
-      }
-    });
 
     // Generate both forecasts and alerts
     async function generateForecastAndAlerts() {
       const province = document.getElementById('province').value;
       const forecastDays = document.getElementById('forecast_days').value;
       const districts = getSelectedDistricts();
-
-      if (districts.length === 0) {
-        toast.warning('Please select at least one district.');
-        return;
-      }
 
       showLoading(`Generating forecasts and alerts for ${forecastDays} day(s)...`);
 
@@ -1289,8 +1202,6 @@
       }
     }
 
-
-
     // Update province when changed
     document.getElementById('province').addEventListener('change', function () {
       const selectedProvince = this.value;
@@ -1298,23 +1209,33 @@
       currentSelectedDistrict = null; // Reset selected district
     });
 
-    // Initialize on page load
-    document.addEventListener('DOMContentLoaded', function () {
-      // Initialize Bootstrap tooltips
-      const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-      tooltipTriggerList.map(function (tooltipTriggerEl) {
-        return new bootstrap.Tooltip(tooltipTriggerEl, {
-          delay: { show: 500, hide: 100 }
-        });
-      });
-
-      // Auto-load alerts on page load (UX improvement)
-      console.log('Page loaded, auto-loading alerts...');
-      setTimeout(() => {
-        loadAllAlerts();
-        toast.info('Welcome! Alerts loaded automatically.', 3000);
-      }, 1000);
+    // Update the forecast days change event listener
+    document.getElementById('forecast_days').addEventListener('change', function () {
+      currentForecastDays = this.value;
+      refreshMapOnDaysChange();
     });
+
+    // Refresh map when days change
+    async function refreshMapOnDaysChange() {
+      const forecastDays = document.getElementById('forecast_days').value;
+      const districts = getSelectedDistricts();
+
+      showLoading('Refreshing map...');
+
+      try {
+        const response = await fetch(`/refresh_map/${forecastDays}?basemap=${encodeURIComponent(currentBasemap)}&districts=${encodeURIComponent(districts.join(','))}`);
+        const result = await response.json();
+
+        if (result.map_html) {
+          const mapContainer = document.querySelector('.map-content');
+          mapContainer.innerHTML = result.map_html;
+        }
+      } catch (error) {
+        console.error('Error refreshing map:', error);
+      } finally {
+        hideLoading();
+      }
+    }
   </script>
 </body>
 

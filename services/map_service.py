@@ -4,13 +4,13 @@ Map generation service using Folium
 
 import json
 import logging
-import os
+
 from typing import Dict, Tuple
 import folium
 import geopandas as gpd
 from config import Config
 from utils.validation import sanitize_filename
-import database
+from services import database
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +22,9 @@ class MapService:
         self.mapbox_token = Config.MAPBOX_TOKEN
         self._district_to_province = {}
         self._province_index_built = False
+        self._centroid_cache: Dict[str, Tuple[float, float]] = {}
+
+        self._boundary_gdf = None
 
         # District name normalization mapping (models.py name -> GeoJSON name)
         self._district_aliases = {
@@ -85,6 +88,16 @@ class MapService:
 
         self._province_index_built = True
         logger.debug(f"Built province index with {len(self._district_to_province)} districts")
+
+    def _get_boundary_gdf(self):
+        """Lazy load boundary GeoDataFrame"""
+        if self._boundary_gdf is None:
+            try:
+                self._boundary_gdf = gpd.read_file("static/boundary/district.geojson")
+            except Exception as e:
+                logger.error(f"Error loading boundary file: {e}")
+                return None
+        return self._boundary_gdf
 
     def create_map(
         self,
@@ -228,180 +241,38 @@ class MapService:
             folium.Element(js_code % (m.get_name(), "true" if blinking_active else "false"))
         )
 
-        # Add GeoJSON boundary layer
-        try:
-            districts_gpd = gpd.read_file("static/boundary/district.geojson")
-            pakistan_boundary = json.loads(districts_gpd.to_json())
-
-            # Normalize selected districts for comparison
-            selected_districts_normalized = []
-            for d in selected_districts:
-                # Apply alias mapping if exists
-                normalized = self._district_aliases.get(d, d)
-                # Normalize: replace spaces with underscores, uppercase
-                normalized = normalized.replace(" ", "_").upper()
-                selected_districts_normalized.append(normalized)
-
-            def get_style(feature):
-                # Handle both 'District' and 'DISTRICT' property keys
-                props = feature["properties"]
-                district_name = props.get("District") or props.get("DISTRICT") or ""
-                # Normalize GeoJSON district name to match selected districts format: spaces->underscores, uppercase
-                district_name_normalized = district_name.replace(" ", "_").upper()
-                is_selected = district_name_normalized in selected_districts_normalized
-
-                style = {
-                    "color": "black",
-                    "weight": 0.9,
-                    "fillOpacity": 0.3,
-                }
-
-                if is_selected:
-                    style["fillColor"] = "#3b4cc0"  # Start with cool blue
-                    style["color"] = "#3b4cc0"
-                    style["fillOpacity"] = 0.5
-
-                return style
-
-            # Add tooltips to each feature manually to avoid field validation issues
-            for feature in pakistan_boundary["features"]:
-                props = feature["properties"]
-                district = props.get("District", props.get("DISTRICT", "Unknown"))
-                province = props.get("Province", props.get("PROVINCE", "Unknown"))
-                # Clean up province name (remove underscores)
-                province_clean = province.replace("_", " ")
-                feature["properties"]["tooltip"] = f"{district} ({province_clean})"
-
-            gj = folium.GeoJson(
-                pakistan_boundary,
-                name="Pakistan District Boundary",
-                style_function=get_style,
-                tooltip=folium.GeoJsonTooltip(fields=["tooltip"], aliases=[""], localize=False),
-                highlight_function=lambda feature: {
-                    "fillColor": "orange",
-                    "color": "red",
-                    "weight": 2,
-                    "fillOpacity": 0.7,
-                },
-            ).add_to(m)
-
-            # Apply blinking classes to selected districts
-            if selected_districts:
-                blinking_js = """
-                <script>
-                (function() {
-                    var gjLayerName = '%s';
-                    var selectedDistricts = %s;
-                    
-                    function applyBlinking() {
-                        var gjLayer = window[gjLayerName];
-                        if (!gjLayer) {
-                            setTimeout(applyBlinking, 100);
-                            return;
-                        }
-                        
-                        gjLayer.eachLayer(function(layer) {
-                            var props = layer.feature.properties;
-                            var district = (props.District || props.DISTRICT || '');
-                            // Normalize district name to match selected districts format: spaces->underscores, uppercase
-                            var districtNormalized = district.replace(/ /g, '_').toUpperCase();
-                            if (selectedDistricts.includes(districtNormalized)) {
-                                var element = layer._path || (layer.getElement ? layer.getElement() : null);
-                                if (element) {
-                                    element.classList.add('blinking-district');
-                                    // Randomize delay and duration for organic alternating effect
-                                    var delay = (Math.random() * -4).toFixed(2) + 's'; 
-                                    var duration = (3 + Math.random() * 2).toFixed(2) + 's';
-                                    element.style.animationDelay = delay;
-                                    element.style.animationDuration = duration;
-                                }
-                            }
-                        });
-                    }
-
-                    if (document.readyState === 'complete') {
-                        applyBlinking();
-                    } else {
-                        window.addEventListener('load', applyBlinking);
-                        // Fallback for dynamic injection
-                        setTimeout(applyBlinking, 500);
-                    }
-                })();
-                </script>
-                """
-                m.get_root().html.add_child(
-                    folium.Element(
-                        blinking_js % (gj.get_name(), json.dumps(selected_districts_normalized))
-                    )
-                )
-
-            # Hide static district names as they are visible on hover
-            m.fit_bounds(gj.get_bounds())
-
-        except FileNotFoundError:
-            logger.warning("Pakistan District Boundary file not found")
-        except Exception as e:
-            logger.error(f"Error loading boundary data: {e}")
-
-        # Calculate centroids from GeoJSON if available, otherwise use provided locations
-        actual_locations = locations.copy()
-        try:
-            districts_gpd = gpd.read_file("static/boundary/district.geojson")
-            # Calculate centroids for each district
-            districts_gpd["centroid"] = districts_gpd.geometry.centroid
-
-            # Process districts with alias mapping
-            processed_districts = 0
-            for idx, row in districts_gpd.iterrows():
-                geojson_district = row.get("District") or row.get("DISTRICT", "")
-
-                # Check if this GeoJSON district matches any of our locations (with alias mapping)
-                matched_district = None
-                for location_district in actual_locations.keys():
-                    # Check direct match
-                    if geojson_district == location_district:
-                        matched_district = location_district
-                        break
-                    # Check reverse alias match (GeoJSON name -> models.py name)
-                    for models_name, geojson_name in self._district_aliases.items():
-                        if geojson_name == geojson_district and location_district == models_name:
-                            matched_district = location_district
-                            break
-                    if matched_district:
-                        break
-
-                if matched_district:
-                    centroid = row["centroid"]
-                    lat, lng = centroid.y, centroid.x
-
-                    # Use the calculated centroid
-                    actual_locations[matched_district] = (lat, lng)
-                    processed_districts += 1
-                    logger.debug(
-                        f"Using calculated centroid for {matched_district} (GeoJSON: {geojson_district}): ({lat:.4f}, {lng:.4f})"
-                    )
-
-            logger.info(f"Calculated centroids for {processed_districts} districts from GeoJSON")
-        except Exception as e:
-            logger.warning(
-                f"Could not calculate centroids from GeoJSON, using provided coordinates: {e}"
-            )
-
-        # Add weather markers as a controllable layer group
-        marker_layer = folium.FeatureGroup(name="Weather Markers", show=True).add_to(m)
-
-        # Build and use district-to-province index for O(1) lookups
+        # 1. Pre-load all forecast and alert data
         self._build_province_index()
         district_to_province = self._district_to_province
+        
+        actual_locations = locations.copy()
+        
+        # Load and cache centroids if not already done (still needed for initial zoom/bounds if no GeoJSON)
+        if not self._centroid_cache:
+            try:
+                districts_gpd = self._get_boundary_gdf()
+                if districts_gpd is not None:
+                    for centroid, (_, row) in zip(districts_gpd.geometry.centroid, districts_gpd.iterrows()):
+                        geojson_district = row.get("District") or row.get("DISTRICT", "")
+                        if geojson_district:
+                            self._centroid_cache[geojson_district] = (centroid.y, centroid.x)
+            except Exception as e:
+                logger.warning(f"Error loading centroids from GeoJSON: {e}")
 
-        # Pre-load all forecast and alert data to eliminate O(n²) file I/O
+        # Update locations with cached centroids
+        if self._centroid_cache:
+            for district in actual_locations.keys():
+                if district in self._centroid_cache:
+                    actual_locations[district] = self._centroid_cache[district]
+                else:
+                    geojson_name = self._district_aliases.get(district)
+                    if geojson_name and geojson_name in self._centroid_cache:
+                        actual_locations[district] = self._centroid_cache[geojson_name]
+
         forecast_data_cache = {}
         alert_data_cache = {}
         current_weather_cache = {}
-
-        logger.debug(f"Pre-loading data for {len(actual_locations)} districts using batch queries")
-
-        # Build batch query lists
+        
         weather_cache_keys = []
         alert_query_tuples = []
         
@@ -411,29 +282,23 @@ class MapService:
             weather_cache_keys.append(cache_key)
             alert_query_tuples.append((province, district, forecast_days))
 
-        # Execute batch queries
         weather_batch = database.get_raw_weather_cache_batch(weather_cache_keys)
         alerts_batch = database.get_alerts_batch(alert_query_tuples)
 
-        # Process batch results
         for district in actual_locations.keys():
             province = district_to_province.get(district, "Unknown")
             cache_key = f"weather_{forecast_days}_{province}_{sanitize_filename(district)}"
             
-            # Process weather data
             if cache_key in weather_batch:
                 weather_data, _ = weather_batch[cache_key]
-                current_weather = weather_data.get("current_weather")
+                current_weather_cache[district] = weather_data.get("current_weather")
                 daily = weather_data.get("daily", {})
-                
-                current_weather_cache[district] = current_weather
-                
                 if daily:
                     try:
                         forecast_days_data = []
                         time_data = daily.get("time", [])
                         for i in range(min(forecast_days, len(time_data))):
-                            day_data = {
+                            forecast_days_data.append({
                                 "Date": time_data[i],
                                 "Max Temp (°C)": daily.get("temperature_2m_max", [])[i],
                                 "Min Temp (°C)": daily.get("temperature_2m_min", [])[i],
@@ -443,56 +308,123 @@ class MapService:
                                 "Wind Gusts (km/h)": daily.get("windgusts_10m_max", [])[i],
                                 "Snowfall (cm)": daily.get("snowfall_sum", [])[i] or 0,
                                 "UV Index Max": daily.get("uv_index_max", [])[i],
-                            }
-                            forecast_days_data.append(day_data)
+                            })
                         forecast_data_cache[district] = forecast_days_data
-                    except Exception as e:
-                        logger.error(f"Error processing forecast for {district}: {e}")
-                        forecast_data_cache[district] = None
-                else:
-                    forecast_data_cache[district] = None
+                    except: forecast_data_cache[district] = None
+                else: forecast_data_cache[district] = None
             else:
                 forecast_data_cache[district] = None
                 current_weather_cache[district] = None
             
-            # Process alert data
             alert_key = (province, district, forecast_days)
             alert_data_cache[district] = alerts_batch.get(alert_key, "No alert available")
 
-        logger.debug(
-            f"Batch loaded {len(forecast_data_cache)} forecast entries and {len(alert_data_cache)} alert entries"
-        )
+        # 2. Add GeoJSON boundary layer with integrated popups
+        try:
+            districts_gpd = self._get_boundary_gdf()
+            if districts_gpd is None:
+                raise FileNotFoundError("Boundary file not loaded")
+                
+            pakistan_boundary = json.loads(districts_gpd.to_json())
 
-        for district, (lat, lon) in actual_locations.items():
-            province = district_to_province.get(district, "Unknown")
+            # Normalize selected districts
+            selected_districts_normalized = []
+            for d in selected_districts:
+                normalized = self._district_aliases.get(d, d).replace(" ", "_").upper()
+                selected_districts_normalized.append(normalized)
 
-            # Use pre-loaded data instead of file I/O
-            forecast_data = forecast_data_cache.get(district)
-            current_weather = current_weather_cache.get(district)
-            alert_data = alert_data_cache.get(district)
+            def get_style(feature):
+                props = feature["properties"]
+                district_name = props.get("District") or props.get("DISTRICT") or ""
+                district_name_normalized = district_name.replace(" ", "_").upper()
+                is_selected = district_name_normalized in selected_districts_normalized
 
-            # Build popup HTML
-            popup_html = self._build_popup_html(
-                district,
-                province,
-                forecast_days,
-                forecast_data,
-                alert_data,
-                current_weather,
-            )
+                style = {"color": "black", "weight": 0.9, "fillOpacity": 0.3}
+                if is_selected:
+                    style.update({"fillColor": "#3b4cc0", "color": "#3b4cc0", "fillOpacity": 0.5})
+                return style
 
-            # Set marker color based on precipitation
-            color = self._get_marker_color(forecast_data)
+            for feature in pakistan_boundary["features"]:
+                props = feature["properties"]
+                district = props.get("District", props.get("DISTRICT", "Unknown"))
+                province = props.get("Province", props.get("PROVINCE", "Unknown"))
+                
+                # Attach Tooltip
+                feature["properties"]["tooltip"] = f"{district} ({province.replace('_', ' ')})"
+                
+                # Attach Popup HTML (Nowcasting)
+                # Find the corresponding data in our model (handle potential name diffs)
+                model_district = district
+                # Reverse alias check or just check if it exists in cache
+                if model_district not in forecast_data_cache:
+                    # Slow fallback for direct match or alias
+                    found = False
+                    for d, aliased in self._district_aliases.items():
+                        if aliased == district:
+                            model_district = d
+                            found = True
+                            break
+                    if not found and district not in forecast_data_cache:
+                        model_district = district # Default back
 
-            # Create marker at district centroid
-            folium.Marker(
-                [lat, lon],
-                popup=folium.Popup(
-                    f"<div class='district-popup' style='font-size: 1.6em;' contenteditable='false'>{popup_html}</div>",
-                    max_width=450,
-                ),
-                icon=folium.Icon(color=color, icon="info-sign"),
-            ).add_to(marker_layer)
+                popup_html = self._build_popup_html(
+                    model_district,
+                    province.replace('_', ' '),
+                    forecast_days,
+                    forecast_data_cache.get(model_district),
+                    alert_data_cache.get(model_district),
+                    current_weather_cache.get(model_district),
+                )
+                feature["properties"]["nowcast_html"] = f"<div class='district-popup' style='font-size: 1.2rem;' contenteditable='false'>{popup_html}</div>"
+
+            gj = folium.GeoJson(
+                pakistan_boundary,
+                name="Pakistan District Boundary",
+                style_function=get_style,
+                tooltip=folium.GeoJsonTooltip(fields=["tooltip"], aliases=[""], localize=False),
+                popup=folium.GeoJsonPopup(fields=["nowcast_html"], labels=False, max_width=450),
+                highlight_function=lambda feature: {
+                    "fillColor": "orange",
+                    "color": "red",
+                    "weight": 2,
+                    "fillOpacity": 0.7,
+                },
+            ).add_to(m)
+
+            if selected_districts:
+                blinking_js = """
+                <script>
+                (function() {
+                    var gjLayerName = '%s';
+                    var selectedDistricts = %s;
+                    function applyBlinking() {
+                        var gjLayer = window[gjLayerName];
+                        if (!gjLayer) { setTimeout(applyBlinking, 100); return; }
+                        gjLayer.eachLayer(function(layer) {
+                            var props = layer.feature.properties;
+                            var district = (props.District || props.DISTRICT || '');
+                            var districtNormalized = district.replace(/ /g, '_').toUpperCase();
+                            if (selectedDistricts.includes(districtNormalized)) {
+                                var element = layer._path || (layer.getElement ? layer.getElement() : null);
+                                if (element) {
+                                    element.classList.add('blinking-district');
+                                    element.style.animationDelay = (Math.random() * -4).toFixed(2) + 's'; 
+                                    element.style.animationDuration = (3 + Math.random() * 2).toFixed(2) + 's';
+                                }
+                            }
+                        });
+                    }
+                    if (document.readyState === 'complete') { applyBlinking(); } 
+                    else { window.addEventListener('load', applyBlinking); setTimeout(applyBlinking, 500); }
+                })();
+                </script>
+                """
+                m.get_root().html.add_child(folium.Element(blinking_js % (gj.get_name(), json.dumps(selected_districts_normalized))))
+
+            m.fit_bounds(gj.get_bounds())
+
+        except Exception as e:
+            logger.error(f"Error building map geometry/popups: {e}")
 
         folium.LayerControl().add_to(m)
         return m._repr_html_()

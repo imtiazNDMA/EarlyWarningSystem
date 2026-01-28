@@ -63,11 +63,9 @@ class TestMapService:
         color = self.service._get_marker_color(forecast_data)
         assert color == "red"
 
-    @patch("builtins.open", create=True)
-    @patch("os.path.exists")
-    def test_load_forecast_data_exists(self, mock_exists, mock_open):
+    @patch("services.map_service.database")
+    def test_load_forecast_data_exists(self, mock_db):
         """Test loading existing forecast data"""
-        mock_exists.return_value = True
         mock_data = {
             "daily": {
                 "time": ["2024-01-01"],
@@ -79,12 +77,12 @@ class TestMapService:
                 "windgusts_10m_max": [20.0],
                 "snowfall_sum": [0.0],
                 "uv_index_max": [5.0],
-            }
+            },
+            "current_weather": {"temperature": 20, "windspeed": 10}
         }
-
-        import json
-
-        mock_open.return_value.__enter__.return_value.read.return_value = json.dumps(mock_data)
+        
+        # Mock DB return: (data, created_at)
+        mock_db.get_raw_weather_cache.return_value = (mock_data, "2024-01-01 12:00:00")
 
         result = self.service._load_forecast_data("PUNJAB", "LAHORE", 1)
 
@@ -93,12 +91,46 @@ class TestMapService:
         forecast_data, current_weather = result
         assert forecast_data is not None
         assert len(forecast_data) == 1
+        assert current_weather is not None
 
-    @patch("os.path.exists")
-    def test_load_forecast_data_not_exists(self, mock_exists):
+    @patch("services.map_service.database")
+    def test_load_forecast_data_not_exists(self, mock_db):
         """Test loading non-existent forecast data"""
-        mock_exists.return_value = False
+        mock_db.get_raw_weather_cache.return_value = None
 
         result = self.service._load_forecast_data("PUNJAB", "NONEXISTENT", 1)
 
         assert result == (None, None)
+
+    @patch("services.map_service.folium.Map")
+    @patch("services.map_service.gpd.read_file")
+    def test_create_map_caches_centroids(self, mock_read_file, mock_map):
+        """Test that centroids are cached after first map creation"""
+        locations = {"Lahore": (31.5204, 74.3587)}
+        
+        # Mock GeoDataFrame with centroid
+        mock_gdf = MagicMock()
+        mock_gdf.to_json.return_value = '{"type": "FeatureCollection", "features": []}'
+        
+        # Mock row iteration
+        row_mock = MagicMock()
+        row_mock.get.side_effect = lambda k: "Lahore" if k in ["District", "DISTRICT"] else None
+        centroid_mock = MagicMock()
+        centroid_mock.x = 74.0
+        centroid_mock.y = 31.0
+        row_mock.__getitem__.return_value = centroid_mock # row["centroid"]
+        
+        mock_gdf.iterrows.return_value = [(0, row_mock)]
+        mock_gdf.geometry.centroid = [centroid_mock] # list of centroids matching iterrows count
+        
+        mock_read_file.return_value = mock_gdf
+        
+        # First call - should read file
+        self.service.create_map(locations, 1)
+        assert len(self.service._centroid_cache) > 0
+        assert "Lahore" in self.service._centroid_cache
+        assert mock_read_file.call_count == 1
+        
+        # Second call - should NOT read file
+        self.service.create_map(locations, 1)
+        assert mock_read_file.call_count == 1  # Still 1
