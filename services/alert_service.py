@@ -126,8 +126,9 @@ class AlertService:
         - Make sure to use the exact district names and their forecasts as provided.
         - IMPORTANT: Only generate alerts for the districts whose forecasts are provided above. Do not generate alerts for any other districts.
 
+
         Example format:
-        **Islamabad**: Expect sunny weather with highs of 25°C.
+        **Islamabad**: Expect sunny weather with temperatures reaching highs of 25°C and lows of 15°C.
         **Rawalpindi**: Partly cloudy with chance of light rain.
 
         Region's Summary: Overall conditions...
@@ -142,7 +143,7 @@ class AlertService:
             ]
             response = self.client.invoke(messages)
             alert_text = response.content
-            print(alert_text)  # For debugging purposes
+
             logger.info(f"Generated alerts for {province} ({len(forecasts)} districts)")
             return alert_text
 

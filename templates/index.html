@@ -1177,8 +1177,16 @@
       checkboxes.forEach(checkbox => {
         const label = checkbox.querySelector('label').textContent.toLowerCase();
         const isVisible = label.includes(term);
-        checkbox.style.display = isVisible ? 'block' : 'none';
-        if (isVisible) visibleCount++;
+        
+        // Use Bootstrap d-none class for reliable toggling
+        if (isVisible) {
+          checkbox.classList.remove('d-none');
+          checkbox.classList.add('d-flex'); // Restore d-flex if it was there
+          visibleCount++;
+        } else {
+          checkbox.classList.add('d-none');
+          checkbox.classList.remove('d-flex');
+        }
       });
 
       // Show message if no results
@@ -1192,6 +1200,19 @@
         msg.textContent = 'No districts found';
         document.getElementById('districtFilter').appendChild(msg);
       }
+    }
+
+    // Attach listeners to initial static district list
+    function attachDistrictListeners() {
+      const labels = document.querySelectorAll('#districtFilter .form-check-label');
+      labels.forEach(label => {
+        label.style.cursor = 'pointer';
+        label.addEventListener('click', function() {
+           const district = this.textContent.trim();
+           // Use the global currentProvince variable which is set on load
+           loadDistrictAlert(currentProvince, district);
+        });
+      });
     }
 
     function selectAllDistricts() {
@@ -1301,12 +1322,16 @@
     // Initialize on page load
     document.addEventListener('DOMContentLoaded', function () {
       // Initialize Bootstrap tooltips
+      // Initialize Bootstrap tooltips
       const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
       tooltipTriggerList.map(function (tooltipTriggerEl) {
         return new bootstrap.Tooltip(tooltipTriggerEl, {
           delay: { show: 500, hide: 100 }
         });
       });
+
+      // Attach click listeners to existing districts
+      attachDistrictListeners();
 
       // Auto-load alerts on page load (UX improvement)
       console.log('Page loaded, auto-loading alerts...');
