@@ -4,7 +4,6 @@ Data models and constants for Early Warnings Weather Dashboard
 
 from typing import Dict, Tuple
 
-
 PROVINCES: Dict[str, Dict[str, Tuple[float, float]]] = {
     "FEDERAL CAPITAL TERRITORY": {"ISLAMABAD": (33.66508854571285, 73.12121495291125)},
     "AZAD KASHMIR": {
@@ -53,7 +52,9 @@ PROVINCES: Dict[str, Dict[str, Tuple[float, float]]] = {
         "LEHRI": (29.00828216174422, 68.00916670948406),
         "SOHBATPUR": (28.504130775440224, 68.65036596383705),
     },
-    "INDIAN OCCUPIED KASHMIR": {"INDIAN OCCUPIED KASHMIR": (33.758782348449486, 76.58410270650111)},
+    "INDIAN OCCUPIED KASHMIR": {
+        "INDIAN OCCUPIED KASHMIR": (33.758782348449486, 76.58410270650111)
+    },
     "GILGIT BALTISTAN": {
         "ASTORE": (35.14611465069349, 74.88347342871366),
         "DIAMIR": (35.51326811059802, 73.98783268938548),
@@ -174,5 +175,3 @@ PROVINCES: Dict[str, Dict[str, Tuple[float, float]]] = {
         "THATTA": (24.732504083184303, 67.75510318874015),
     },
 }
-
-

@@ -1,8 +1,11 @@
-import pandas as pd
 import logging
+
+import pandas as pd
+
 from services import database
 
 logger = logging.getLogger(__name__)
+
 
 def create_weather_dataframe(daily: dict, cache_key: str | None = None) -> pd.DataFrame:
     """Create weather DataFrame with SQLite caching"""

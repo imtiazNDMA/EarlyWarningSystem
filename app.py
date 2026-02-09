@@ -1,15 +1,16 @@
-from flask import Flask
-from flask_cors import CORS
 import logging
 import os
 
+from flask import Flask
+from flask_cors import CORS
+
 # Import configuration and setup
 from config import Config
-from services import database
+from routes.api_routes import api_bp
 
 # Import Blueprints
 from routes.main_routes import main_bp
-from routes.api_routes import api_bp
+from services import database
 
 # Configure logging
 os.makedirs(

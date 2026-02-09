@@ -1,0 +1,28 @@
+warning: Failed to uninstall package at .venv\Lib\site-packages\pandas-2.3.3.dist-info due to missing `RECORD` file. Installation may result in an incomplete environment.
+Uninstalled 2 packages in 115ms
+warning: Failed to hardlink files; falling back to full copy. This may lead to degraded performance.
+         If the cache and target directories are on different filesystems, hardlinking may not be supported.
+         If this is intentional, set `export UV_LINK_MODE=copy` or use `--link-mode=copy` to suppress this warning.
+Installed 1 package in 480ms
+E501 Line too long (101 > 88)
+  --> utils\retry.py:36:89
+   |
+34 |                     if attempt < max_attempts - 1:
+35 |                         logger.warning(
+36 |                             f"Attempt {attempt + 1}/{max_attempts} failed for {func.__name__}: {e}. "
+   |                                                                                         ^^^^^^^^^^^^^
+37 |                             f"Retrying in {current_delay}s..."
+38 |                         )
+   |
+
+E501 Line too long (90 > 88)
+  --> utils\retry.py:43:89
+   |
+41 |                     else:
+42 |                         logger.error(
+43 |                             f"All {max_attempts} attempts failed for {func.__name__}: {e}"
+   |                                                                                         ^^
+44 |                         )
+   |
+
+Found 2 errors.

@@ -3,8 +3,9 @@ Health check and monitoring endpoints
 """
 
 import logging
-from flask import jsonify
+
 import requests
+
 from config import Config
 
 logger = logging.getLogger(__name__)

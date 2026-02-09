@@ -2,8 +2,8 @@
 Tests for map_service.py
 """
 
-import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 from services.map_service import MapService
 
 
@@ -78,9 +78,9 @@ class TestMapService:
                 "snowfall_sum": [0.0],
                 "uv_index_max": [5.0],
             },
-            "current_weather": {"temperature": 20, "windspeed": 10}
+            "current_weather": {"temperature": 20, "windspeed": 10},
         }
-        
+
         # Mock DB return: (data, created_at)
         mock_db.get_raw_weather_cache.return_value = (mock_data, "2024-01-01 12:00:00")
 
@@ -107,30 +107,34 @@ class TestMapService:
     def test_create_map_caches_centroids(self, mock_read_file, mock_map):
         """Test that centroids are cached after first map creation"""
         locations = {"Lahore": (31.5204, 74.3587)}
-        
+
         # Mock GeoDataFrame with centroid
         mock_gdf = MagicMock()
         mock_gdf.to_json.return_value = '{"type": "FeatureCollection", "features": []}'
-        
+
         # Mock row iteration
         row_mock = MagicMock()
-        row_mock.get.side_effect = lambda k: "Lahore" if k in ["District", "DISTRICT"] else None
+        row_mock.get.side_effect = lambda k: (
+            "Lahore" if k in ["District", "DISTRICT"] else None
+        )
         centroid_mock = MagicMock()
         centroid_mock.x = 74.0
         centroid_mock.y = 31.0
-        row_mock.__getitem__.return_value = centroid_mock # row["centroid"]
-        
+        row_mock.__getitem__.return_value = centroid_mock  # row["centroid"]
+
         mock_gdf.iterrows.return_value = [(0, row_mock)]
-        mock_gdf.geometry.centroid = [centroid_mock] # list of centroids matching iterrows count
-        
+        mock_gdf.geometry.centroid = [
+            centroid_mock
+        ]  # list of centroids matching iterrows count
+
         mock_read_file.return_value = mock_gdf
-        
+
         # First call - should read file
         self.service.create_map(locations, 1)
         assert len(self.service._centroid_cache) > 0
         assert "Lahore" in self.service._centroid_cache
         assert mock_read_file.call_count == 1
-        
+
         # Second call - should NOT read file
         self.service.create_map(locations, 1)
         assert mock_read_file.call_count == 1  # Still 1

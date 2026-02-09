@@ -1,0 +1,20 @@
+warning: Failed to uninstall package at .venv\Lib\site-packages\pandas-2.3.3.dist-info due to missing `RECORD` file. Installation may result in an incomplete environment.
+Uninstalled 2 packages in 113ms
+warning: Failed to hardlink files; falling back to full copy. This may lead to degraded performance.
+         If the cache and target directories are on different filesystems, hardlinking may not be supported.
+         If this is intentional, set `export UV_LINK_MODE=copy` or use `--link-mode=copy` to suppress this warning.
+Installed 1 package in 496ms
+F841 Local variable `current_time` is assigned to but never used
+  --> services\weather_service.py:81:9
+   |
+79 |         cached_data = {}
+80 |
+81 |         current_time = time.time()
+   |         ^^^^^^^^^^^^
+82 |         for district_name, (lat, lon) in districts.items():
+83 |             sanitized_district = sanitize_filename(district_name)
+   |
+help: Remove assignment to unused variable `current_time`
+
+Found 1 error.
+No fixes available (1 hidden fix can be enabled with the `--unsafe-fixes` option).

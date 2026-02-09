@@ -1,23 +1,26 @@
-from flask import Blueprint, request, jsonify
+import json
 import logging
 import time
-import json
+
+from flask import Blueprint, jsonify, request
+
+from extensions import alert_service, weather_service
 from models import PROVINCES
-from extensions import weather_service, alert_service
 from services import database
-from utils.formatting import create_weather_dataframe
 from utils.background import background_tasks
+from utils.formatting import create_weather_dataframe
+from utils.health_check import get_health_status
 from utils.validation import (
     validate_api_request_data,
-    validate_province,
     validate_district,
     validate_forecast_days,
+    validate_province,
 )
-from utils.health_check import get_health_status
 
 # Initialize Blueprint
-api_bp = Blueprint('api', __name__)
+api_bp = Blueprint("api", __name__)
 logger = logging.getLogger(__name__)
+
 
 @api_bp.route("/get_forecast/<province>/<district>/<int:days>")
 def get_forecast(province, district, days):
@@ -115,15 +118,24 @@ def get_all_alerts(days):
                 if district in all_alerts[province]:
                     # Try to parse JSON if it looks like one
                     try:
-                        if alert_text and (alert_text.strip().startswith("{") or alert_text.strip().startswith("[")):
+                        if alert_text and (
+                            alert_text.strip().startswith("{")
+                            or alert_text.strip().startswith("[")
+                        ):
                             parsed_alert = json.loads(alert_text)
                             all_alerts[province][district] = parsed_alert
                         else:
-                             # Legacy text compatibility
-                            all_alerts[province][district] = {"english": alert_text, "urdu": ""}
+                            # Legacy text compatibility
+                            all_alerts[province][district] = {
+                                "english": alert_text,
+                                "urdu": "",
+                            }
                     except:
                         # Fallback for plain text
-                        all_alerts[province][district] = {"english": alert_text, "urdu": ""}
+                        all_alerts[province][district] = {
+                            "english": alert_text,
+                            "urdu": "",
+                        }
 
     return jsonify(all_alerts)
 
@@ -252,7 +264,9 @@ def generate_alerts():
                     "uv_index_max",
                 ]:
                     value = daily.get(key)
-                    normalized_daily[key] = value if isinstance(value, list) else [value]
+                    normalized_daily[key] = (
+                        value if isinstance(value, list) else [value]
+                    )
 
                 cache_key = f"alerts_{province}_{forecast_days}_{d}"
                 df = create_weather_dataframe(normalized_daily, cache_key)
@@ -267,7 +281,7 @@ def generate_alerts():
 
             # Save district-level alerts
             alert_service.save_district_alerts(alerts, forecast_days, province)
-            
+
             return {
                 "status": "success",
                 "message": f"Alerts generated for {province}",

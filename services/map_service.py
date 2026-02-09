@@ -4,13 +4,14 @@ Map generation service using Folium
 
 import json
 import logging
-
 from typing import Dict, Tuple
+
 import folium
 import geopandas as gpd
+
 from config import Config
-from utils.validation import sanitize_filename
 from services import database
+from utils.validation import sanitize_filename
 
 logger = logging.getLogger(__name__)
 
@@ -87,7 +88,9 @@ class MapService:
                 self._district_to_province[dist] = prov
 
         self._province_index_built = True
-        logger.debug(f"Built province index with {len(self._district_to_province)} districts")
+        logger.debug(
+            f"Built province index with {len(self._district_to_province)} districts"
+        )
 
     def _get_boundary_gdf(self):
         """Lazy load boundary GeoDataFrame"""
@@ -238,24 +241,33 @@ class MapService:
         </script>
         """
         m.get_root().html.add_child(
-            folium.Element(js_code % (m.get_name(), "true" if blinking_active else "false"))
+            folium.Element(
+                js_code % (m.get_name(), "true" if blinking_active else "false")
+            )
         )
 
         # 1. Pre-load all forecast and alert data
         self._build_province_index()
         district_to_province = self._district_to_province
-        
+
         actual_locations = locations.copy()
-        
+
         # Load and cache centroids if not already done (still needed for initial zoom/bounds if no GeoJSON)
         if not self._centroid_cache:
             try:
                 districts_gpd = self._get_boundary_gdf()
                 if districts_gpd is not None:
-                    for centroid, (_, row) in zip(districts_gpd.geometry.centroid, districts_gpd.iterrows()):
-                        geojson_district = row.get("District") or row.get("DISTRICT", "")
+                    for centroid, (_, row) in zip(
+                        districts_gpd.geometry.centroid, districts_gpd.iterrows()
+                    ):
+                        geojson_district = row.get("District") or row.get(
+                            "DISTRICT", ""
+                        )
                         if geojson_district:
-                            self._centroid_cache[geojson_district] = (centroid.y, centroid.x)
+                            self._centroid_cache[geojson_district] = (
+                                centroid.y,
+                                centroid.x,
+                            )
             except Exception as e:
                 logger.warning(f"Error loading centroids from GeoJSON: {e}")
 
@@ -272,13 +284,15 @@ class MapService:
         forecast_data_cache = {}
         alert_data_cache = {}
         current_weather_cache = {}
-        
+
         weather_cache_keys = []
         alert_query_tuples = []
-        
+
         for district in actual_locations.keys():
             province = district_to_province.get(district, "Unknown")
-            cache_key = f"weather_{forecast_days}_{province}_{sanitize_filename(district)}"
+            cache_key = (
+                f"weather_{forecast_days}_{province}_{sanitize_filename(district)}"
+            )
             weather_cache_keys.append(cache_key)
             alert_query_tuples.append((province, district, forecast_days))
 
@@ -287,8 +301,10 @@ class MapService:
 
         for district in actual_locations.keys():
             province = district_to_province.get(district, "Unknown")
-            cache_key = f"weather_{forecast_days}_{province}_{sanitize_filename(district)}"
-            
+            cache_key = (
+                f"weather_{forecast_days}_{province}_{sanitize_filename(district)}"
+            )
+
             if cache_key in weather_batch:
                 weather_data, _ = weather_batch[cache_key]
                 current_weather_cache[district] = weather_data.get("current_weather")
@@ -298,33 +314,53 @@ class MapService:
                         forecast_days_data = []
                         time_data = daily.get("time", [])
                         for i in range(min(forecast_days, len(time_data))):
-                            forecast_days_data.append({
-                                "Date": time_data[i],
-                                "Max Temp (°C)": daily.get("temperature_2m_max", [])[i],
-                                "Min Temp (°C)": daily.get("temperature_2m_min", [])[i],
-                                "Precipitation (mm)": daily.get("precipitation_sum", [])[i] or 0,
-                                "Precipitation Chance (%)": daily.get("precipitation_probability_max", [])[i],
-                                "Wind Speed (km/h)": daily.get("windspeed_10m_max", [])[i],
-                                "Wind Gusts (km/h)": daily.get("windgusts_10m_max", [])[i],
-                                "Snowfall (cm)": daily.get("snowfall_sum", [])[i] or 0,
-                                "UV Index Max": daily.get("uv_index_max", [])[i],
-                            })
+                            forecast_days_data.append(
+                                {
+                                    "Date": time_data[i],
+                                    "Max Temp (°C)": daily.get(
+                                        "temperature_2m_max", []
+                                    )[i],
+                                    "Min Temp (°C)": daily.get(
+                                        "temperature_2m_min", []
+                                    )[i],
+                                    "Precipitation (mm)": daily.get(
+                                        "precipitation_sum", []
+                                    )[i]
+                                    or 0,
+                                    "Precipitation Chance (%)": daily.get(
+                                        "precipitation_probability_max", []
+                                    )[i],
+                                    "Wind Speed (km/h)": daily.get(
+                                        "windspeed_10m_max", []
+                                    )[i],
+                                    "Wind Gusts (km/h)": daily.get(
+                                        "windgusts_10m_max", []
+                                    )[i],
+                                    "Snowfall (cm)": daily.get("snowfall_sum", [])[i]
+                                    or 0,
+                                    "UV Index Max": daily.get("uv_index_max", [])[i],
+                                }
+                            )
                         forecast_data_cache[district] = forecast_days_data
-                    except: forecast_data_cache[district] = None
-                else: forecast_data_cache[district] = None
+                    except:
+                        forecast_data_cache[district] = None
+                else:
+                    forecast_data_cache[district] = None
             else:
                 forecast_data_cache[district] = None
                 current_weather_cache[district] = None
-            
+
             alert_key = (province, district, forecast_days)
-            alert_data_cache[district] = alerts_batch.get(alert_key, "No alert available")
+            alert_data_cache[district] = alerts_batch.get(
+                alert_key, "No alert available"
+            )
 
         # 2. Add GeoJSON boundary layer with integrated popups
         try:
             districts_gpd = self._get_boundary_gdf()
             if districts_gpd is None:
                 raise FileNotFoundError("Boundary file not loaded")
-                
+
             pakistan_boundary = json.loads(districts_gpd.to_json())
 
             # Normalize selected districts
@@ -341,17 +377,21 @@ class MapService:
 
                 style = {"color": "black", "weight": 0.9, "fillOpacity": 0.3}
                 if is_selected:
-                    style.update({"fillColor": "#3b4cc0", "color": "#3b4cc0", "fillOpacity": 0.5})
+                    style.update(
+                        {"fillColor": "#3b4cc0", "color": "#3b4cc0", "fillOpacity": 0.5}
+                    )
                 return style
 
             for feature in pakistan_boundary["features"]:
                 props = feature["properties"]
                 district = props.get("District", props.get("DISTRICT", "Unknown"))
                 province = props.get("Province", props.get("PROVINCE", "Unknown"))
-                
+
                 # Attach Tooltip
-                feature["properties"]["tooltip"] = f"{district} ({province.replace('_', ' ')})"
-                
+                feature["properties"]["tooltip"] = (
+                    f"{district} ({province.replace('_', ' ')})"
+                )
+
                 # Attach Popup HTML (Nowcasting)
                 # Find the corresponding data in our model (handle potential name diffs)
                 model_district = district
@@ -365,24 +405,30 @@ class MapService:
                             found = True
                             break
                     if not found and district not in forecast_data_cache:
-                        model_district = district # Default back
+                        model_district = district  # Default back
 
                 popup_html = self._build_popup_html(
                     model_district,
-                    province.replace('_', ' '),
+                    province.replace("_", " "),
                     forecast_days,
                     forecast_data_cache.get(model_district),
                     alert_data_cache.get(model_district),
                     current_weather_cache.get(model_district),
                 )
-                feature["properties"]["nowcast_html"] = f"<div class='district-popup' style='font-size: 1.2rem;' contenteditable='false'>{popup_html}</div>"
+                feature["properties"]["nowcast_html"] = (
+                    f"<div class='district-popup' style='font-size: 1.2rem;' contenteditable='false'>{popup_html}</div>"
+                )
 
             gj = folium.GeoJson(
                 pakistan_boundary,
                 name="Pakistan District Boundary",
                 style_function=get_style,
-                tooltip=folium.GeoJsonTooltip(fields=["tooltip"], aliases=[""], localize=False),
-                popup=folium.GeoJsonPopup(fields=["nowcast_html"], labels=False, max_width=450),
+                tooltip=folium.GeoJsonTooltip(
+                    fields=["tooltip"], aliases=[""], localize=False
+                ),
+                popup=folium.GeoJsonPopup(
+                    fields=["nowcast_html"], labels=False, max_width=450
+                ),
                 highlight_function=lambda feature: {
                     "fillColor": "orange",
                     "color": "red",
@@ -419,7 +465,12 @@ class MapService:
                 })();
                 </script>
                 """
-                m.get_root().html.add_child(folium.Element(blinking_js % (gj.get_name(), json.dumps(selected_districts_normalized))))
+                m.get_root().html.add_child(
+                    folium.Element(
+                        blinking_js
+                        % (gj.get_name(), json.dumps(selected_districts_normalized))
+                    )
+                )
 
             m.fit_bounds(gj.get_bounds())
 
@@ -429,7 +480,9 @@ class MapService:
         folium.LayerControl().add_to(m)
         return m._repr_html_()
 
-    def _load_forecast_data(self, province: str, district: str, days: int) -> Tuple[list, dict]:
+    def _load_forecast_data(
+        self, province: str, district: str, days: int
+    ) -> Tuple[list, dict]:
         """Load forecast data for popup display, trying all possible provinces if needed"""
         self._build_province_index()
 
@@ -464,7 +517,8 @@ class MapService:
                             "Date": time_data[i],
                             "Max Temp (°C)": daily.get("temperature_2m_max", [])[i],
                             "Min Temp (°C)": daily.get("temperature_2m_min", [])[i],
-                            "Precipitation (mm)": daily.get("precipitation_sum", [])[i] or 0,
+                            "Precipitation (mm)": daily.get("precipitation_sum", [])[i]
+                            or 0,
                             "Precipitation Chance (%)": daily.get(
                                 "precipitation_probability_max", []
                             )[i],
@@ -477,7 +531,9 @@ class MapService:
 
                     return forecast_days_data, current_weather
                 except Exception as e:
-                    logger.error(f"Error processing forecast for {district} in {p}: {e}")
+                    logger.error(
+                        f"Error processing forecast for {district} in {p}: {e}"
+                    )
                     # If forecast processing failed but we have current weather, return it
                     if current_weather:
                         return None, current_weather
@@ -578,7 +634,9 @@ class MapService:
             is_critical = self._is_critical_weather_alert(forecast_data)
 
             if has_alert and is_critical:
-                button_style = "background: #ff4444; color: white; animation: pulse 2s infinite;"
+                button_style = (
+                    "background: #ff4444; color: white; animation: pulse 2s infinite;"
+                )
                 button_text = "&#9888; CRITICAL ALERT"
             elif has_alert:
                 button_style = "background: #ff8c00; color: white;"
