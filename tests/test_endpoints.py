@@ -24,7 +24,7 @@ class TestFlaskEndpoints:
 
     def test_health_check(self):
         """Test health check endpoint"""
-        with patch("health.get_health_status") as mock_health:
+        with patch("utils.health_check.get_health_status") as mock_health:
             mock_health.return_value = {"status": "healthy", "checks": {}}
 
             response = self.client.get("/health")

@@ -13,7 +13,7 @@ from config import Config
 from utils.validation import sanitize_filename
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-import database
+from services import database
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 

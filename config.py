@@ -23,11 +23,12 @@ class Config:
     MAX_DISTRICTS_PER_REQUEST = int(os.getenv("MAX_DISTRICTS_PER_REQUEST", 100))
 
     # API Configuration
+    # API Configuration
     OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1")
     OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     MAPBOX_TOKEN = os.getenv("MAPBOX_TOKEN")
     BASE_URL = os.getenv("BASE_URL", "https://api.open-meteo.com/v1/forecast")
-    API_TIMEOUT = int(os.getenv("API_TIMEOUT", 30))
+    API_TIMEOUT = int(os.getenv("API_TIMEOUT", 120))
     TIMEZONE = os.getenv("TIMEZONE", "Asia/Karachi")
 
     # Application Configuration
