@@ -1,6 +1,8 @@
-import pytest
 import json
 from unittest.mock import patch
+
+import pytest
+
 from app import app
 
 
@@ -15,7 +17,6 @@ def client():
 def test_purge_cache_endpoint(mock_purge, client):
     """Test the cache purge endpoint"""
     mock_purge.return_value = 2
-
 
     response = client.post(
         "/purge_cache",
@@ -35,7 +36,9 @@ def test_purge_cache_all_districts(mock_purge, client):
     """Test purging all districts in a province"""
     mock_purge.return_value = 5
 
-    response = client.post("/purge_cache", json={"province": "PUNJAB", "forecast_days": 1})
+    response = client.post(
+        "/purge_cache", json={"province": "PUNJAB", "forecast_days": 1}
+    )
 
     assert response.status_code == 200
     data = json.loads(response.data)

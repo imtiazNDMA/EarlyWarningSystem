@@ -1,10 +1,12 @@
-import sqlite3
 import json
 import logging
-from typing import Optional, Dict, List, Tuple, Generator
-from datetime import datetime
-import pandas as pd
+import sqlite3
 from contextlib import contextmanager
+from datetime import datetime
+from typing import Dict, Generator, List, Optional, Tuple
+
+import pandas as pd
+
 from config import Config
 
 logger = logging.getLogger(__name__)
@@ -22,7 +24,7 @@ def get_db_connection() -> Generator[sqlite3.Connection, None, None]:
     try:
         conn = sqlite3.connect(DB_FILE, timeout=10.0)
         # Enable WAL mode for better concurrency
-        # conn.execute("PRAGMA journal_mode=WAL;") 
+        # conn.execute("PRAGMA journal_mode=WAL;")
         yield conn
         conn.commit()
     except sqlite3.Error as e:
@@ -59,7 +61,7 @@ def init_db():
                 )
             """
             )
-            
+
             # Add index for faster cache expiration checks
             cursor.execute(
                 """
@@ -82,7 +84,7 @@ def init_db():
                 )
             """
             )
-            
+
             # Add index for faster alert lookups by province and forecast_days
             cursor.execute(
                 """
@@ -90,7 +92,7 @@ def init_db():
                 ON alerts(province, forecast_days)
                 """
             )
-            
+
             # Add index for faster alert lookups by expiration
             cursor.execute(
                 """
@@ -131,7 +133,9 @@ def get_weather_cache(cache_key: str) -> Optional[pd.DataFrame]:
                     )
                     # We need a new cursor or new transaction usually, but with this CM it commits at end.
                     # To delete immediately, we can execute on same cursor.
-                    cursor.execute("DELETE FROM weather_cache WHERE cache_key = ?", (cache_key,))
+                    cursor.execute(
+                        "DELETE FROM weather_cache WHERE cache_key = ?", (cache_key,)
+                    )
             return None
     except Exception:
         # Error logged in context manager
@@ -171,8 +175,10 @@ def set_raw_weather_cache(cache_key: str, data: dict):
         with get_db_connection() as conn:
             cursor = conn.cursor()
             data_json = json.dumps(data)
-            expires_at = datetime.now().replace(microsecond=0) + pd.Timedelta(seconds=Config.CACHE_TIME)
-            
+            expires_at = datetime.now().replace(microsecond=0) + pd.Timedelta(
+                seconds=Config.CACHE_TIME
+            )
+
             cursor.execute(
                 """
                 INSERT OR REPLACE INTO weather_cache (cache_key, data, created_at, expires_at)
@@ -191,7 +197,9 @@ def set_weather_cache(cache_key: str, df: pd.DataFrame):
             cursor = conn.cursor()
             # Serialize DataFrame to JSON string
             data_json = df.to_json(orient="records", date_format="iso")
-            expires_at = datetime.now().replace(microsecond=0) + pd.Timedelta(seconds=Config.CACHE_TIME)
+            expires_at = datetime.now().replace(microsecond=0) + pd.Timedelta(
+                seconds=Config.CACHE_TIME
+            )
 
             cursor.execute(
                 """
@@ -209,8 +217,10 @@ def save_alert(province: str, district: str, forecast_days: int, alert_text: str
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            expires_at = datetime.now().replace(microsecond=0) + pd.Timedelta(seconds=Config.CACHE_TIME)
-            
+            expires_at = datetime.now().replace(microsecond=0) + pd.Timedelta(
+                seconds=Config.CACHE_TIME
+            )
+
             cursor.execute(
                 """
                 INSERT OR REPLACE INTO alerts (province, district, forecast_days, alert_text, created_at, expires_at)
@@ -264,7 +274,7 @@ def get_all_alerts(forecast_days: int) -> Dict[str, Dict[str, str]]:
 
         return alerts
     except Exception:
-        logger.error(f"Error retrieving all alerts")
+        logger.error("Error retrieving all alerts")
         return {}
 
 
@@ -358,9 +368,7 @@ def get_raw_weather_cache_batch(
                     )
                     results[key] = (data_dict, created_at)
                 except Exception as e:
-                    logger.warning(
-                        f"Error parsing batch weather cache for {key}: {e}"
-                    )
+                    logger.warning(f"Error parsing batch weather cache for {key}: {e}")
                     continue
 
             return results
@@ -369,7 +377,7 @@ def get_raw_weather_cache_batch(
 
 
 def get_alerts_batch(
-    province_district_days: List[Tuple[str, str, int]]
+    province_district_days: List[Tuple[str, str, int]],
 ) -> Dict[Tuple[str, str, int], str]:
     """Retrieve multiple alerts in a single query"""
     results = {}
@@ -379,24 +387,24 @@ def get_alerts_batch(
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            
+
             # Build query with OR conditions for each tuple
             # Note: A large number of ORs can be slow. A temporary table or IN clause on a composite key (not supported directly in simple SQL w/o tuple syntax) would be better.
             # SQLite supports tuple IN clause: WHERE (a, b) IN ((1, 2), (3, 4)) in newer versions.
             # Let's try the tuple syntax for optimization as requested by user ("SQL-side filtering")
-            
+
             query = f"""
                 SELECT province, district, forecast_days, alert_text 
                 FROM alerts 
-                WHERE (province, district, forecast_days) IN (VALUES {','.join(['(?, ?, ?)'] * len(province_district_days))})
+                WHERE (province, district, forecast_days) IN (VALUES {",".join(["(?, ?, ?)"] * len(province_district_days))})
                 AND expires_at > CURRENT_TIMESTAMP
             """
-            
+
             # Flatten params
             params = []
             for item in province_district_days:
                 params.extend(item)
-                
+
             try:
                 cursor.execute(query, params)
             except sqlite3.OperationalError:
@@ -405,13 +413,15 @@ def get_alerts_batch(
                 conditions = []
                 params = []
                 for province, district, days in province_district_days:
-                    conditions.append("(province = ? AND district = ? AND forecast_days = ?)")
+                    conditions.append(
+                        "(province = ? AND district = ? AND forecast_days = ?)"
+                    )
                     params.extend([province, district, days])
-                
+
                 query = f"""
                     SELECT province, district, forecast_days, alert_text 
                     FROM alerts 
-                    WHERE {' OR '.join(conditions)} AND expires_at > CURRENT_TIMESTAMP
+                    WHERE {" OR ".join(conditions)} AND expires_at > CURRENT_TIMESTAMP
                 """
                 cursor.execute(query, params)
 
@@ -430,34 +440,43 @@ def get_cache_stats() -> Dict[str, int]:
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            
+
             # Get weather cache count
-            cursor.execute("SELECT COUNT(*) FROM weather_cache WHERE expires_at > CURRENT_TIMESTAMP")
+            cursor.execute(
+                "SELECT COUNT(*) FROM weather_cache WHERE expires_at > CURRENT_TIMESTAMP"
+            )
             weather_count = cursor.fetchone()[0]
-            
+
             # Get alerts count
-            cursor.execute("SELECT COUNT(*) FROM alerts WHERE expires_at > CURRENT_TIMESTAMP")
+            cursor.execute(
+                "SELECT COUNT(*) FROM alerts WHERE expires_at > CURRENT_TIMESTAMP"
+            )
             alerts_count = cursor.fetchone()[0]
-            
+
             # Get expired records count (for cleanup statistics)
-            cursor.execute("SELECT COUNT(*) FROM weather_cache WHERE expires_at <= CURRENT_TIMESTAMP")
+            cursor.execute(
+                "SELECT COUNT(*) FROM weather_cache "
+                "WHERE expires_at <= CURRENT_TIMESTAMP"
+            )
             expired_weather_count = cursor.fetchone()[0]
-            
-            cursor.execute("SELECT COUNT(*) FROM alerts WHERE expires_at <= CURRENT_TIMESTAMP")
+
+            cursor.execute(
+                "SELECT COUNT(*) FROM alerts WHERE expires_at <= CURRENT_TIMESTAMP"
+            )
             expired_alerts_count = cursor.fetchone()[0]
-            
+
             return {
                 "weather_cache_count": weather_count,
                 "alerts_count": alerts_count,
                 "expired_weather_count": expired_weather_count,
-                "expired_alerts_count": expired_alerts_count
+                "expired_alerts_count": expired_alerts_count,
             }
     except Exception:
         return {
             "weather_cache_count": 0,
             "alerts_count": 0,
             "expired_weather_count": 0,
-            "expired_alerts_count": 0
+            "expired_alerts_count": 0,
         }
 
 
@@ -466,16 +485,21 @@ def cleanup_expired_cache():
     try:
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            
+
             # Delete expired weather cache entries
-            cursor.execute("DELETE FROM weather_cache WHERE expires_at <= CURRENT_TIMESTAMP")
+            cursor.execute(
+                "DELETE FROM weather_cache WHERE expires_at <= CURRENT_TIMESTAMP"
+            )
             weather_deleted = cursor.rowcount
-            
+
             # Delete expired alerts
             cursor.execute("DELETE FROM alerts WHERE expires_at <= CURRENT_TIMESTAMP")
             alerts_deleted = cursor.rowcount
-            
-            logger.info(f"Cleaned up {weather_deleted} expired weather cache entries and {alerts_deleted} expired alerts")
+
+            logger.info(
+                f"Cleaned up {weather_deleted} expired weather cache entries "
+                f"and {alerts_deleted} expired alerts"
+            )
             return weather_deleted + alerts_deleted
     except Exception:
         return 0

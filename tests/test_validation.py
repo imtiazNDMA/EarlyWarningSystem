@@ -2,13 +2,12 @@
 Tests for validation utilities
 """
 
-import pytest
 from utils.validation import (
-    validate_province,
-    validate_district,
-    validate_forecast_days,
     sanitize_filename,
     validate_api_request_data,
+    validate_district,
+    validate_forecast_days,
+    validate_province,
 )
 
 

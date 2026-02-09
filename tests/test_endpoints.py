@@ -2,9 +2,9 @@
 Tests for Flask endpoints
 """
 
-import pytest
 import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
+
 from app import app
 
 
@@ -64,7 +64,9 @@ class TestFlaskEndpoints:
 
         response = self.client.post(
             "/generate_forecast",
-            data=json.dumps({"province": "PUNJAB", "districts": ["LAHORE"], "forecast_days": 3}),
+            data=json.dumps(
+                {"province": "PUNJAB", "districts": ["LAHORE"], "forecast_days": 3}
+            ),
             content_type="application/json",
         )
 
@@ -86,7 +88,9 @@ class TestFlaskEndpoints:
 
         response = self.client.post(
             "/generate_forecast",
-            data=json.dumps({"province": "PUNJAB", "districts": districts, "forecast_days": 3}),
+            data=json.dumps(
+                {"province": "PUNJAB", "districts": districts, "forecast_days": 3}
+            ),
             content_type="application/json",
         )
 

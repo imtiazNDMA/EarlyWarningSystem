@@ -2,10 +2,10 @@
 Comprehensive tests for alert_service.py
 """
 
-import pytest
-import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
+
 import pandas as pd
+
 from services.alert_service import AlertService
 
 
@@ -37,19 +37,29 @@ class TestAlertService:
     def test_parse_district_alerts_valid(self):
         """Test parsing valid district alerts"""
         llm_text = """
-        **Islamabad**: Expect sunny weather with highs of 25°C.
-        **Rawalpindi**: Partly cloudy with chance of light rain.
-
-        Region's Summary: Overall conditions are favorable.
+        {
+            "Islamabad": {
+                "english": "Expect sunny weather with highs of 25°C.",
+                "urdu": "اسلام آباد: دھوپ نکلے گی اور درجہ حرارت 25 ڈگری سینٹی گریڈ تک جائے گا۔"
+            },
+            "Rawalpindi": {
+                "english": "Partly cloudy with chance of light rain.",
+                "urdu": "راولپنڈی: جزوی طور پر ابر آلود اور ہلکی بارش کا امکان ہے۔"
+            },
+            "Region's Summary": {
+                "english": "Overall conditions are favorable.",
+                "urdu": "مجموعی طور پر حالات سازگار ہیں۔"
+            }
+        }
         """
 
         alerts = self.service.parse_district_alerts(llm_text)
 
-        assert len(alerts) == 2
+        assert len(alerts) == 3
         assert "Islamabad" in alerts
         assert "Rawalpindi" in alerts
-        assert "sunny weather" in alerts["Islamabad"]
-        assert "Partly cloudy" in alerts["Rawalpindi"]
+        assert "sunny weather" in alerts["Islamabad"]["english"]
+        assert "Partly cloudy" in alerts["Rawalpindi"]["english"]
 
     def test_parse_district_alerts_empty(self):
         """Test parsing empty alert text"""
@@ -107,8 +117,8 @@ class TestAlertService:
     def test_save_district_alerts(self):
         """Test saving district alerts to database"""
         alerts = {
-            "Lahore": "Test alert for Lahore",
-            "Karachi": "Test alert for Karachi",
+            "Lahore": {"english": "Test alert for Lahore", "urdu": ""},
+            "Karachi": {"english": "Test alert for Karachi", "urdu": ""},
         }
 
         self.service.save_district_alerts(alerts, 1, "PUNJAB")
@@ -116,10 +126,16 @@ class TestAlertService:
         # Verify database.save_alert was called twice
         assert self.mock_db.save_alert.call_count == 2
 
+        # JSON dumps for assertions
+        import json
+
+        lahore_json = json.dumps(alerts["Lahore"], ensure_ascii=False)
+        karachi_json = json.dumps(alerts["Karachi"], ensure_ascii=False)
+
         # Check calls - order isn't guaranteed in dict so checking any_call is safer
         # But verifying args using call_args_list or assert_any_call
-        self.mock_db.save_alert.assert_any_call("PUNJAB", "Lahore", 1, "Test alert for Lahore")
-        self.mock_db.save_alert.assert_any_call("PUNJAB", "Karachi", 1, "Test alert for Karachi")
+        self.mock_db.save_alert.assert_any_call("PUNJAB", "Lahore", 1, lahore_json)
+        self.mock_db.save_alert.assert_any_call("PUNJAB", "Karachi", 1, karachi_json)
 
     def test_get_alert_found(self):
         """Test getting an existing alert from DB"""

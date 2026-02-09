@@ -2,12 +2,11 @@
 Tests for weather_service.py
 """
 
-import pytest
-import json
 import os
-from unittest.mock import patch, MagicMock
-from services.weather_service import WeatherService
 from datetime import datetime
+from unittest.mock import patch
+
+from services.weather_service import WeatherService
 
 
 class TestWeatherService:
@@ -56,7 +55,7 @@ class TestWeatherService:
     def test_get_bulk_weather_data_cache_hit(self, mock_db, mock_get):
         """Test bulk weather data with cache hit"""
         mock_data = {"daily": {"time": ["2024-01-01"], "temperature_2m_max": [25.0]}}
-        
+
         # Mock cache hit for specific key
         def get_raw_side_effect(key):
             if "LAHORE" in key:

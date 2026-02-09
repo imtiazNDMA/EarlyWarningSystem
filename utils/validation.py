@@ -2,9 +2,9 @@
 Input validation utilities for the Early Warnings Weather Dashboard
 """
 
-import re
-from typing import List, Optional, Tuple
 import logging
+import re
+from typing import List
 
 logger = logging.getLogger(__name__)
 

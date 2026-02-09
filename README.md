@@ -44,7 +44,7 @@ graph TD
     
     subgraph "External Services"
         WeatherSvc <-->|API| OpenMeteo["Weather API"]
-        AlertSvc <-->|Inference| Ollama["Local LLM (Qwen 3.5 Coder)"]
+        AlertSvc <-->|Inference| Ollama["Local LLM (Llama3.1)"]
         MapSvc -->|Tiles| Mapbox["Mapbox API"]
     end
 ```
@@ -93,7 +93,7 @@ graph TD
 3. **Dependency Installation**:
 
     ```bash
-    pip install -r requirements.txt
+    uv sync
     ```
 
 4. **Database Initialization**:
@@ -122,7 +122,7 @@ The system maintains a rigorous testing protocol:
 
 ```bash
 # Execute local test suite
-pytest tests/ -v
+uv run pytest tests/ -v
 ```
 
 ## License

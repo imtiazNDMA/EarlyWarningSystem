@@ -4,6 +4,7 @@ Configuration management for Early Warnings Weather Dashboard
 
 import os
 import secrets
+
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -19,7 +20,9 @@ class Config:
     ENV = os.getenv("FLASK_ENV", "development")
 
     # Security Configuration
-    MAX_CONTENT_LENGTH = int(os.getenv("MAX_CONTENT_LENGTH", 16 * 1024 * 1024))  # 16MB default
+    MAX_CONTENT_LENGTH = int(
+        os.getenv("MAX_CONTENT_LENGTH", 16 * 1024 * 1024)
+    )  # 16MB default
     MAX_DISTRICTS_PER_REQUEST = int(os.getenv("MAX_DISTRICTS_PER_REQUEST", 100))
 
     # API Configuration
@@ -47,10 +50,15 @@ class Config:
         missing = [key for key in required if not getattr(cls, key)]
 
         if missing:
-            raise ValueError(f"Missing required environment variables: {', '.join(missing)}")
+            raise ValueError(
+                f"Missing required environment variables: {', '.join(missing)}"
+            )
 
         # Check for insecure secret key in production
-        if cls.ENV == "production" and cls.SECRET_KEY == "dev_secret_key_change_in_production":
+        if (
+            cls.ENV == "production"
+            and cls.SECRET_KEY == "dev_secret_key_change_in_production"
+        ):
             raise ValueError(
                 "Cannot use default SECRET_KEY in production. Set a secure SECRET_KEY environment variable."
             )

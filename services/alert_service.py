@@ -1,14 +1,15 @@
-import re
-import logging
 import json
+import logging
 from typing import Dict, List, Optional
+
 import pandas as pd
+from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_ollama import ChatOllama
-from langchain_core.messages import SystemMessage, HumanMessage
+
 from config import Config
-from utils.retry import retry_on_failure
-from services import database
 from constants import WEATHER_CODE_DESCRIPTIONS
+from services import database
+from utils.retry import retry_on_failure
 
 logger = logging.getLogger(__name__)
 
@@ -26,16 +27,16 @@ class AlertService:
     def parse_district_alerts(self, llm_text: str) -> Dict[str, dict]:
         """
         Parse district alerts from LLM response (expected to be JSON).
-        
+
         Args:
             llm_text: Raw text response from LLM
-            
+
         Returns:
             Dict of district_name -> {"english": "...", "urdu": "..."}
         """
         alerts = {}
         logger.debug(f"Parsing LLM Response of length: {len(llm_text)}")
-        
+
         try:
             # Clean up the response to ensure it's valid JSON
             # Sometimes LLMs add markdown code blocks
@@ -44,24 +45,24 @@ class AlertService:
                 cleaned_text = cleaned_text[7:]
             if cleaned_text.endswith("```"):
                 cleaned_text = cleaned_text[:-3]
-            
+
             cleaned_text = cleaned_text.strip()
-            
+
             # Find the JSON object if there's extra text
             start_idx = cleaned_text.find("{")
             end_idx = cleaned_text.rfind("}")
-            
+
             if start_idx != -1 and end_idx != -1:
                 json_str = cleaned_text[start_idx : end_idx + 1]
                 data = json.loads(json_str)
-                
+
                 # Normalize keys (district names)
                 for district, content in data.items():
                     # Handle "Region's Summary" separately if needed, or treat as special district
                     if district == "Region's Summary":
                         alerts["Region's Summary"] = content
                         continue
-                        
+
                     # Ensure content has english and urdu keys
                     if isinstance(content, dict):
                         english = content.get("english", "")
@@ -70,7 +71,7 @@ class AlertService:
                     elif isinstance(content, str):
                         # Fallback for simple string
                         alerts[district] = {"english": content, "urdu": ""}
-                        
+
             return alerts
 
         except json.JSONDecodeError as e:
@@ -144,6 +145,36 @@ class AlertService:
         - Snow: برفباری (Baraf bari)
         - Fog/Smog: دھند (Dhund) / سموگ (Smog)
         - Haze: دھندلاہٹ (Dhundlahat)
+        - Light Rain: ہلکی بارش (Halki Barish)
+        - Moderate Rain: معتدل بارش (Mutadil Barish)
+        - Heavy Rain: تیز بارش (Tez Barish)
+        - Very Heavy Rain: شدید بارش (Shadeed Barish)
+        - Extreme Rain: انتہائی شدید بارش (Intihai Shadeed Barish)
+        - Light Snow: ہلکی برفباری (Halki Baraf bari)
+        - Moderate Snow: معتدل برفباری (Mutadil Baraf bari)
+        - Heavy Snow: تیز برفباری (Tez Baraf bari)
+        - Very Heavy Snow: شدید برفباری (Shadeed Baraf bari)
+        - Extreme Snow: انتہائی شدید برفباری (Intihai Shadeed Baraf bari)
+        - Light Thunderstorm: ہلکی گرج چمک (Halki Garaj Chamak)
+        - Moderate Thunderstorm: معتدل گرج چمک (Mutadil Garaj Chamak)
+        - Heavy Thunderstorm: تیز گرج چمک (Tez Garaj Chamak)
+        - Very Heavy Thunderstorm: شدید گرج چمک (Shadeed Garaj Chamak)
+        - Extreme Thunderstorm: انتہائی شدید گرج چمک (Intihai Shadeed Garaj Chamak)
+        - Light Fog: ہلکی دھند (Halki Dhund)
+        - Moderate Fog: معتدل دھند (Mutadil Dhund)
+        - Heavy Fog: تیز دھند (Tez Dhund)
+        - Very Heavy Fog: شدید دھند (Shadeed Dhund)
+        - Extreme Fog: انتہائی شدید دھند (Intihai Shadeed Dhund)
+        - Light Haze: ہلکی دھندلاہٹ (Halki Dhundlahat)
+        - Moderate Haze: معتدل دھندلاہٹ (Mutadil Dhundlahat)
+        - Heavy Haze: تیز دھندلاہٹ (Tez Dhundlahat)
+        - Very Heavy Haze: شدید دھندلاہٹ (Shadeed Dhundlahat)
+        - Extreme Haze: انتہائی شدید دھندلاہٹ (Intihai Shadeed Dhundlahat)
+        - Light Smog: ہلکی سموگ (Halki Smog)
+        - Moderate Smog: معتدل سموگ (Mutadil Smog)
+        - Heavy Smog: تیز سموگ (Tez Smog)
+        - Very Heavy Smog: شدید سموگ (Shadeed Smog)
+        - Extreme Smog: انتہائی شدید سموگ (Intihai Shadeed Smog)
 
         JSON Structure:
         {{
@@ -184,7 +215,7 @@ class AlertService:
     ):
         """
         Save district-level alerts to SQLite database
-        
+
         Args:
             alerts: Dict of district_name -> {"english": "...", "urdu": "..."}
         """
@@ -208,7 +239,10 @@ class AlertService:
                 return {"district": district, "alert": alert_data}
             except json.JSONDecodeError:
                 # Fallback for legacy text-only alerts
-                return {"district": district, "alert": {"english": alert_json, "urdu": ""}}
+                return {
+                    "district": district,
+                    "alert": {"english": alert_json, "urdu": ""},
+                }
             except Exception as e:
                 logger.error(f"Error parsing alert for {district}: {e}")
                 return None

@@ -1,13 +1,15 @@
-from flask import Blueprint, render_template, request, jsonify
 import logging
-from config import Config
-from models import PROVINCES
+
+from flask import Blueprint, jsonify, render_template, request
+
 from extensions import map_service
+from models import PROVINCES
 from utils.validation import validate_forecast_days, validate_province
 
 # Initialize Blueprint
-main_bp = Blueprint('main', __name__)
+main_bp = Blueprint("main", __name__)
 logger = logging.getLogger(__name__)
+
 
 @main_bp.route("/", methods=["GET", "POST"])
 def index():

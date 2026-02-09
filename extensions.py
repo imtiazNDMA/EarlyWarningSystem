@@ -1,7 +1,8 @@
 import logging
-from services.weather_service import WeatherService
+
 from services.alert_service import AlertService
 from services.map_service import MapService
+from services.weather_service import WeatherService
 
 logger = logging.getLogger(__name__)
 
