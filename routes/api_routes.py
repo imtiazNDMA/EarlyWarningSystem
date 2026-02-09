@@ -1,6 +1,7 @@
 from flask import Blueprint, request, jsonify
 import logging
 import time
+import json
 from models import PROVINCES
 from extensions import weather_service, alert_service
 from services import database
@@ -107,12 +108,22 @@ def get_all_alerts(days):
     # Fetch alerts from SQLite
     db_alerts = database.get_all_alerts(days)
 
-    # Merge DB alerts into the response structure
+    # Merge DB alerts into the response structure and parse JSON
     for province, districts_data in db_alerts.items():
         if province in all_alerts:
             for district, alert_text in districts_data.items():
                 if district in all_alerts[province]:
-                    all_alerts[province][district] = alert_text
+                    # Try to parse JSON if it looks like one
+                    try:
+                        if alert_text and (alert_text.strip().startswith("{") or alert_text.strip().startswith("[")):
+                            parsed_alert = json.loads(alert_text)
+                            all_alerts[province][district] = parsed_alert
+                        else:
+                             # Legacy text compatibility
+                            all_alerts[province][district] = {"english": alert_text, "urdu": ""}
+                    except:
+                        # Fallback for plain text
+                        all_alerts[province][district] = {"english": alert_text, "urdu": ""}
 
     return jsonify(all_alerts)
 

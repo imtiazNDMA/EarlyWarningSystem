@@ -18,6 +18,23 @@
   <!-- Neomorphic Design System -->
   <link rel="stylesheet" href="{{ url_for('static', filename='css/neomorphic.css') }}">
 
+  <!-- Urdu Font -->
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400..700&display=swap" rel="stylesheet">
+  <style>
+    .urdu-text {
+      font-family: 'Noto Nastaliq Urdu', serif;
+      direction: rtl;
+      text-align: right;
+      font-size: 1.1em;
+      line-height: 2.0;
+      margin-top: 10px;
+      color: var(--neo-text-primary);
+      padding: 5px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 5px;
+    }
+  </style>
+
 
   <style>
     /* Colors */
@@ -887,9 +904,25 @@
     }
 
     // Format alert for a single district
-    function formatSingleDistrictAlert(district, alertText) {
-      if (!alertText) {
+    function formatSingleDistrictAlert(district, alertData) {
+      if (!alertData) {
         return `<div class="no-alerts">No alert available for ${district}.</div>`;
+      }
+
+      let englishText = "";
+      let urduText = "";
+
+      if (typeof alertData === 'object') {
+        englishText = alertData.english || "";
+        urduText = alertData.urdu || "";
+      } else {
+        // Legacy string support
+        englishText = alertData;
+      }
+
+      // If explicit english/urdu keys are missing but it's a legacy string from before JSON logic was fully enforced or cached
+      if (!englishText && !urduText && typeof alertData === 'string') {
+        englishText = alertData;
       }
 
       let html = `
@@ -902,188 +935,40 @@
                   <div class="alert-message typing-alert-message">
           `;
 
-      // Clean up the alert text
-      let cleanAlert = alertText;
+      if (englishText) {
+        // Clean up english text if necessary (remove **District**: prefix if still present from legacy)
+        let cleanEnglish = englishText;
+        const districtPattern = new RegExp(`\\*\\*${district}\\s*Weather Alert\\*\\*\\s*:?\\s*`, 'i');
+        cleanEnglish = cleanEnglish.replace(districtPattern, '').replace(/\*\*/g, '');
+        html += `<div class="english-text mb-2">${cleanEnglish}</div>`;
+      }
 
-      // Remove the district name pattern if present
-      const districtPattern = new RegExp(`\\*\\*${district}\\s+Weather Alert\\*\\*\\s*:?\\s*`, 'i');
-      cleanAlert = cleanAlert.replace(districtPattern, '');
+      if (urduText) {
+        html += `<div class="urdu-text">${urduText}</div>`;
+      }
 
-      // Remove any remaining ** markers
-      cleanAlert = cleanAlert.replace(/\*\*/g, '');
-
-      html += cleanAlert;
       html += `</div></div>`;
       return html;
     }
 
-    // Highlight the selected district in the filter list
-    function highlightSelectedDistrict(district) {
-      // Remove previous highlights
-      const allLabels = document.querySelectorAll('#districtFilter .form-check-label');
-      allLabels.forEach(label => {
-        label.classList.remove('selected-district');
-        label.style.fontWeight = 'normal';
-        label.style.backgroundColor = 'transparent';
-      });
+    function formatAlertText(alertData) {
+      // alertData might be a JSON string from the backend `alert_text` field in response
+      // or a pre-parsed object if we changed the endpoint to return object.
+      // In `generate_alerts` response, `alert_text` is the raw LLM JSON string.
 
-      // Highlight current district
-      const districtCheckboxes = document.querySelectorAll('#districtFilter input[type="checkbox"]');
-      districtCheckboxes.forEach(checkbox => {
-        if (checkbox.value === district) {
-          const label = checkbox.nextElementSibling;
-          if (label) {
-            label.classList.add('selected-district');
-            label.style.fontWeight = 'bold';
-            label.style.backgroundColor = 'rgba(44, 90, 160, 0.2)';
-            label.style.padding = '2px 5px';
-            label.style.borderRadius = '3px';
-          }
+      let parsedData = {};
+      if (typeof alertData === 'string') {
+        try {
+          parsedData = JSON.parse(alertData);
+        } catch (e) {
+          // If not JSON, treat as legacy string
+          return `<div class="all-alerts-message">${alertData.replace(/\n/g, '<br>')}</div>`;
         }
-      });
-    }
-
-    // Generate forecast via AJAX
-    async function generateForecast() {
-      const province = document.getElementById('province').value;
-      const forecastDays = document.getElementById('forecast_days').value;
-      const districts = getSelectedDistricts();
-
-      showLoading(`Generating ${forecastDays} day(s) forecast...`);
-
-      try {
-        const response = await fetch('/generate_forecast', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            province: province,
-            districts: districts,
-            forecast_days: parseInt(forecastDays)
-          })
-        });
-
-        const result = await response.json();
-
-        if (result.status === 'success') {
-          showNotification(result.message, 'success');
-        } else {
-          showNotification(result.message, 'error');
-        }
-      } catch (error) {
-        console.error('Error generating forecast:', error);
-        showNotification('Failed to generate forecast', 'error');
-      } finally {
-        hideLoading();
+      } else if (typeof alertData === 'object') {
+        parsedData = alertData;
+      } else {
+        return '<div class="no-alerts">No alerts generated.</div>';
       }
-    }
-
-    // Purge cache via AJAX
-    async function purgeCache() {
-      const province = document.getElementById('province').value;
-      const forecastDays = document.getElementById('forecast_days').value;
-      const districts = getSelectedDistricts();
-
-      const confirmMsg = districts.length > 0
-        ? `Are you sure you want to purge cache for ${districts.length} selected district(s)?`
-        : `Are you sure you want to purge cache for ALL districts in ${province}?`;
-
-      if (!confirm(confirmMsg + '\nThis will require fetching fresh data from the API.')) {
-        return;
-      }
-
-      showLoading('Purging cache...');
-
-      try {
-        const response = await fetch('/purge_cache', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            province: province,
-            districts: districts,
-            forecast_days: parseInt(forecastDays)
-          })
-        });
-
-        const result = await response.json();
-
-        if (result.status === 'success') {
-          showNotification(result.message, 'success');
-        } else {
-          showNotification(result.message, 'error');
-        }
-      } catch (error) {
-        console.error('Error purging cache:', error);
-        showNotification('Failed to purge cache', 'error');
-      } finally {
-        hideLoading();
-      }
-    }
-
-    // Generate alerts via AJAX
-    async function generateAlerts() {
-      const province = document.getElementById('province').value;
-      const forecastDays = document.getElementById('forecast_days').value;
-
-      showLoading(`Generating alerts for ${forecastDays} day(s)...`);
-
-      try {
-        const response = await fetch('/generate_alerts', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            province: province,
-            forecast_days: parseInt(forecastDays)
-          })
-        });
-
-        const result = await response.json();
-
-        if (result.status === 'success') {
-          showNotification(result.message);
-          // Show all alerts initially
-          document.getElementById('alertContent').innerHTML = formatAlertText(result.alert_text);
-          await refreshMap();
-        } else {
-          showNotification(result.message, 'error');
-        }
-      } catch (error) {
-        console.error('Error generating alerts:', error);
-        showNotification('Failed to generate alerts: ' + error.message, 'error');
-      } finally {
-        hideLoading();
-      }
-    }
-
-    // Refresh map after generating forecasts or alerts
-    async function refreshMap() {
-      const forecastDays = document.getElementById('forecast_days').value;
-      const districts = getSelectedDistricts();
-
-      showLoading('Refreshing map...');
-
-      try {
-        const response = await fetch(`/refresh_map/${forecastDays}?basemap=${encodeURIComponent(currentBasemap)}&districts=${encodeURIComponent(districts.join(','))}`);
-        const result = await response.json();
-
-        if (result.map_html) {
-          const mapContainer = document.querySelector('.map-content');
-          mapContainer.innerHTML = result.map_html;
-        }
-      } catch (error) {
-        console.error('Error refreshing map:', error);
-      } finally {
-        hideLoading();
-      }
-    }
-
-    function formatAlertText(alertText) {
-      if (!alertText) return '<div class="no-alerts">No alerts generated.</div>';
 
       let html = `
             <div class="selected-district-header">
@@ -1093,43 +978,23 @@
             <hr>
         `;
 
-      // Parse text to group by district
-      const districtAlerts = {};
-      let regionSummary = "";
-
-      // Regex to find "**District**: Alert" blocks
-      const districtRegex = /\*\*([^*]+?)\*\*:\s*([\s\S]*?)(?=\*\*|\n\s*Region's Summary|$)/g;
-      let match;
-
-      while ((match = districtRegex.exec(alertText)) !== null) {
-        const fullTitle = match[1].trim();
-        const alertMsg = match[2].trim();
-
-        // Extract district name from "District Weather Alert"
-        const district = fullTitle.replace(/\s+Weather Alert$/, '');
-
-        if (districtAlerts[district]) {
-          districtAlerts[district] += " " + alertMsg;
-        } else {
-          districtAlerts[district] = alertMsg;
-        }
-      }
-
-      // Extract Region's Summary
-      const summaryMatch = alertText.match(/Region's Summary:\s*([\s\S]*)$/);
-      if (summaryMatch) {
-        regionSummary = summaryMatch[1].trim();
-      }
+      const regionSummary = parsedData["Region's Summary"];
 
       // Render District Alerts
-      for (const [district, msg] of Object.entries(districtAlerts)) {
+      for (const [district, content] of Object.entries(parsedData)) {
+        if (district === "Region's Summary") continue;
+
+        const english = content.english || (typeof content === 'string' ? content : "");
+        const urdu = content.urdu || "";
+
         html += `
           <div class="district-alert-box">
             <div class="district-alert-header">
               <i class="fas fa-map-marker-alt"></i> ${district}
             </div>
             <div class="all-alerts-message">
-              ${msg}
+               ${english ? `<div class="english-text mb-2">${english}</div>` : ''}
+               ${urdu ? `<div class="urdu-text">${urdu}</div>` : ''}
             </div>
           </div>
         `;
@@ -1137,24 +1002,24 @@
 
       // Render Region Summary
       if (regionSummary) {
+        const sumEng = regionSummary.english || (typeof regionSummary === 'string' ? regionSummary : "");
+        const sumUrdu = regionSummary.urdu || "";
+
         html += `
           <div class="province-summary-header">
             <div class="summary-title">
               <i class="fas fa-info-circle"></i> Region's Summary
             </div>
-            <div class="all-alerts-message">${regionSummary}</div>
+            <div class="all-alerts-message">
+                ${sumEng ? `<div class="english-text mb-2">${sumEng}</div>` : ''}
+                ${sumUrdu ? `<div class="urdu-text">${sumUrdu}</div>` : ''}
+            </div>
           </div>
         `;
       }
 
-      // Fallback if regex fails (e.g. raw text display)
-      if (Object.keys(districtAlerts).length === 0 && !regionSummary) {
-        html += `<div class="all-alerts-message">${alertText.replace(/\n/g, '<br>')}</div>`;
-      }
-
       return html;
     }
-
     // Function to load all alerts
     async function loadAllAlerts() {
       const days = document.getElementById('forecast_days').value;
@@ -1177,7 +1042,7 @@
       checkboxes.forEach(checkbox => {
         const label = checkbox.querySelector('label').textContent.toLowerCase();
         const isVisible = label.includes(term);
-        
+
         // Use Bootstrap d-none class for reliable toggling
         if (isVisible) {
           checkbox.classList.remove('d-none');
@@ -1207,10 +1072,10 @@
       const labels = document.querySelectorAll('#districtFilter .form-check-label');
       labels.forEach(label => {
         label.style.cursor = 'pointer';
-        label.addEventListener('click', function() {
-           const district = this.textContent.trim();
-           // Use the global currentProvince variable which is set on load
-           loadDistrictAlert(currentProvince, district);
+        label.addEventListener('click', function () {
+          const district = this.textContent.trim();
+          // Use the global currentProvince variable which is set on load
+          loadDistrictAlert(currentProvince, district);
         });
       });
     }

@@ -695,7 +695,7 @@ body {
 }
 
 .district-alert-header {
-  color: var(--neo-accent);
+  color: black;
   font-weight: 600;
   font-size: 1rem;
   margin-bottom: var(--space-2);
