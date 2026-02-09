@@ -58,7 +58,8 @@ class AlertService:
 
                 # Normalize keys (district names)
                 for district, content in data.items():
-                    # Handle "Region's Summary" separately if needed, or treat as special district
+                    # Handle "Region's Summary" separately if needed, 
+                    # or treat as special district
                     if district == "Region's Summary":
                         alerts["Region's Summary"] = content
                         continue
@@ -90,14 +91,19 @@ class AlertService:
         """
         forecast_texts = []
         for district, df in forecasts.items():
-            # Optimize dataframe for prompt - select only essential columns to save tokens
+            # Optimize dataframe for prompt
+            # Select only essential columns to save tokens
             df_prompt = df.copy()
 
             # Compact text format
             day_summaries = []
             for _, row in df_prompt.iterrows():
                 # Basis: Date: Max/Min, Rain, Code
-                summary = f"{row.get('Date', 'N/A')}: High {row.get('Max Temp (°C)', 'N/A')}°C/Low {row.get('Min Temp (°C)', 'N/A')}°C"
+                summary = (
+                    f"{row.get('Date', 'N/A')}: "
+                    f"High {row.get('Max Temp (°C)', 'N/A')}°C/"
+                    f"Low {row.get('Min Temp (°C)', 'N/A')}°C"
+                )
 
                 # Add conditionals
                 if "Precipitation (mm)" in row and row["Precipitation (mm)"] > 0:
@@ -116,7 +122,8 @@ class AlertService:
             forecast_texts.append(district_text)
 
         prompt = f"""
-        Act as an expert meteorologist and generate weather alerts for {province} based on these district forecasts:
+        Act as an expert meteorologist and generate weather alerts for
+        {province} based on these district forecasts:
         
         {"".join(forecast_texts)}
 
@@ -126,18 +133,21 @@ class AlertService:
         3.  Generate a concise alert in **Urdu**.
         4.  Provide a **"Region's Summary"** for the overall province.
         5.  **Output MUST be valid JSON only.** No markdown formatting, no intro text.
-        6.  The alert should be generated for 7 days, covering the whole forecast period.
+        6.  The alert should be generated for 7 days, 
+            covering the whole forecast period.
         7.  The alert should be generated for each district in the province.
-        8.  Maintain a smooth and steady flow of information, using simple and easy to understand language.
+        8.  Maintain a smooth and steady flow of information, 
+            using simple and easy to understand language.
         9.  Explain it like a story, not like a technical report.
         
         **URDU TRANSLATION GLOSSARY (STRICTLY FOLLOW THIS):**
-        - Thunderstorm: گرج چمک (Garaj Chamak) - NEVER use "Tezaab" (Acid).
+        - Thunderstorm: گرج چمک (Garaj Chamak)
         - Rain: بارش (Barish)
+        - Clear Sky: مطلع صاف (Matla Saaf)
         - Heavy Rain: موسلا دھار بارش (Mosla dhaar barish)
         - Cloudy: ابر آلود (Abr Aalood) / بادل (Baadal)
         - Partly Cloudy: جزوی طور پر ابر آلود (Juzwi tor par abr aalood)
-        - Sunny: دھوپ (Dhoop) / مطلع صاف (Matla Saaf)
+        - Sunny/Clear Skies: مطلع صاف (Matla Saaf) - NEVER use "Saaf ma" or "yas".
         - Temperature: درجہ حرارت (Darja Hararat)
         - High: زیادہ سے زیادہ (Zyada se zyada)
         - Low: کم سے کم (Kam se kam)
@@ -145,7 +155,7 @@ class AlertService:
         - Snow: برفباری (Baraf bari)
         - Fog/Smog: دھند (Dhund) / سموگ (Smog)
         - Haze: دھندلاہٹ (Dhundlahat)
-        - Light Rain: ہلکی بارش (Halki Barish)
+        - Light Rain: ہلکی بارش (Halki Barish) - NEVER use "Thori si barish".
         - Moderate Rain: معتدل بارش (Mutadil Barish)
         - Heavy Rain: تیز بارش (Tez Barish)
         - Very Heavy Rain: شدید بارش (Shadeed Barish)
@@ -196,14 +206,24 @@ class AlertService:
         try:
             messages = [
                 SystemMessage(
-                    content="You are a weather assistant. Output only valid JSON. Ensure Urdu translations are accurate, natural, and use the provided glossary. Avoid literal translations that change the meaning (e.g. Thunderstorm is NOT Tezaab)."
+                    content=(
+                        "You are a weather assistant. Output only valid JSON. "
+                        "Ensure Urdu translations are accurate, "
+                        "natural, and use the provided glossary. "
+                        "Do NOT use any English characters in the Urdu text "
+                        "(except numbers and °C). "
+                        "Never hallucinate words like 'yas'."
+                    )
                 ),
                 HumanMessage(content=prompt),
             ]
             response = self.client.invoke(messages)
             alert_text = response.content
 
-            logger.info(f"Generated alerts for {province} ({len(forecasts)} districts)")
+            logger.info(
+                f"Generated alerts for {province} "
+                f"({len(forecasts)} districts)"
+            )
             return alert_text
 
         except Exception as e:
