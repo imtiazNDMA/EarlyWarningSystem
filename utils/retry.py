@@ -4,8 +4,9 @@ Retry logic and error handling utilities for API calls
 
 import logging
 import time
+from collections.abc import Callable
 from functools import wraps
-from typing import Any, Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 

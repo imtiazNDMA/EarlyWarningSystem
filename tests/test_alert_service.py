@@ -84,7 +84,8 @@ class TestAlertService:
         mock_client.invoke.return_value = mock_response
 
         # Re-init service to pick up the mock return value if needed
-        # But self.service.client is already set to the return value of the previous mock run in setup?
+        # But self.service.client is already set to the return value
+        # of the previous mock run in setup?
         # AlertService init calls ChatOllama().
         # self.mock_ollama returned a MagicMock() by default.
         # So self.service.client IS that mock.

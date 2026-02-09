@@ -4,7 +4,6 @@ Input validation utilities for the Early Warnings Weather Dashboard
 
 import logging
 import re
-from typing import List
 
 logger = logging.getLogger(__name__)
 
@@ -48,7 +47,7 @@ def validate_forecast_days(days: int) -> bool:
         return False
 
 
-def validate_district_list(districts: List[str], province: str) -> List[str]:
+def validate_district_list(districts: list[str], province: str) -> list[str]:
     """Validate and filter district list for a province"""
     if not districts or not isinstance(districts, list):
         return []
@@ -72,9 +71,9 @@ def sanitize_filename(name: str) -> str:
         return ""
 
     # Remove any path components to prevent directory traversal
-    import os
+    from pathlib import Path
 
-    name = os.path.basename(name.strip())
+    name = Path(name.strip()).name
 
     # Check if filename starts with dot before sanitizing
     starts_with_dot = name.startswith(".")

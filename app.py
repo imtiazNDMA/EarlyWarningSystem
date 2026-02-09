@@ -1,5 +1,5 @@
 import logging
-import os
+from pathlib import Path
 
 from flask import Flask
 from flask_cors import CORS
@@ -13,10 +13,9 @@ from routes.main_routes import main_bp
 from services import database
 
 # Configure logging
-os.makedirs(
-    os.path.dirname(Config.LOG_FILE) if os.path.dirname(Config.LOG_FILE) else ".",
-    exist_ok=True,
-)
+log_file = Path(Config.LOG_FILE)
+log_file.parent.mkdir(parents=True, exist_ok=True)
+
 logging.basicConfig(
     level=getattr(logging, Config.LOG_LEVEL),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -32,7 +31,8 @@ app.config["MAX_CONTENT_LENGTH"] = Config.MAX_CONTENT_LENGTH
 # Enable CORS with proper configuration
 if Config.CORS_ORIGINS == ["*"]:
     logger.warning(
-        "CORS is configured to allow all origins. This is not recommended for production."
+        "CORS is configured to allow all origins. "
+        "This is not recommended for production."
     )
     CORS(app)
 else:

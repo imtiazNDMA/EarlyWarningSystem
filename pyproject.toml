@@ -3,7 +3,7 @@ name = "earlywarnings-changes"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.10,<3.13"
 dependencies = [
     "flask>=2.3.0,<3.0.0",
     "flask-cors>=4.0.0",
@@ -30,5 +30,24 @@ line-length = 88
 target-version = "py310"
 
 [tool.ruff.lint]
-select = ["E", "F", "B", "I"]
-ignore = []
+# E: pycodestyle errors
+# F: Pyflakes
+# B: flake8-bugbear
+# I: isort
+# S: bandit (security)
+# UP: pyupgrade
+# W: pycodestyle warnings
+# C90: mccabe complexity
+# N: pep8-naming
+# PT: flake8-pytest-style
+# ARG: flake8-unused-arguments
+# PTH: flake8-use-pathlib
+select = ["E", "F", "B", "I", "S", "UP", "W", "C90", "N", "PT", "ARG", "PTH"]
+ignore = ["S101"] # Allow asserts in tests
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["S101", "ARG001"] # Allow asserts and unused args in tests
+"**/__init__.py" = ["F401"]

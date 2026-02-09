@@ -1,6 +1,5 @@
 import json
 import logging
-from typing import Dict, List, Optional
 
 import pandas as pd
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -24,7 +23,7 @@ class AlertService:
             temperature=0.3,
         )
 
-    def parse_district_alerts(self, llm_text: str) -> Dict[str, dict]:
+    def parse_district_alerts(self, llm_text: str) -> dict[str, dict]:
         """
         Parse district alerts from LLM response (expected to be JSON).
 
@@ -58,7 +57,7 @@ class AlertService:
 
                 # Normalize keys (district names)
                 for district, content in data.items():
-                    # Handle "Region's Summary" separately if needed, 
+                    # Handle "Region's Summary" separately if needed,
                     # or treat as special district
                     if district == "Region's Summary":
                         alerts["Region's Summary"] = content
@@ -85,7 +84,7 @@ class AlertService:
             return {}
 
     @retry_on_failure(max_attempts=3, delay=2.0, backoff=2.0)
-    def generate_alert(self, province: str, forecasts: Dict[str, pd.DataFrame]) -> str:
+    def generate_alert(self, province: str, forecasts: dict[str, pd.DataFrame]) -> str:
         """
         Generate weather alerts for a province using AI in English and Urdu
         """
@@ -220,10 +219,7 @@ class AlertService:
             response = self.client.invoke(messages)
             alert_text = response.content
 
-            logger.info(
-                f"Generated alerts for {province} "
-                f"({len(forecasts)} districts)"
-            )
+            logger.info(f"Generated alerts for {province} ({len(forecasts)} districts)")
             return alert_text
 
         except Exception as e:
@@ -231,7 +227,7 @@ class AlertService:
             raise
 
     def save_district_alerts(
-        self, alerts: Dict[str, dict], forecast_days: int, province: str
+        self, alerts: dict[str, dict], forecast_days: int, province: str
     ):
         """
         Save district-level alerts to SQLite database
@@ -246,7 +242,7 @@ class AlertService:
             database.save_alert(province, district, forecast_days, msg_json)
             logger.debug(f"Saved DB alert for {province}/{district}")
 
-    def get_alert(self, province: str, district: str, days: int) -> Optional[dict]:
+    def get_alert(self, province: str, district: str, days: int) -> dict | None:
         """
         Get alert for a specific district from SQLite
         """
@@ -269,7 +265,7 @@ class AlertService:
 
         return None
 
-    def purge_cache(self, province: str, districts: List[str], days: int) -> int:
+    def purge_cache(self, province: str, districts: list[str], days: int) -> int:
         """
         Purge alert cache for specific districts (Delegated to database module)
 

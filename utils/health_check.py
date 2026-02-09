@@ -56,14 +56,13 @@ def check_openmeteo_api():
 
 def check_file_system():
     """Check if file system is writable"""
-    import os
+    from pathlib import Path
 
     try:
-        test_file = "static/weatherdata/.health_check"
-        os.makedirs("static/weatherdata", exist_ok=True)
-        with open(test_file, "w") as f:
-            f.write("test")
-        os.remove(test_file)
+        test_file = Path("static/weatherdata/.health_check")
+        test_file.parent.mkdir(parents=True, exist_ok=True)
+        test_file.write_text("test")
+        test_file.unlink()
         return True, "File system writable"
     except Exception as e:
         logger.error(f"File system check failed: {e}")

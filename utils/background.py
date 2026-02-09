@@ -4,7 +4,8 @@ Background task manager for running long-running operations asynchronously
 
 import logging
 import threading
-from typing import Any, Callable, Dict
+from collections.abc import Callable
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -13,9 +14,9 @@ class BackgroundTaskManager:
     """Simple background task manager using threading"""
 
     def __init__(self):
-        self.tasks: Dict[str, threading.Thread] = {}
-        self.task_results: Dict[str, Any] = {}
-        self.task_errors: Dict[str, str] = {}
+        self.tasks: dict[str, threading.Thread] = {}
+        self.task_results: dict[str, Any] = {}
+        self.task_errors: dict[str, str] = {}
 
     def run_task(self, task_id: str, func: Callable, *args, **kwargs):
         """Run a function in a background thread
@@ -57,7 +58,7 @@ class BackgroundTaskManager:
         """Get the error message if task failed"""
         return self.task_errors.get(task_id)
 
-    def cleanup_old_results(self, max_age_seconds: int = 3600):
+    def cleanup_old_results(self, _max_age_seconds: int = 3600):
         """Clean up old task results (optional, for memory management)"""
         # For simplicity, we'll just clear all completed tasks
         # In production, you'd want to track timestamps

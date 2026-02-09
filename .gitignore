@@ -29,6 +29,26 @@ wheels/
 venv/
 env/
 ENV/
+.venv/
+
+# Ruff
+.ruff_cache/
+ruff_*.txt
+ruff.json
+
+# Pytest and Coverage
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+pytest_output.txt
+
+# Analysis and Temporary artifacts
+alert_check.json
+weather_service_lint.txt
+bandit-report.json
+*.tmp
+*.temp
 
 # IDE
 .vscode/
@@ -43,14 +63,11 @@ Thumbs.db
 # Logs
 *.log
 logs/
+app.log
 
 # Database
 *.db
 *.sqlite3
-
-# Temporary files
-*.tmp
-*.temp
 
 # Weather data cache (Legacy)
 static/weatherdata/
@@ -71,10 +88,10 @@ compare_*.py
 *search_results.txt
 *inspection.txt
 *columns.txt
-coverage.xml
 
 # Jupyter notebooks (development artifacts)
 *.ipynb
 
-# ignore agents.md
+# Miscellaneous
 AGENTS.md
+CLAUDE.md

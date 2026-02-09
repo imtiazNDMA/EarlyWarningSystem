@@ -4,7 +4,6 @@ Map generation service using Folium
 
 import json
 import logging
-from typing import Dict, Tuple
 
 import folium
 import geopandas as gpd
@@ -23,7 +22,7 @@ class MapService:
         self.mapbox_token = Config.MAPBOX_TOKEN
         self._district_to_province = {}
         self._province_index_built = False
-        self._centroid_cache: Dict[str, Tuple[float, float]] = {}
+        self._centroid_cache: dict[str, tuple[float, float]] = {}
 
         self._boundary_gdf = None
 
@@ -104,7 +103,7 @@ class MapService:
 
     def create_map(
         self,
-        locations: Dict[str, Tuple[float, float]],
+        locations: dict[str, tuple[float, float]],
         forecast_days: int = 1,
         active_basemap: str = "Mapbox Satellite",
         selected_districts: list = None,
@@ -164,7 +163,13 @@ class MapService:
             ),
             "OpenTopoMap": folium.TileLayer(
                 tiles="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
-                attr='Map data: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)',
+                attr=(
+                    'Map data: &copy; <a href="https://www.openstreetmap.org/copyright">'
+                    'OpenStreetMap</a> contributors, <a href="http://viewfinderpanoramas.org">'
+                    'SRTM</a> | Map style: &copy; <a href="https://opentopomap.org">'
+                    'OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">'
+                    "CC-BY-SA</a>)"
+                ),
                 name="OpenTopoMap (Topographic)",
                 overlay=False,
                 control=True,
@@ -460,7 +465,7 @@ class MapService:
                             }
                         });
                     }
-                    if (document.readyState === 'complete') { applyBlinking(); } 
+                    if (document.readyState === 'complete') { applyBlinking(); }
                     else { window.addEventListener('load', applyBlinking); setTimeout(applyBlinking, 500); }
                 })();
                 </script>
@@ -482,7 +487,7 @@ class MapService:
 
     def _load_forecast_data(
         self, province: str, district: str, days: int
-    ) -> Tuple[list, dict]:
+    ) -> tuple[list, dict]:
         """Load forecast data for popup display, trying all possible provinces if needed"""
         self._build_province_index()
 

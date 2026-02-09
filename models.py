@@ -2,9 +2,7 @@
 Data models and constants for Early Warnings Weather Dashboard
 """
 
-from typing import Dict, Tuple
-
-PROVINCES: Dict[str, Dict[str, Tuple[float, float]]] = {
+PROVINCES: dict[str, dict[str, tuple[float, float]]] = {
     "FEDERAL CAPITAL TERRITORY": {"ISLAMABAD": (33.66508854571285, 73.12121495291125)},
     "AZAD KASHMIR": {
         "BAGH": (33.99337266039674, 73.73998450875354),

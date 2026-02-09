@@ -6,7 +6,7 @@ import functools
 import logging
 import time
 from collections import defaultdict
-from typing import Any, Dict
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -94,7 +94,7 @@ def _get_memory_usage() -> float:
         return 0.0
 
 
-def get_performance_summary() -> Dict[str, Any]:
+def get_performance_summary() -> dict[str, Any]:
     """Get performance metrics summary"""
     summary = {}
 

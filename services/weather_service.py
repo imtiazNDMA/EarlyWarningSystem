@@ -3,11 +3,9 @@ Weather data service for fetching and caching weather information
 """
 
 import logging
-import os
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
-from typing import Dict, List, Optional, Tuple
+from pathlib import Path
 
 import requests
 from requests.adapters import HTTPAdapter
@@ -26,7 +24,7 @@ class WeatherService:
     def __init__(self):
         self.base_url = Config.BASE_URL
         self.cache_time = Config.CACHE_TIME
-        os.makedirs("static/weatherdata", exist_ok=True)
+        Path("static/weatherdata").mkdir(parents=True, exist_ok=True)
         # SQLite is now used for caching
         self._district_to_province = {}
         self._province_index_built = False
@@ -56,10 +54,10 @@ class WeatherService:
     def get_bulk_weather_data(
         self,
         province: str,
-        districts: Dict[str, Tuple[float, float]],
+        districts: dict[str, tuple[float, float]],
         forecast_days: int,
-        cache_time: Optional[int] = None,
-    ) -> Dict[str, dict]:
+        cache_time: int | None = None,
+    ) -> dict[str, dict]:
         """
         Fetch weather data for multiple districts, using cache when available
 
@@ -77,7 +75,6 @@ class WeatherService:
 
         uncached = []
         cached_data = {}
-
 
         for district_name, (lat, lon) in districts.items():
             sanitized_district = sanitize_filename(district_name)
@@ -175,7 +172,7 @@ class WeatherService:
 
     def get_weather_forecast(
         self, province: str, district: str, days: int
-    ) -> Optional[dict]:
+    ) -> dict | None:
         """
         Get weather forecast for a specific district
         """
@@ -186,7 +183,7 @@ class WeatherService:
 
         return None
 
-    def purge_cache(self, province: str, districts: List[str], days: int) -> int:
+    def purge_cache(self, province: str, districts: list[str], days: int) -> int:
         """
         Purge cache for specific districts (Delegated to database)
         """

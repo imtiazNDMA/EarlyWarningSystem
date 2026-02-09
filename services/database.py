@@ -1,9 +1,9 @@
 import json
 import logging
 import sqlite3
+from collections.abc import Generator
 from contextlib import contextmanager
 from datetime import datetime
-from typing import Dict, Generator, List, Optional, Tuple
 
 import pandas as pd
 
@@ -107,7 +107,7 @@ def init_db():
         logger.error(f"Error initializing database: {e}")
 
 
-def get_weather_cache(cache_key: str) -> Optional[pd.DataFrame]:
+def get_weather_cache(cache_key: str) -> pd.DataFrame | None:
     """Retrieve weather data from cache, checking expiration"""
     try:
         with get_db_connection() as conn:
@@ -142,7 +142,7 @@ def get_weather_cache(cache_key: str) -> Optional[pd.DataFrame]:
         return None
 
 
-def get_raw_weather_cache(cache_key: str) -> Optional[Tuple[dict, datetime]]:
+def get_raw_weather_cache(cache_key: str) -> tuple[dict, datetime] | None:
     """Retrieve raw JSON weather data from cache with timestamp"""
     try:
         with get_db_connection() as conn:
@@ -232,7 +232,7 @@ def save_alert(province: str, district: str, forecast_days: int, alert_text: str
         pass
 
 
-def get_alert(province: str, district: str, forecast_days: int) -> Optional[str]:
+def get_alert(province: str, district: str, forecast_days: int) -> str | None:
     """Retrieve alert from database, checking cache expiration"""
     try:
         with get_db_connection() as conn:
@@ -252,7 +252,7 @@ def get_alert(province: str, district: str, forecast_days: int) -> Optional[str]
         return None
 
 
-def get_all_alerts(forecast_days: int) -> Dict[str, Dict[str, str]]:
+def get_all_alerts(forecast_days: int) -> dict[str, dict[str, str]]:
     """Retrieve all alerts for a specific forecast duration, checking cache expiration"""
     alerts = {}
     try:
@@ -278,7 +278,7 @@ def get_all_alerts(forecast_days: int) -> Dict[str, Dict[str, str]]:
         return {}
 
 
-def purge_cache_db(province: str, districts: List[str], forecast_days: int) -> int:
+def purge_cache_db(province: str, districts: list[str], forecast_days: int) -> int:
     """Delete alerts from database for specific districts"""
     try:
         with get_db_connection() as conn:
@@ -338,8 +338,8 @@ def purge_cache_db(province: str, districts: List[str], forecast_days: int) -> i
 
 
 def get_raw_weather_cache_batch(
-    cache_keys: List[str],
-) -> Dict[str, Tuple[dict, datetime]]:
+    cache_keys: list[str],
+) -> dict[str, tuple[dict, datetime]]:
     """Retrieve multiple raw JSON weather data from cache in a single query"""
     results = {}
     if not cache_keys:
@@ -377,8 +377,8 @@ def get_raw_weather_cache_batch(
 
 
 def get_alerts_batch(
-    province_district_days: List[Tuple[str, str, int]],
-) -> Dict[Tuple[str, str, int], str]:
+    province_district_days: list[tuple[str, str, int]],
+) -> dict[tuple[str, str, int], str]:
     """Retrieve multiple alerts in a single query"""
     results = {}
     if not province_district_days:
@@ -435,7 +435,7 @@ def get_alerts_batch(
         return results
 
 
-def get_cache_stats() -> Dict[str, int]:
+def get_cache_stats() -> dict[str, int]:
     """Get cache statistics for monitoring"""
     try:
         with get_db_connection() as conn:
@@ -443,7 +443,8 @@ def get_cache_stats() -> Dict[str, int]:
 
             # Get weather cache count
             cursor.execute(
-                "SELECT COUNT(*) FROM weather_cache WHERE expires_at > CURRENT_TIMESTAMP"
+                "SELECT COUNT(*) FROM weather_cache "
+                "WHERE expires_at > CURRENT_TIMESTAMP"
             )
             weather_count = cursor.fetchone()[0]
 
