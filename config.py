@@ -26,7 +26,6 @@ class Config:
     MAX_DISTRICTS_PER_REQUEST = int(os.getenv("MAX_DISTRICTS_PER_REQUEST", 100))
 
     # API Configuration
-    # API Configuration
     OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "llama3.1")
     OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
     MAPBOX_TOKEN = os.getenv("MAPBOX_TOKEN")

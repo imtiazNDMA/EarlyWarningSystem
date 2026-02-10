@@ -20,7 +20,7 @@ class AlertService:
         self.client = ChatOllama(
             model=Config.OLLAMA_MODEL,
             base_url=Config.OLLAMA_BASE_URL,
-            temperature=0.3,
+            temperature=0.2,
         )
 
     def parse_district_alerts(self, llm_text: str) -> dict[str, dict]:
@@ -121,98 +121,133 @@ class AlertService:
             forecast_texts.append(district_text)
 
         prompt = f"""
-        Act as an expert meteorologist and generate weather alerts for
-        {province} based on these district forecasts:
-        
-        {"".join(forecast_texts)}
+            You are an expert meteorologist writing public weather advisories for {province}, Pakistan.
 
-        Rules:
-        1.  Analyze the forecast for each district.
-        2.  Generate a concise alert in **English**.
-        3.  Generate a concise alert in **Urdu**.
-        4.  Provide a **"Region's Summary"** for the overall province.
-        5.  **Output MUST be valid JSON only.** No markdown formatting, no intro text.
-        6.  The alert should be generated for 7 days, 
-            covering the whole forecast period.
-        7.  The alert should be generated for each district in the province.
-        8.  Maintain a smooth and steady flow of information, 
-            using simple and easy to understand language.
-        9.  Explain it like a story, not like a technical report.
-        
-        **URDU TRANSLATION GLOSSARY (STRICTLY FOLLOW THIS):**
-        - Thunderstorm: گرج چمک (Garaj Chamak)
-        - Rain: بارش (Barish)
-        - Clear Sky: مطلع صاف (Matla Saaf)
-        - Heavy Rain: موسلا دھار بارش (Mosla dhaar barish)
-        - Cloudy: ابر آلود (Abr Aalood) / بادل (Baadal)
-        - Partly Cloudy: جزوی طور پر ابر آلود (Juzwi tor par abr aalood)
-        - Sunny/Clear Skies: مطلع صاف (Matla Saaf) - NEVER use "Saaf ma" or "yas".
-        - Temperature: درجہ حرارت (Darja Hararat)
-        - High: زیادہ سے زیادہ (Zyada se zyada)
-        - Low: کم سے کم (Kam se kam)
-        - Winds: ہوائیں (Hawayein)
-        - Snow: برفباری (Baraf bari)
-        - Fog/Smog: دھند (Dhund) / سموگ (Smog)
-        - Haze: دھندلاہٹ (Dhundlahat)
-        - Light Rain: ہلکی بارش (Halki Barish) - NEVER use "Thori si barish".
-        - Moderate Rain: معتدل بارش (Mutadil Barish)
-        - Heavy Rain: تیز بارش (Tez Barish)
-        - Very Heavy Rain: شدید بارش (Shadeed Barish)
-        - Extreme Rain: انتہائی شدید بارش (Intihai Shadeed Barish)
-        - Light Snow: ہلکی برفباری (Halki Baraf bari)
-        - Moderate Snow: معتدل برفباری (Mutadil Baraf bari)
-        - Heavy Snow: تیز برفباری (Tez Baraf bari)
-        - Very Heavy Snow: شدید برفباری (Shadeed Baraf bari)
-        - Extreme Snow: انتہائی شدید برفباری (Intihai Shadeed Baraf bari)
-        - Light Thunderstorm: ہلکی گرج چمک (Halki Garaj Chamak)
-        - Moderate Thunderstorm: معتدل گرج چمک (Mutadil Garaj Chamak)
-        - Heavy Thunderstorm: تیز گرج چمک (Tez Garaj Chamak)
-        - Very Heavy Thunderstorm: شدید گرج چمک (Shadeed Garaj Chamak)
-        - Extreme Thunderstorm: انتہائی شدید گرج چمک (Intihai Shadeed Garaj Chamak)
-        - Light Fog: ہلکی دھند (Halki Dhund)
-        - Moderate Fog: معتدل دھند (Mutadil Dhund)
-        - Heavy Fog: تیز دھند (Tez Dhund)
-        - Very Heavy Fog: شدید دھند (Shadeed Dhund)
-        - Extreme Fog: انتہائی شدید دھند (Intihai Shadeed Dhund)
-        - Light Haze: ہلکی دھندلاہٹ (Halki Dhundlahat)
-        - Moderate Haze: معتدل دھندلاہٹ (Mutadil Dhundlahat)
-        - Heavy Haze: تیز دھندلاہٹ (Tez Dhundlahat)
-        - Very Heavy Haze: شدید دھندلاہٹ (Shadeed Dhundlahat)
-        - Extreme Haze: انتہائی شدید دھندلاہٹ (Intihai Shadeed Dhundlahat)
-        - Light Smog: ہلکی سموگ (Halki Smog)
-        - Moderate Smog: معتدل سموگ (Mutadil Smog)
-        - Heavy Smog: تیز سموگ (Tez Smog)
-        - Very Heavy Smog: شدید سموگ (Shadeed Smog)
-        - Extreme Smog: انتہائی شدید سموگ (Intihai Shadeed Smog)
+            INPUT (district forecasts):
+            - The text below contains multiple district forecast blocks.
+            - Each block starts with a district name (exact spelling) followed by its forecast details.
+            - You MUST treat each district independently and must not mix forecasts between districts.
 
-        JSON Structure:
-        {{
+            FORECAST TEXT:
+            {''.join(forecast_texts)}
+
+            ABSOLUTE RULES (STRICT):
+            1) NEVER write in question/answer format. NEVER ask questions. Use bulletin/advisory style only.
+            2) Produce alerts for the FULL 7-DAY PERIOD covered by the forecasts. Do NOT write single-day answers.
+            - Each district alert must summarize the whole 7-day period in 2–4 sentences.
+            3) Output MUST be valid JSON ONLY. No markdown, no extra commentary, no leading/trailing text.
+            4) JSON keys:
+            - Include EXACTLY one top-level key per district found in the input.
+            - District key names MUST match the district names in the input EXACTLY (spelling/case).
+            - Also include EXACTLY one key named: "Region's Summary"
+            - Do NOT add any other keys.
+            5) For each district and the Region's Summary, output exactly two fields:
+            - "english": string
+            - "urdu": string
+            No additional fields.
+            6) Language & tone:
+            - English: simple, clear, NDMA/PMD-style advisory tone.
+            - Urdu: formal advisory Urdu (declarative), NOT conversational. No slang.
+            7) Consistency:
+            - Urdu must convey the SAME meaning as English (no missing/extra claims).
+            8) NUMBERS:
+            - Keep temperatures and dates as provided. Do not invent values.
+            - If a range is present, state it as a range. If multiple days vary, summarize typical highs/lows.
+            9) SAFETY / NON-ALARMIST:
+            - If no significant hazards are indicated, say so clearly (e.g., "No severe weather indicated").
+            - Only highlight hazards when supported by the forecast text.
+
+            GLOSSARY ENFORCEMENT (URDU) — MUST FOLLOW EXACTLY:
+            - You MUST use these exact Urdu terms (verbatim) for weather phenomena in the Urdu alert.
+            - DO NOT transliterate English weather words into Urdu script (e.g., never write "اوورکاسٹ", "تھنڈر اسٹورم").
+            - If a term appears in English, the Urdu MUST use the glossary term.
+
+            Glossary (English -> Urdu EXACT):
+            Thunderstorm: گرج چمک
+            Rain: بارش
+            Clear Sky: مطلع صاف
+            Cloudy: ابر آلود / بادل
+            Partly Cloudy: جزوی طور پر ابر آلود
+            Sunny/Clear Skies: مطلع صاف
+            Temperature: درجہ حرارت
+            High: زیادہ سے زیادہ
+            Low: کم سے کم
+            Winds: ہوائیں
+            Snow: برفباری
+            Fog: دھند
+            Smog: سموگ
+            Haze: دھندلاہٹ
+            Light Rain: ہلکی بارش
+            Moderate Rain: معتدل بارش
+            Heavy Rain: تیز بارش
+            Very Heavy Rain: شدید بارش
+            Extreme Rain: انتہائی شدید بارش
+            Light Snow: ہلکی برفباری
+            Moderate Snow: معتدل برفباری
+            Heavy Snow: تیز برفباری
+            Very Heavy Snow: شدید برفباری
+            Extreme Snow: انتہائی شدید برفباری
+            Light Thunderstorm: ہلکی گرج چمک
+            Moderate Thunderstorm: معتدل گرج چمک
+            Heavy Thunderstorm: تیز گرج چمک
+            Very Heavy Thunderstorm: شدید گرج چمک
+            Extreme Thunderstorm: انتہائی شدید گرج چمک
+            Light Fog: ہلکی دھند
+            Moderate Fog: معتدل دھند
+            Heavy Fog: تیز دھند
+            Very Heavy Fog: شدید دھند
+            Extreme Fog: انتہائی شدید دھند
+            Light Haze: ہلکی دھندلاہٹ
+            Moderate Haze: معتدل دھندلاہٹ
+            Heavy Haze: تیز دھندلاہٹ
+            Very Heavy Haze: شدید دھندلاہٹ
+            Extreme Haze: انتہائی شدید دھندلاہٹ
+            Light Smog: ہلکی سموگ
+            Moderate Smog: معتدل سموگ
+            Heavy Smog: تیز سموگ
+            Very Heavy Smog: شدید سموگ
+            Extreme Smog: انتہائی شدید سموگ
+            Overcast: مکمل ابر آلود
+
+            REQUIRED OUTPUT JSON FORMAT (EXACT):
+            {{
             "District Name 1": {{
-                "english": "English alert text here...",
-                "urdu": "اردو متن یہاں..."
+                "english": "2–4 sentence 7-day advisory for this district.",
+                "urdu": "اسی معنی کے ساتھ 2–4 جملوں میں 7 روزہ مشاورتی پیغام۔"
             }},
             "District Name 2": {{
                 "english": "...",
                 "urdu": "..."
             }},
             "Region's Summary": {{
-                 "english": "...",
-                 "urdu": "..."
+                "english": "3–5 sentence province-wide summary for the full 7-day period (key hazards + overall range + general advice).",
+                "urdu": "اسی معنی کے ساتھ 3–5 جملوں میں صوبہ بھر کا خلاصہ۔"
             }}
-        }}
-        """
+            }}
+
+            FINAL CHECK BEFORE YOU OUTPUT:
+            - Valid JSON only (parsable).
+            - No extra keys.
+            - No Q/A phrasing.
+            - Urdu uses glossary terms (no transliteration).
+            - District alerts summarize 7 days, not a single day.
+            """
+
 
         try:
             messages = [
                 SystemMessage(
                     content=(
-                        "You are a weather assistant. Output only valid JSON. "
-                        "Ensure Urdu translations are accurate, "
-                        "natural, and use the provided glossary. "
-                        "Do NOT use any English characters in the Urdu text "
-                        "(except numbers and °C). "
-                        "Never hallucinate words like 'yas'."
-                    )
+                            "You are an expert meteorologist generating public advisories for Pakistan.\n"
+                            "STRICT OUTPUT: Return ONLY a single valid JSON object (start with '{' end with '}'). "
+                            "No markdown, no commentary, no extra text.\n"
+                            "JSON CONTRACT: Top-level keys must be exactly the district names provided in the input plus "
+                            "\"Region's Summary\". Each key maps to an object with exactly two string fields: "
+                            "\"english\" and \"urdu\". No extra fields.\n"
+                            "STYLE: No question/answer format. Use declarative advisory tone.\n"
+                            "URDU: Use Urdu script. Do not use Latin words in Urdu except numbers and °C. "
+                            "Use the provided glossary EXACTLY; do not transliterate weather terms.\n"
+                        )
                 ),
                 HumanMessage(content=prompt),
             ]

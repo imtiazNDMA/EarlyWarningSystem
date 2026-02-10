@@ -89,7 +89,9 @@ def get_alert(province, district, days):
 
     data = alert_service.get_alert(province, district, days)
     if not data:
-        return jsonify({"district": district, "alert": "⚠️ No alert generated yet."})
+        return jsonify({"district": district, "status": "no_data", "alert": "⚠️ No alert generated yet."})
+    
+    data["status"] = "success"
     return jsonify(data)
 
 

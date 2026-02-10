@@ -831,6 +831,54 @@
       }
     }
 
+    // Purge cache for selected districts
+    async function purgeCache() {
+      const province = document.getElementById('province').value;
+      const forecastDays = document.getElementById('forecast_days').value;
+      const districts = getSelectedDistricts();
+
+      if (districts.length === 0) {
+        toast.warning('Please select at least one district to purge cache.');
+        return;
+      }
+
+      // Confirm with user
+      if (!confirm(`Are you sure you want to purge cache for ${districts.length} district(s) in ${province}?\n\nThis will force fresh data to be fetched on the next request.`)) {
+        return;
+      }
+
+      showLoading('Purging cache...');
+
+      try {
+        const response = await fetch('/purge_cache', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            province: province,
+            districts: districts,
+            forecast_days: parseInt(forecastDays)
+          })
+        });
+
+        const result = await response.json();
+
+        if (result.status === 'success') {
+          toast.success(result.message);
+          // Optionally refresh the map to show updated data
+          await refreshMap();
+        } else {
+          toast.error(result.message || 'Failed to purge cache');
+        }
+      } catch (error) {
+        console.error('Error purging cache:', error);
+        toast.error('Failed to purge cache: ' + error.message);
+      } finally {
+        hideLoading();
+      }
+    }
+
     // Refresh map when forecast days change
     async function refreshMapOnDaysChange() {
       const forecastDays = document.getElementById('forecast_days').value;
@@ -863,7 +911,7 @@
         const response = await fetch(`/get_alert/${province}/${district}/${forecastDays}`);
         const result = await response.json();
 
-        if (result.status === 'success') {
+        if (result.status === 'success' || (result.alert && typeof result.alert === 'object')) {
           // Update the alert header to show current district
           document.getElementById('currentProvince').textContent = `${province} - ${district}`;
 
@@ -891,8 +939,10 @@
           highlightSelectedDistrict(district);
 
         } else {
+          // Robust check for alert text
+          let errorMsg = typeof result.alert === 'string' ? result.alert : "No alert available.";
           document.getElementById('alertContent').innerHTML =
-            `<div class="no-alerts">${result.alert}</div>`;
+            `<div class="no-alerts">${errorMsg}</div>`;
         }
       } catch (error) {
         console.error('Error loading district alert:', error);

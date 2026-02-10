@@ -95,3 +95,7 @@ compare_*.py
 # Miscellaneous
 AGENTS.md
 CLAUDE.md
+
+# ruff lint output
+ruff_*.txt
+ruff_*.json
