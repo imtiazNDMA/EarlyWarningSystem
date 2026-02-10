@@ -133,8 +133,8 @@ class AlertService:
 
             ABSOLUTE RULES (STRICT):
             1) NEVER write in question/answer format. NEVER ask questions. Use bulletin/advisory style only.
-            2) Produce alerts for the FULL 7-DAY PERIOD covered by the forecasts. Do NOT write single-day answers.
-            - Each district alert must summarize the whole 7-day period in 2–4 sentences.
+            2) Produce alerts for the FULL {forecast_days}-DAY PERIOD covered by the forecasts. Do NOT write single-day answers.
+            - Each district alert must summarize the whole {forecast_days}-day period in 2–4 sentences.
             3) Output MUST be valid JSON ONLY. No markdown, no extra commentary, no leading/trailing text.
             4) JSON keys:
             - Include EXACTLY one top-level key per district found in the input.
@@ -212,15 +212,15 @@ class AlertService:
             REQUIRED OUTPUT JSON FORMAT (EXACT):
             {{
             "District Name 1": {{
-                "english": "2–4 sentence 7-day advisory for this district.",
-                "urdu": "اسی معنی کے ساتھ 2–4 جملوں میں 7 روزہ مشاورتی پیغام۔"
+                "english": "2–4 sentence {forecast_days}-day advisory for this district.",
+                "urdu": "اسی معنی کے ساتھ 2–4 جملوں میں {forecast_days}-روزہ مشاورتی پیغام۔"
             }},
             "District Name 2": {{
                 "english": "...",
                 "urdu": "..."
             }},
             "Region's Summary": {{
-                "english": "3–5 sentence province-wide summary for the full 7-day period (key hazards + overall range + general advice).",
+                "english": "3–5 sentence province-wide summary for the full {forecast_days}-day period (key hazards + overall range + general advice).",
                 "urdu": "اسی معنی کے ساتھ 3–5 جملوں میں صوبہ بھر کا خلاصہ۔"
             }}
             }}
@@ -230,7 +230,7 @@ class AlertService:
             - No extra keys.
             - No Q/A phrasing.
             - Urdu uses glossary terms (no transliteration).
-            - District alerts summarize 7 days, not a single day.
+            - District alerts summarize {forecast_days} days, not a single day.
             """
 
 
