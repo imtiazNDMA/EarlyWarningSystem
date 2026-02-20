@@ -1,21 +1,18 @@
-import json
+from flask import Blueprint, request, jsonify
 import logging
 import time
-
-from flask import Blueprint, jsonify, request
-
-from extensions import alert_service, weather_service
 from models import PROVINCES
+from extensions import weather_service, alert_service
 from services import database
-from utils.background import background_tasks
 from utils.formatting import create_weather_dataframe
-from utils.health_check import get_health_status
+from utils.background import background_tasks
 from utils.validation import (
     validate_api_request_data,
+    validate_province,
     validate_district,
     validate_forecast_days,
-    validate_province,
 )
+from utils.health_check import get_health_status
 
 # Initialize Blueprint
 api_bp = Blueprint("api", __name__)
@@ -49,6 +46,7 @@ def get_forecast(province, district, days):
         return jsonify({"error": "Invalid forecast days"}), 400
 
     data = weather_service.get_weather_forecast(province, district, days)
+    print("Daily data for DataFrame creation:", data)
     if not data:
         return jsonify(
             {
@@ -59,7 +57,12 @@ def get_forecast(province, district, days):
         )
 
     # Convert to DataFrame format for display with caching
-    daily = data["daily"]
+    # daily = data["daily"]
+    if isinstance(data, dict) and data.get("_source") == "openweathermap":
+        daily = data["main"]
+    else:
+        daily = data.get("daily")
+    print(data)
     cache_key = f"forecast_{province}_{district}_{days}"
     df = create_weather_dataframe(daily, cache_key)
 
@@ -89,9 +92,7 @@ def get_alert(province, district, days):
 
     data = alert_service.get_alert(province, district, days)
     if not data:
-        return jsonify({"district": district, "status": "no_data", "alert": "⚠️ No alert generated yet."})
-    
-    data["status"] = "success"
+        return jsonify({"district": district, "alert": "⚠️ No alert generated yet."})
     return jsonify(data)
 
 
@@ -113,31 +114,12 @@ def get_all_alerts(days):
     # Fetch alerts from SQLite
     db_alerts = database.get_all_alerts(days)
 
-    # Merge DB alerts into the response structure and parse JSON
+    # Merge DB alerts into the response structure
     for province, districts_data in db_alerts.items():
         if province in all_alerts:
             for district, alert_text in districts_data.items():
                 if district in all_alerts[province]:
-                    # Try to parse JSON if it looks like one
-                    try:
-                        if alert_text and (
-                            alert_text.strip().startswith("{")
-                            or alert_text.strip().startswith("[")
-                        ):
-                            parsed_alert = json.loads(alert_text)
-                            all_alerts[province][district] = parsed_alert
-                        else:
-                            # Legacy text compatibility
-                            all_alerts[province][district] = {
-                                "english": alert_text,
-                                "urdu": "",
-                            }
-                    except:
-                        # Fallback for plain text
-                        all_alerts[province][district] = {
-                            "english": alert_text,
-                            "urdu": "",
-                        }
+                    all_alerts[province][district] = alert_text
 
     return jsonify(all_alerts)
 
@@ -250,7 +232,11 @@ def generate_alerts():
             # Convert to DataFrames
             forecasts = {}
             for d, data in weather_data.items():
-                daily = data["daily"]
+                # daily = data["daily"]
+                if isinstance(data, dict) and data.get("_source") == "openweathermap":
+                    daily = data
+                else:
+                    daily = data.get("daily")
                 # Normalize data to ensure all values are lists for DataFrame creation
                 normalized_daily = {}
                 for key in [
@@ -275,7 +261,9 @@ def generate_alerts():
                 forecasts[d] = df
 
             # Generate alerts using AlertService
-            alert_text = alert_service.generate_alert(province, forecasts)
+            alert_text = alert_service.generate_alert(
+                province, forecasts, forecast_days
+            )
             alerts = alert_service.parse_district_alerts(alert_text)
 
             # Purge old alerts before saving new ones to ensure fresh data
@@ -363,7 +351,11 @@ def generate_forecast_and_alerts():
         # Convert to DataFrames for alert generation
         forecasts = {}
         for d, data in weather_data.items():
-            daily = data["daily"]
+            # daily = data["daily"]
+            if isinstance(data, dict) and data.get("_source") == "openweathermap":
+                daily = data
+            else:
+                daily = data.get("daily")
             # Ensure all values are lists (handle scalar values from legacy cache)
             for key in daily:
                 if not isinstance(daily[key], list):
@@ -374,7 +366,7 @@ def generate_forecast_and_alerts():
             forecasts[d] = df
 
         # Generate alerts
-        alert_text = alert_service.generate_alert(province, forecasts)
+        alert_text = alert_service.generate_alert(province, forecasts, forecast_days)
         alerts = alert_service.parse_district_alerts(alert_text)
 
         # Purge old alerts before saving new ones to ensure fresh data

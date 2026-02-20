@@ -84,7 +84,9 @@ class AlertService:
             return {}
 
     @retry_on_failure(max_attempts=3, delay=2.0, backoff=2.0)
-    def generate_alert(self, province: str, forecasts: dict[str, pd.DataFrame]) -> str:
+    def generate_alert(
+        self, province: str, forecasts: dict[str, pd.DataFrame], forecast_days: int
+    ) -> str:
         """
         Generate weather alerts for a province using AI in English and Urdu
         """
@@ -129,7 +131,7 @@ class AlertService:
             - You MUST treat each district independently and must not mix forecasts between districts.
 
             FORECAST TEXT:
-            {''.join(forecast_texts)}
+            {"".join(forecast_texts)}
 
             ABSOLUTE RULES (STRICT):
             1) NEVER write in question/answer format. NEVER ask questions. Use bulletin/advisory style only.
@@ -233,21 +235,20 @@ class AlertService:
             - District alerts summarize {forecast_days} days, not a single day.
             """
 
-
         try:
             messages = [
                 SystemMessage(
                     content=(
-                            "You are an expert meteorologist generating public advisories for Pakistan.\n"
-                            "STRICT OUTPUT: Return ONLY a single valid JSON object (start with '{' end with '}'). "
-                            "No markdown, no commentary, no extra text.\n"
-                            "JSON CONTRACT: Top-level keys must be exactly the district names provided in the input plus "
-                            "\"Region's Summary\". Each key maps to an object with exactly two string fields: "
-                            "\"english\" and \"urdu\". No extra fields.\n"
-                            "STYLE: No question/answer format. Use declarative advisory tone.\n"
-                            "URDU: Use Urdu script. Do not use Latin words in Urdu except numbers and °C. "
-                            "Use the provided glossary EXACTLY; do not transliterate weather terms.\n"
-                        )
+                        "You are an expert meteorologist generating public advisories for Pakistan.\n"
+                        "STRICT OUTPUT: Return ONLY a single valid JSON object (start with '{' end with '}'). "
+                        "No markdown, no commentary, no extra text.\n"
+                        "JSON CONTRACT: Top-level keys must be exactly the district names provided in the input plus "
+                        '"Region\'s Summary". Each key maps to an object with exactly two string fields: '
+                        '"english" and "urdu". No extra fields.\n'
+                        "STYLE: No question/answer format. Use declarative advisory tone.\n"
+                        "URDU: Use Urdu script. Do not use Latin words in Urdu except numbers and °C. "
+                        "Use the provided glossary EXACTLY; do not transliterate weather terms.\n"
+                    )
                 ),
                 HumanMessage(content=prompt),
             ]

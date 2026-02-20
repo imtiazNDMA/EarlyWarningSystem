@@ -2,21 +2,22 @@
 Weather data service for fetching and caching weather information
 """
 
-import logging
-from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
-from pathlib import Path
-
+import os
+import time
+import json
 import requests
+import logging
+from typing import Dict, List, Optional, Tuple
+import pandas as pd
+from config import Config
+from utils.validation import sanitize_filename
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
-
-from config import Config
 from services import database
-from utils.validation import sanitize_filename
+from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 logger = logging.getLogger(__name__)
-
 
 class WeatherService:
     """Service for handling weather data operations"""
@@ -24,7 +25,7 @@ class WeatherService:
     def __init__(self):
         self.base_url = Config.BASE_URL
         self.cache_time = Config.CACHE_TIME
-        Path("static/weatherdata").mkdir(parents=True, exist_ok=True)
+        os.makedirs("static/weatherdata", exist_ok=True)
         # SQLite is now used for caching
         self._district_to_province = {}
         self._province_index_built = False
@@ -51,13 +52,39 @@ class WeatherService:
 
         logger.info("Connection pooling initialized with 10 pools, 20 max connections")
 
+    def fetch_openweathermap(self, lat: float, lon: float, forecast_days: int) -> Optional[dict]:
+        """Fallback weather fetch using OpenWeatherMap One Call API"""
+        params = {
+            "lat": lat,
+            "lon": lon,
+            "exclude": "minutely",
+            "appid": Config.OPENWEATHER_API_KEY,
+            "units": "metric",
+        }
+
+        try:
+            response = self.session.get(
+                Config.OPENWEATHER_URL,
+                params=params,
+                timeout=Config.API_TIMEOUT,
+            )
+            if response.status_code == 200:
+                data = response.json()
+                data["_source"] = "openweathermap"
+                print("Fetched from OpenWeatherMap", data)
+                return data
+        except Exception as e:
+            logger.error(f"OpenWeatherMap error: {e}")
+
+        return None
+
     def get_bulk_weather_data(
         self,
         province: str,
-        districts: dict[str, tuple[float, float]],
+        districts: Dict[str, Tuple[float, float]],
         forecast_days: int,
-        cache_time: int | None = None,
-    ) -> dict[str, dict]:
+        cache_time: Optional[int] = None,
+    ) -> Dict[str, dict]:
         """
         Fetch weather data for multiple districts, using cache when available
 
@@ -76,6 +103,7 @@ class WeatherService:
         uncached = []
         cached_data = {}
 
+        current_time = time.time()
         for district_name, (lat, lon) in districts.items():
             sanitized_district = sanitize_filename(district_name)
             cache_key = f"weather_{forecast_days}_{province}_{sanitized_district}"
@@ -94,7 +122,7 @@ class WeatherService:
                     try:
                         dt = datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S")
                         age = (datetime.now() - dt).total_seconds()
-                    except Exception:
+                    except:
                         pass
 
                 if age < cache_time:
@@ -109,9 +137,12 @@ class WeatherService:
 
         # Parallel fetching for uncached districts
         def fetch_single_district(district_info):
-            """Fetch weather for a single district"""
             district_name, lat, lon, cache_key = district_info
-            params = {
+            
+            # ----------------------------
+            # 1️⃣ Try Open-Meteo first
+            # ----------------------------
+            open_meteo_params = {
                 "latitude": lat,
                 "longitude": lon,
                 "daily": [
@@ -129,32 +160,42 @@ class WeatherService:
                 "forecast_days": forecast_days,
                 "current_weather": "true",
             }
+
             try:
                 response = self.session.get(
-                    self.base_url, params=params, timeout=Config.API_TIMEOUT
+                    self.base_url,
+                    params=open_meteo_params,
+                    timeout=Config.API_TIMEOUT,
                 )
+
                 if response.status_code == 200:
                     data = response.json()
+                    data["_source"] = "open-meteo"
                     return (district_name, data, cache_key, None)
-                else:
-                    return (
-                        district_name,
-                        None,
-                        cache_key,
-                        f"HTTP {response.status_code}",
-                    )
-            except Exception as e:
-                return (district_name, None, cache_key, str(e))
 
-        # Use ThreadPoolExecutor for parallel fetching
-        # (limit to 15 workers to avoid overwhelming API)
+                logger.warning(f"Open-Meteo HTTP {response.status_code} for {district_name}")
+
+            except Exception as e:
+                logger.warning(f"Open-Meteo failed for {district_name}: {e}")
+            
+            # ----------------------------
+            # 2️⃣ Fallback → OpenWeatherMap
+            # ----------------------------
+            fallback_data = self.fetch_openweathermap(lat, lon, forecast_days)
+
+            if fallback_data:
+                return (district_name, fallback_data, cache_key, None)
+
+            return (district_name, None, cache_key, "Both providers failed")
+
+
+        # Use ThreadPoolExecutor for parallel fetching (limit to 15 workers to avoid overwhelming API)
         logger.info(f"Fetching weather data for {len(uncached)} districts in parallel")
         with ThreadPoolExecutor(max_workers=15) as executor:
-            futures = {
-                executor.submit(fetch_single_district, info): info for info in uncached
-            }
-
+            futures = {executor.submit(fetch_single_district, info): info for info in uncached}
+            
             for future in as_completed(futures):
+                print(future.result())
                 district_name, data, cache_key, error = future.result()
                 if data:
                     try:
@@ -162,17 +203,13 @@ class WeatherService:
                         cached_data[district_name] = data
                         logger.debug(f"Fetched and cached weather for {district_name}")
                     except Exception as e:
-                        logger.error(
-                            f"Error saving weather data for {district_name}: {e}"
-                        )
+                        logger.error(f"Error saving weather data for {district_name}: {e}")
                 else:
                     logger.error(f"Failed to fetch data for {district_name}: {error}")
 
         return cached_data
 
-    def get_weather_forecast(
-        self, province: str, district: str, days: int
-    ) -> dict | None:
+    def get_weather_forecast(self, province: str, district: str, days: int) -> Optional[dict]:
         """
         Get weather forecast for a specific district
         """
@@ -183,7 +220,7 @@ class WeatherService:
 
         return None
 
-    def purge_cache(self, province: str, districts: list[str], days: int) -> int:
+    def purge_cache(self, province: str, districts: List[str], days: int) -> int:
         """
         Purge cache for specific districts (Delegated to database)
         """

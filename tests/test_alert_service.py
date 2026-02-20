@@ -110,7 +110,7 @@ class TestAlertService:
             )
         }
 
-        alert_text = self.service.generate_alert("PUNJAB", forecasts)
+        alert_text = self.service.generate_alert("PUNJAB", forecasts, 1)
 
         assert "Lahore" in alert_text
         assert self.service.client.invoke.called
