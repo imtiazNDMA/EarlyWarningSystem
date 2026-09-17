@@ -16,10 +16,12 @@ logger = logging.getLogger(__name__)
 class AlertService:
     """Service for generating weather alerts using AI"""
 
-    def __init__(self):
+    def __init__(self, config: dict | None = None):
+        model = config["OLLAMA_MODEL"] if config else Config.OLLAMA_MODEL
+        base_url = config["OLLAMA_BASE_URL"] if config else Config.OLLAMA_BASE_URL
         self.client = ChatOllama(
-            model=Config.OLLAMA_MODEL,
-            base_url=Config.OLLAMA_BASE_URL,
+            model=model,
+            base_url=base_url,
             temperature=0.2,
         )
 
@@ -84,7 +86,9 @@ class AlertService:
             return {}
 
     @retry_on_failure(max_attempts=3, delay=2.0, backoff=2.0)
-    def generate_alert(self, province: str, forecasts: dict[str, pd.DataFrame]) -> str:
+    def generate_alert(
+        self, province: str, forecasts: dict[str, pd.DataFrame], forecast_days: int
+    ) -> str:
         """
         Generate weather alerts for a province using AI in English and Urdu
         """

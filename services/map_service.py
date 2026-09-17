@@ -18,8 +18,8 @@ logger = logging.getLogger(__name__)
 class MapService:
     """Service for generating interactive maps"""
 
-    def __init__(self):
-        self.mapbox_token = Config.MAPBOX_TOKEN
+    def __init__(self, config: dict | None = None):
+        self.mapbox_token = config["MAPBOX_TOKEN"] if config else Config.MAPBOX_TOKEN
         self._district_to_province = {}
         self._province_index_built = False
         self._centroid_cache: dict[str, tuple[float, float]] = {}
@@ -574,14 +574,14 @@ class MapService:
     ) -> str:
         """Build HTML content for marker popup"""
         popup_html = f"""
-        <div style="min-width: 300px; font-family: 'Inter', sans-serif;">
+        <div style="min-width: 350px; font-family: 'Inter', sans-serif;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
-                <b style="font-size: 1.2em; color: #333;">{district}</b>
-                <span style="font-size: 0.8em; color: #666; background: #f0f0f0; padding: 2px 6px; border-radius: 10px;">{province}</span>
+                <b style="font-size: 1.4em; color: #333;">{district}</b>
+                <span style="font-size: 1.0em; color: #666; background: #f0f0f0; padding: 2px 6px; border-radius: 10px;">{province}</span>
             </div>
             
             <div style="background: linear-gradient(135deg, #183B4E 0%, #224d64 100%); color: white; padding: 16px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.15);">
-                <div style="font-size: 0.9em; font-weight: bold; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1.2px; color: #b7e806;">Nowcasting</div>
+                <div style="font-size: 1.0em; font-weight: bold; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1.2px; color: #b7e806;">Nowcasting</div>
         """
 
         # Always try to show current weather if available
@@ -590,8 +590,8 @@ class MapService:
             wind = current_weather.get("windspeed", "N/A")
             popup_html += f"""
                 <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 5px;">
-                    <div style="font-size: 2.2em; font-weight: 700; color: #F3F3E0;">&#127777; {temp}°C</div>
-                    <div style="font-size: 1em; opacity: 0.9; font-weight: 500;">
+                    <div style="font-size: 2.8em; font-weight: 700; color: #F3F3E0;">&#127777; {temp}°C</div>
+                    <div style="font-size: 1.2em; opacity: 0.9; font-weight: 500;">
                         &#128168; {wind} km/h
                     </div>
                 </div>
@@ -600,8 +600,8 @@ class MapService:
             # Show placeholder if no current weather
             popup_html += """
                 <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 5px;">
-                    <div style="font-size: 1.5em; font-weight: 700; color: #F3F3E0; opacity: 0.6;">&#127777; --°C</div>
-                    <div style="font-size: 1em; opacity: 0.6; font-weight: 500;">
+                    <div style="font-size: 2.0em; font-weight: 700; color: #F3F3E0; opacity: 0.6;">&#127777; --°C</div>
+                    <div style="font-size: 1.2em; opacity: 0.6; font-weight: 500;">
                         &#128168; -- km/h
                     </div>
                 </div>
@@ -615,7 +615,7 @@ class MapService:
                 else ""
             )
             popup_html += f"""
-                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 0.9em; color: #F3F3E0;">
+                <div style="margin-top: 10px; padding-top: 10px; border-top: 1px solid rgba(255,255,255,0.2); font-size: 1.1em; color: #F3F3E0;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 6px; font-weight: 500;">
                         <span>H: {today["Max Temp (°C)"]}° | L: {today["Min Temp (°C)"]}°</span>
                         <span>&#127783; {today["Precipitation (mm)"]}mm</span>

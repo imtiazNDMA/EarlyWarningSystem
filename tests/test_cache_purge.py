@@ -1,17 +1,6 @@
 import json
 from unittest.mock import patch
 
-import pytest
-
-from app import app
-
-
-@pytest.fixture
-def client():
-    app.config["TESTING"] = True
-    with app.test_client() as client:
-        yield client
-
 
 @patch("services.database.purge_cache_db")
 def test_purge_cache_endpoint(mock_purge, client):

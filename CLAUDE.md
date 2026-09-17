@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Codebase Overview
 
-This is a Flask-based web application for weather forecasting and early warning alerts in Pakistan. It provides a geospatial dashboard with real-time weather visualization and AI-powered alert generation using local LLMs (Ollama).
+This is a Flask-based web application for weather forecasting and early warning alerts in Pakistan. It provides a geospatial dashboard with real-time weather visualization and AI-powered alert generation using local LLMs (Ollama). The system integrates with Open-Meteo API for weather data and uses local LLMs for generating weather alerts in both English and Urdu.
 
 ## Architecture
 
@@ -77,7 +77,7 @@ bandit -r app.py
 ## Key Features
 
 1. **Geospatial Visualization**: Interactive map using Folium with district-level weather data
-2. **AI-Powered Alerts**: Local LLM inference (Ollama) for generating weather alerts
+2. **AI-Powered Alerts**: Local LLM inference (Ollama) for generating weather alerts in English and Urdu
 3. **Caching System**: SQLite-based caching for efficient data retrieval
 4. **Multiple Weather Models**: Integration with Open-Meteo API for reliable forecasting
 5. **Responsive UI**: Modern Glassmorphic design with Bootstrap 5
@@ -96,6 +96,7 @@ bandit -r app.py
 - `/get_alert/<province>/<district>/<days>` - Get alerts for district
 - `/generate_forecast` - Generate weather forecasts
 - `/generate_alerts` - Generate alerts using local LLM
+- `/generate_forecast_and_alerts` - Generate both forecasts and alerts
 - `/health` - Health check endpoint
 
 ## Database Schema

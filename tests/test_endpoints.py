@@ -3,66 +3,56 @@ Tests for Flask endpoints
 """
 
 import json
-from unittest.mock import patch
-
-from app import app
 
 
 class TestFlaskEndpoints:
     """Test cases for Flask endpoints"""
 
-    def setup_method(self):
-        """Set up test fixtures"""
-        self.app = app
-        self.client = self.app.test_client()
-        self.app.config["TESTING"] = True
-
-    def test_index_get(self):
+    def test_index_get(self, client):
         """Test GET request to index"""
-        response = self.client.get("/")
+        response = client.get("/")
         assert response.status_code == 200
 
-    def test_health_check(self):
+    def test_health_check(self, client, services):
         """Test health check endpoint"""
-        with patch("utils.health_check.get_health_status") as mock_health:
-            mock_health.return_value = {"status": "healthy", "checks": {}}
+        response = client.get("/health")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["status"] == "healthy"
+        services["health"].assert_called_once_with()
 
-            response = self.client.get("/health")
-            assert response.status_code == 200
-            data = json.loads(response.data)
-            assert data["status"] == "healthy"
-
-    def test_get_districts_valid_province(self):
+    def test_get_districts_valid_province(self, client):
         """Test getting districts for valid province"""
-        response = self.client.get("/get_districts/PUNJAB")
+        response = client.get("/get_districts/PUNJAB")
         assert response.status_code == 200
         data = json.loads(response.data)
         assert "districts" in data
         assert len(data["districts"]) > 0
 
-    def test_get_districts_invalid_province(self):
+    def test_get_districts_invalid_province(self, client):
         """Test getting districts for invalid province"""
-        response = self.client.get("/get_districts/InvalidProvince")
+        response = client.get("/get_districts/InvalidProvince")
         assert response.status_code == 400
 
-    def test_refresh_map_valid_days(self):
+    def test_refresh_map_valid_days(self, client):
         """Test refreshing map with valid forecast days"""
-        response = self.client.get("/refresh_map/3")
+        response = client.get("/refresh_map/3")
         assert response.status_code == 200
         data = json.loads(response.data)
         assert "map_html" in data
 
-    def test_refresh_map_invalid_days(self):
+    def test_refresh_map_invalid_days(self, client):
         """Test refreshing map with invalid forecast days"""
-        response = self.client.get("/refresh_map/10")
+        response = client.get("/refresh_map/10")
         assert response.status_code == 400
 
-    @patch("services.weather_service.WeatherService.get_bulk_weather_data")
-    def test_generate_forecast_success(self, mock_weather):
+    def test_generate_forecast_success(self, client, services):
         """Test successful forecast generation"""
-        mock_weather.return_value = {"Lahore": {"daily": {}}}
+        services["weather"].get_bulk_weather_data.return_value = {
+            "LAHORE": {"daily": {}}
+        }
 
-        response = self.client.post(
+        response = client.post(
             "/generate_forecast",
             data=json.dumps(
                 {"province": "PUNJAB", "districts": ["LAHORE"], "forecast_days": 3}
@@ -74,19 +64,19 @@ class TestFlaskEndpoints:
         data = json.loads(response.data)
         assert data["status"] == "success"
 
-    def test_generate_forecast_invalid_json(self):
+    def test_generate_forecast_invalid_json(self, client):
         """Test forecast generation with invalid JSON"""
-        response = self.client.post(
+        response = client.post(
             "/generate_forecast", data="invalid json", content_type="application/json"
         )
 
         assert response.status_code == 400
 
-    def test_generate_forecast_too_many_districts(self):
+    def test_generate_forecast_too_many_districts(self, client):
         """Test forecast generation with too many districts"""
         districts = [f"District{i}" for i in range(150)]
 
-        response = self.client.post(
+        response = client.post(
             "/generate_forecast",
             data=json.dumps(
                 {"province": "PUNJAB", "districts": districts, "forecast_days": 3}
@@ -98,10 +88,9 @@ class TestFlaskEndpoints:
         data = json.loads(response.data)
         assert "Too many districts" in data["message"]
 
-    @patch("services.weather_service.WeatherService.get_weather_forecast")
-    def test_get_forecast_success(self, mock_forecast):
+    def test_get_forecast_success(self, client, services):
         """Test getting forecast for a district"""
-        mock_forecast.return_value = {
+        services["weather"].get_weather_forecast.return_value = {
             "daily": {
                 "time": ["2024-01-01"],
                 "temperature_2m_max": [25.0],
@@ -116,12 +105,12 @@ class TestFlaskEndpoints:
             }
         }
 
-        response = self.client.get("/get_forecast/PUNJAB/LAHORE/3")
+        response = client.get("/get_forecast/PUNJAB/LAHORE/3")
         assert response.status_code == 200
         data = json.loads(response.data)
         assert "forecast" in data
 
-    def test_get_forecast_invalid_province(self):
+    def test_get_forecast_invalid_province(self, client):
         """Test getting forecast with invalid province"""
-        response = self.client.get("/get_forecast/InvalidProvince/Lahore/3")
+        response = client.get("/get_forecast/InvalidProvince/Lahore/3")
         assert response.status_code == 400

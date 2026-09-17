@@ -6,12 +6,24 @@ from contextlib import contextmanager
 from datetime import datetime
 
 import pandas as pd
+from flask import current_app, has_app_context
 
 from config import Config
 
 logger = logging.getLogger(__name__)
 
-DB_FILE = "weather.db"
+def get_database_path() -> str:
+    """Return the database path configured for the current application."""
+    if has_app_context():
+        return current_app.config["DATABASE_PATH"]
+    return Config.DATABASE_PATH
+
+
+def get_cache_time() -> int:
+    """Return the cache lifetime configured for the current application."""
+    if has_app_context():
+        return current_app.config["CACHE_TIME"]
+    return Config.CACHE_TIME
 
 
 @contextmanager
@@ -22,7 +34,7 @@ def get_db_connection() -> Generator[sqlite3.Connection, None, None]:
     """
     conn = None
     try:
-        conn = sqlite3.connect(DB_FILE, timeout=10.0)
+        conn = sqlite3.connect(get_database_path(), timeout=10.0)
         # Enable WAL mode for better concurrency
         # conn.execute("PRAGMA journal_mode=WAL;")
         yield conn
@@ -47,7 +59,7 @@ def init_db():
     try:
         # We don't use the context manager here because we might need specific setup logic
         # or because we want to ensure specific PRAGMAs that stick (though for files it persists usually)
-        with sqlite3.connect(DB_FILE) as conn:
+        with sqlite3.connect(get_database_path()) as conn:
             cursor = conn.cursor()
 
             # Create weather cache table with additional indexes for performance
@@ -105,6 +117,7 @@ def init_db():
             logger.info("Database initialized successfully")
     except Exception as e:
         logger.error(f"Error initializing database: {e}")
+        raise
 
 
 def get_weather_cache(cache_key: str) -> pd.DataFrame | None:
@@ -176,7 +189,7 @@ def set_raw_weather_cache(cache_key: str, data: dict):
             cursor = conn.cursor()
             data_json = json.dumps(data)
             expires_at = datetime.now().replace(microsecond=0) + pd.Timedelta(
-                seconds=Config.CACHE_TIME
+                seconds=get_cache_time()
             )
 
             cursor.execute(
@@ -198,7 +211,7 @@ def set_weather_cache(cache_key: str, df: pd.DataFrame):
             # Serialize DataFrame to JSON string
             data_json = df.to_json(orient="records", date_format="iso")
             expires_at = datetime.now().replace(microsecond=0) + pd.Timedelta(
-                seconds=Config.CACHE_TIME
+                seconds=get_cache_time()
             )
 
             cursor.execute(
@@ -218,7 +231,7 @@ def save_alert(province: str, district: str, forecast_days: int, alert_text: str
         with get_db_connection() as conn:
             cursor = conn.cursor()
             expires_at = datetime.now().replace(microsecond=0) + pd.Timedelta(
-                seconds=Config.CACHE_TIME
+                seconds=get_cache_time()
             )
 
             cursor.execute(

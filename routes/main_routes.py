@@ -2,7 +2,7 @@ import logging
 
 from flask import Blueprint, jsonify, render_template, request
 
-from extensions import map_service
+from extensions import get_service
 from models import PROVINCES
 from utils.validation import validate_forecast_days, validate_province
 
@@ -39,7 +39,7 @@ def index():
     }
 
     # Create basic map with current forecast days
-    map_html = map_service.create_map(all_districts, forecast_days)
+    map_html = get_service("map").create_map(all_districts, forecast_days)
 
     return render_template(
         "index.html",
@@ -77,7 +77,7 @@ def refresh_map(forecast_days):
         for district, coords in province_districts.items()
     }
 
-    map_html = map_service.create_map(
+    map_html = get_service("map").create_map(
         all_districts,
         forecast_days,
         active_basemap=active_basemap,

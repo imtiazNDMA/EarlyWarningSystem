@@ -35,6 +35,7 @@ class Config:
 
     # Application Configuration
     CACHE_TIME = int(os.getenv("CACHE_TIME", 43200))
+    DATABASE_PATH = os.getenv("DATABASE_PATH", "weather.db")
     LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
     LOG_FILE = os.getenv("LOG_FILE", "app.log")
 
@@ -68,6 +69,3 @@ class Config:
     def generate_secret_key(cls) -> str:
         """Generate a secure random secret key"""
         return secrets.token_hex(32)
-
-
-Config.validate()

@@ -2,14 +2,13 @@ import json
 import logging
 import time
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 
-from extensions import alert_service, weather_service
+from extensions import get_service
 from models import PROVINCES
 from services import database
 from utils.background import background_tasks
 from utils.formatting import create_weather_dataframe
-from utils.health_check import get_health_status
 from utils.validation import (
     validate_api_request_data,
     validate_district,
@@ -48,7 +47,7 @@ def get_forecast(province, district, days):
         logger.warning(f"Invalid forecast days in request: {days}")
         return jsonify({"error": "Invalid forecast days"}), 400
 
-    data = weather_service.get_weather_forecast(province, district, days)
+    data = get_service("weather").get_weather_forecast(province, district, days)
     if not data:
         return jsonify(
             {
@@ -87,7 +86,7 @@ def get_alert(province, district, days):
         logger.warning(f"Invalid forecast days in alert request: {days}")
         return jsonify({"error": "Invalid forecast days"}), 400
 
-    data = alert_service.get_alert(province, district, days)
+    data = get_service("alert").get_alert(province, district, days)
     if not data:
         return jsonify({"district": district, "status": "no_data", "alert": "⚠️ No alert generated yet."})
     
@@ -185,9 +184,9 @@ def generate_forecast():
             d: PROVINCES[province][d] for d in districts if d in PROVINCES[province]
         }
 
-        weather_data = weather_service.get_bulk_weather_data(
-            province, districts_to_fetch, forecast_days, cache_time=0
-        )
+    weather_data = get_service("weather").get_bulk_weather_data(
+        province, districts_to_fetch, forecast_days, cache_time=0
+    )
 
     # Return success status
     return jsonify(
@@ -228,6 +227,10 @@ def generate_alerts():
         )
 
     try:
+        weather_service = get_service("weather")
+        alert_service = get_service("alert")
+        app = current_app._get_current_object()
+
         # Get selected districts or all districts in province
         if not districts:
             districts_to_fetch = PROVINCES[province]
@@ -239,57 +242,58 @@ def generate_alerts():
         # Define the background task function
         def generate_alerts_task():
             """Background task for generating alerts"""
-            weather_data = weather_service.get_bulk_weather_data(
-                province, districts_to_fetch, forecast_days, cache_time=0
-            )
+            with app.app_context():
+                weather_data = weather_service.get_bulk_weather_data(
+                    province, districts_to_fetch, forecast_days, cache_time=0
+                )
 
-            if not weather_data:
-                logger.error("Failed to fetch weather data for alert generation")
-                return None
+                if not weather_data:
+                    logger.error("Failed to fetch weather data for alert generation")
+                    return None
 
-            # Convert to DataFrames
-            forecasts = {}
-            for d, data in weather_data.items():
-                daily = data["daily"]
-                # Normalize data to ensure all values are lists for DataFrame creation
-                normalized_daily = {}
-                for key in [
-                    "time",
-                    "temperature_2m_max",
-                    "temperature_2m_min",
-                    "precipitation_sum",
-                    "precipitation_probability_max",
-                    "windspeed_10m_max",
-                    "windgusts_10m_max",
-                    "weathercode",
-                    "snowfall_sum",
-                    "uv_index_max",
-                ]:
-                    value = daily.get(key)
-                    normalized_daily[key] = (
-                        value if isinstance(value, list) else [value]
-                    )
+                # Convert to DataFrames
+                forecasts = {}
+                for d, data in weather_data.items():
+                    daily = data["daily"]
+                    # Normalize data to ensure all values are lists for DataFrame creation
+                    normalized_daily = {}
+                    for key in [
+                        "time",
+                        "temperature_2m_max",
+                        "temperature_2m_min",
+                        "precipitation_sum",
+                        "precipitation_probability_max",
+                        "windspeed_10m_max",
+                        "windgusts_10m_max",
+                        "weathercode",
+                        "snowfall_sum",
+                        "uv_index_max",
+                    ]:
+                        value = daily.get(key)
+                        normalized_daily[key] = (
+                            value if isinstance(value, list) else [value]
+                        )
 
-                cache_key = f"alerts_{province}_{forecast_days}_{d}"
-                df = create_weather_dataframe(normalized_daily, cache_key)
-                forecasts[d] = df
+                    cache_key = f"alerts_{province}_{forecast_days}_{d}"
+                    df = create_weather_dataframe(normalized_daily, cache_key)
+                    forecasts[d] = df
 
-            # Generate alerts using AlertService
-            alert_text = alert_service.generate_alert(province, forecasts)
-            alerts = alert_service.parse_district_alerts(alert_text)
+                alert_text = alert_service.generate_alert(
+                    province, forecasts, forecast_days
+                )
+                alerts = alert_service.parse_district_alerts(alert_text)
 
-            # Purge old alerts before saving new ones to ensure fresh data
-            alert_service.purge_cache(province, list(forecasts.keys()), forecast_days)
+                alert_service.purge_cache(
+                    province, list(forecasts.keys()), forecast_days
+                )
+                alert_service.save_district_alerts(alerts, forecast_days, province)
 
-            # Save district-level alerts
-            alert_service.save_district_alerts(alerts, forecast_days, province)
-
-            return {
-                "status": "success",
-                "message": f"Alerts generated for {province}",
-                "alert_text": alert_text,
-                "province": province,
-            }
+                return {
+                    "status": "success",
+                    "message": f"Alerts generated for {province}",
+                    "alert_text": alert_text,
+                    "province": province,
+                }
 
         # Start background task
         task_id = f"alerts_{province}_{forecast_days}_{time.time()}"
@@ -351,6 +355,9 @@ def generate_forecast_and_alerts():
             }
 
         # Generate forecasts
+        weather_service = get_service("weather")
+        alert_service = get_service("alert")
+
         weather_data = weather_service.get_bulk_weather_data(
             province, districts_to_fetch, forecast_days, cache_time=0
         )
@@ -374,7 +381,7 @@ def generate_forecast_and_alerts():
             forecasts[d] = df
 
         # Generate alerts
-        alert_text = alert_service.generate_alert(province, forecasts)
+        alert_text = alert_service.generate_alert(province, forecasts, forecast_days)
         alerts = alert_service.parse_district_alerts(alert_text)
 
         # Purge old alerts before saving new ones to ensure fresh data
@@ -434,6 +441,6 @@ def purge_cache():
 @api_bp.route("/health")
 def health_check():
     """Health check endpoint for monitoring"""
-    health_status = get_health_status()
+    health_status = get_service("health")()
     status_code = 200 if health_status["status"] == "healthy" else 503
     return jsonify(health_status), status_code

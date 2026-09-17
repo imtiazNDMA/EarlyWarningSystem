@@ -3,6 +3,7 @@ Weather data service for fetching and caching weather information
 """
 
 import logging
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from pathlib import Path
@@ -21,9 +22,16 @@ logger = logging.getLogger(__name__)
 class WeatherService:
     """Service for handling weather data operations"""
 
-    def __init__(self):
-        self.base_url = Config.BASE_URL
-        self.cache_time = Config.CACHE_TIME
+    def __init__(self, config: dict | None = None):
+        service_config = config or Config
+        self.base_url = service_config["BASE_URL"] if config else Config.BASE_URL
+        self.cache_time = (
+            service_config["CACHE_TIME"] if config else Config.CACHE_TIME
+        )
+        self.timezone = service_config["TIMEZONE"] if config else Config.TIMEZONE
+        self.api_timeout = (
+            service_config["API_TIMEOUT"] if config else Config.API_TIMEOUT
+        )
         Path("static/weatherdata").mkdir(parents=True, exist_ok=True)
         # SQLite is now used for caching
         self._district_to_province = {}
@@ -34,9 +42,10 @@ class WeatherService:
 
         # Configure retry strategy
         retry_strategy = Retry(
-            total=3,
-            backoff_factor=1,
-            status_forcelist=[500, 502, 503, 504],
+            total=5,
+            backoff_factor=2,
+            status_forcelist=[429, 500, 502, 503, 504],
+            respect_retry_after_header=True,
         )
 
         # Configure connection pooling
@@ -125,13 +134,15 @@ class WeatherService:
                     "snowfall_sum",
                     "uv_index_max",
                 ],
-                "timezone": Config.TIMEZONE,
+                "timezone": self.timezone,
                 "forecast_days": forecast_days,
                 "current_weather": "true",
             }
+            # Stagger requests to avoid hitting Open-Meteo burst rate limit
+            time.sleep(0.3)
             try:
                 response = self.session.get(
-                    self.base_url, params=params, timeout=Config.API_TIMEOUT
+                    self.base_url, params=params, timeout=self.api_timeout
                 )
                 if response.status_code == 200:
                     data = response.json()
@@ -149,7 +160,7 @@ class WeatherService:
         # Use ThreadPoolExecutor for parallel fetching
         # (limit to 15 workers to avoid overwhelming API)
         logger.info(f"Fetching weather data for {len(uncached)} districts in parallel")
-        with ThreadPoolExecutor(max_workers=15) as executor:
+        with ThreadPoolExecutor(max_workers=3) as executor:
             futures = {
                 executor.submit(fetch_single_district, info): info for info in uncached
             }
