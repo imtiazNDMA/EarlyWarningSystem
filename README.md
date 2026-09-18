@@ -7,6 +7,7 @@ A sophisticated, high-performance geospatial analytics dashboard for automated w
 ## Core Capabilities
 
 * **Geospatial Intelligence**: Interactive map with real-time district-level weather visualization and dynamic heat-map blinking effects.
+* **15-Day Forecast Horizon**: Validated district forecasts from 1 through 15 days with freshness and provenance metadata.
 * **Local LLM Inference**: AI-powered alert generation through LM Studio for high data privacy and reduced latency.
 * **Multiple Weather Models**: Integration with global weather data providers via Open-Meteo for reliable forecasting.
 * **Bilingual Alerts**: Automatic generation of weather alerts in both **English and Urdu**, featuring native Right-to-Left (RTL) text rendering for Urdu.

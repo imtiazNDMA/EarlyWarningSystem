@@ -585,7 +585,7 @@
         <select class="form-select mb-3" name="forecast_days" id="forecast_days" data-bs-toggle="tooltip"
           data-bs-placement="right" title="Number of days to forecast weather conditions"
           aria-label="Select forecast duration">
-          {% for days in range(1, 8) %}
+          {% for days in range(1, max_forecast_days + 1) %}
           <option value="{{ days }}" {% if days==selected_forecast_days %}selected{% endif %}>
             {{ days }} day{% if days > 1 %}s{% endif %}
           </option>

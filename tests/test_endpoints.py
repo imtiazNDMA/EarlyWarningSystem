@@ -41,9 +41,13 @@ class TestFlaskEndpoints:
         data = json.loads(response.data)
         assert "map_html" in data
 
+    def test_refresh_map_accepts_fifteen_days(self, client):
+        response = client.get("/refresh_map/15")
+        assert response.status_code == 200
+
     def test_refresh_map_invalid_days(self, client):
         """Test refreshing map with invalid forecast days"""
-        response = client.get("/refresh_map/10")
+        response = client.get("/refresh_map/16")
         assert response.status_code == 400
 
     def test_generate_forecast_success(self, client, services):

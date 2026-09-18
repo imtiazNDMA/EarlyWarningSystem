@@ -12,7 +12,7 @@ PRECIPITATION_MEDIUM_THRESHOLD = 20  # mm
 
 # Validation limits
 MIN_FORECAST_DAYS = 1
-MAX_FORECAST_DAYS = 7
+MAX_FORECAST_DAYS = 15
 
 # File paths
 WEATHER_DATA_DIR = "static/weatherdata"

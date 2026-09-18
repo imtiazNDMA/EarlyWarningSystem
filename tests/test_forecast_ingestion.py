@@ -181,3 +181,27 @@ def test_open_meteo_marks_short_horizon_partial():
     assert run.quality.status == DataStatus.PARTIAL
     assert run.quality.returned_days == 2
     assert run.quality.expected_days == 3
+
+
+def test_open_meteo_accepts_complete_fifteen_day_horizon():
+    session = MagicMock()
+    response = MagicMock()
+    response.url = "https://api.open-meteo.com/v1/forecast?forecast_days=15"
+    dates = [f"2026-09-{day:02d}" for day in range(1, 16)]
+    response.json.return_value = {
+        "daily": {
+            "time": dates,
+            **{field: [1] * 15 for field in OpenMeteoProvider.DAILY_FIELDS},
+        }
+    }
+    session.get.return_value = response
+    provider = OpenMeteoProvider(
+        "https://api.open-meteo.com/v1/forecast", 10, 3600, 7200, session
+    )
+
+    run = provider.fetch(LAHORE, 15)
+
+    assert run.quality.status == DataStatus.FRESH
+    assert run.quality.returned_days == 15
+    assert run.requested_days == 15
+    assert session.get.call_args.kwargs["params"]["forecast_days"] == 15

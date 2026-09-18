@@ -2,6 +2,7 @@ import logging
 
 from flask import Blueprint, jsonify, render_template, request
 
+from constants import MAX_FORECAST_DAYS
 from extensions import get_service
 from models import PROVINCES
 from utils.validation import validate_forecast_days, validate_province
@@ -49,6 +50,7 @@ def index():
         districts=PROVINCES[province].keys(),
         selected_districts=selected_districts,
         selected_forecast_days=forecast_days,
+        max_forecast_days=MAX_FORECAST_DAYS,
         map_html=map_html,
         PROVINCES=PROVINCES,
     )

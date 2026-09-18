@@ -5,6 +5,8 @@ Input validation utilities for the Early Warnings Weather Dashboard
 import logging
 import re
 
+from constants import MAX_FORECAST_DAYS, MIN_FORECAST_DAYS
+
 logger = logging.getLogger(__name__)
 
 # Allowed provinces
@@ -39,10 +41,10 @@ def validate_district(district: str) -> bool:
 
 
 def validate_forecast_days(days: int) -> bool:
-    """Validate forecast days (1-7)"""
+    """Validate the supported forecast horizon."""
     try:
         days_int = int(days)
-        return 1 <= days_int <= 7
+        return MIN_FORECAST_DAYS <= days_int <= MAX_FORECAST_DAYS
     except (ValueError, TypeError):
         return False
 

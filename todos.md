@@ -164,7 +164,7 @@ Do not expose the system as an authoritative warning service until this phase is
 
 ### Forecast Horizon and Provider Ingestion
 
-- [ ] **WX-001: Expand the product contract from 1-7 to 1-15 days.**
+- [x] **WX-001: Expand the product contract from 1-7 to 1-15 days.**
   - Update `validate_forecast_days`, constants, UI options, schemas, tests, and documentation.
   - Treat provider maximum capability separately from the product's 15-day limit.
   - Acceptance: API/UI accept 1, 7, 8, 14, and 15; reject 0 and 16; report actual returned horizon and missing dates.

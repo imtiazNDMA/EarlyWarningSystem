@@ -49,11 +49,14 @@ class TestValidation:
         assert validate_forecast_days(1) is True
         assert validate_forecast_days(3) is True
         assert validate_forecast_days(7) is True
+        assert validate_forecast_days(8) is True
+        assert validate_forecast_days(14) is True
+        assert validate_forecast_days(15) is True
 
     def test_validate_forecast_days_invalid(self):
         """Test validating invalid forecast days"""
         assert validate_forecast_days(0) is False
-        assert validate_forecast_days(8) is False
+        assert validate_forecast_days(16) is False
         assert validate_forecast_days(-1) is False
         assert validate_forecast_days("invalid") is False
         assert validate_forecast_days(None) is False
@@ -113,7 +116,7 @@ class TestValidation:
 
     def test_validate_api_request_data_invalid_days(self):
         """Test validating API request with invalid forecast days"""
-        data = {"province": "PUNJAB", "forecast_days": 10}
+        data = {"province": "PUNJAB", "forecast_days": 16}
 
         is_valid, message = validate_api_request_data(data)
         assert is_valid is False
