@@ -33,6 +33,45 @@ class DataQualityReport:
 
 
 @dataclass(frozen=True)
+class EnsembleCorroboration:
+    ensemble_payload: dict[str, Any]
+    models: tuple[str, ...]
+    members_per_model: dict[str, int]
+    checksum: str
+
+    def spread_summary(self, field: str) -> dict[str, float]:
+        hourly = self.ensemble_payload.get("hourly", {})
+        member_values = []
+        for key, values in hourly.items():
+            if key.startswith(f"{field}_member") and isinstance(values, list):
+                non_null = [v for v in values if v is not None]
+                if non_null:
+                    member_values.append(non_null)
+        if not member_values:
+            return {"mean": 0.0, "spread": 0.0, "member_count": 0}
+        min_len = min(len(v) for v in member_values)
+        trimmed = [v[:min_len] for v in member_values]
+        avgs = [sum(row) / len(row) for row in zip(*trimmed, strict=True)]
+        overall_mean = sum(avgs) / len(avgs) if avgs else 0.0
+        overall_spread = max(avgs) - min(avgs) if avgs else 0.0
+        return {
+            "mean": round(overall_mean, 2),
+            "spread": round(overall_spread, 2),
+            "member_count": len(member_values),
+        }
+
+    def member_count(self, model: str) -> int:
+        hourly = self.ensemble_payload.get("hourly", {})
+        return sum(
+            1
+            for key in hourly
+            if "_member" in key
+            and key.endswith(model)
+            and isinstance(hourly[key], list)
+        )
+
+
+@dataclass(frozen=True)
 class ForecastRun:
     run_id: str
     provider: str
@@ -46,6 +85,7 @@ class ForecastRun:
     checksum: str
     source_url: str
     schema_version: int = 1
+    corroboration: EnsembleCorroboration | None = None
 
     def freshness_at(self, now: datetime) -> DataStatus:
         if self.quality.status in {DataStatus.INVALID, DataStatus.PARTIAL}:
@@ -72,6 +112,17 @@ class ForecastRun:
             missing_dates=tuple(quality_data.get("missing_dates", ())),
             issues=tuple(quality_data.get("issues", ())),
         )
+        corroboration_data = document.get("corroboration")
+        corroboration = None
+        if isinstance(corroboration_data, dict) and corroboration_data.get(
+            "ensemble_payload"
+        ):
+            corroboration = EnsembleCorroboration(
+                ensemble_payload=corroboration_data["ensemble_payload"],
+                models=tuple(corroboration_data.get("models", ())),
+                members_per_model=corroboration_data.get("members_per_model", {}),
+                checksum=corroboration_data.get("checksum", ""),
+            )
         return cls(
             run_id=document["run_id"],
             provider=document["provider"],
@@ -85,6 +136,7 @@ class ForecastRun:
             checksum=document["checksum"],
             source_url=document["source_url"],
             schema_version=document.get("schema_version", 1),
+            corroboration=corroboration,
         )
 
 

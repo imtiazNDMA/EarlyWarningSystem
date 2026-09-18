@@ -3,7 +3,7 @@ import time
 from collections.abc import Callable
 from datetime import datetime
 
-from domain.forecast import DataStatus, ForecastResult, Location, utc_now
+from domain.forecast import DataStatus, ForecastResult, ForecastRun, Location, utc_now
 from ingestion.interfaces import ForecastProvider, ForecastRunRepository
 
 
@@ -15,10 +15,12 @@ class ForecastIngestionCoordinator:
         provider: ForecastProvider,
         repository: ForecastRunRepository,
         clock: Callable[[], datetime] = utc_now,
+        ensemble_provider: ForecastProvider | None = None,
     ) -> None:
         self.provider = provider
         self.repository = repository
         self.clock = clock
+        self.ensemble_provider = ensemble_provider
         self._locks: dict[tuple[str, int], threading.Lock] = {}
         self._locks_guard = threading.Lock()
 
@@ -73,6 +75,29 @@ class ForecastIngestionCoordinator:
 
             try:
                 run = self.provider.fetch(location, forecast_days)
+                if self.ensemble_provider is not None:
+                    try:
+                        ensemble_run = self.ensemble_provider.fetch(
+                            location, forecast_days
+                        )
+                        if ensemble_run.corroboration is not None:
+                            run = ForecastRun(
+                                run_id=run.run_id,
+                                provider=run.provider,
+                                location=run.location,
+                                requested_days=run.requested_days,
+                                retrieved_at=run.retrieved_at,
+                                fresh_until=run.fresh_until,
+                                usable_until=run.usable_until,
+                                payload=run.payload,
+                                quality=run.quality,
+                                checksum=run.checksum,
+                                source_url=run.source_url,
+                                schema_version=run.schema_version,
+                                corroboration=ensemble_run.corroboration,
+                            )
+                    except Exception:  # noqa: S110 - ensemble is best-effort
+                        pass
                 run_status = run.freshness_at(self.clock())
                 if run_status in {DataStatus.PARTIAL, DataStatus.INVALID}:
                     if latest and latest.freshness_at(self.clock()) in {

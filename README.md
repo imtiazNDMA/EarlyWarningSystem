@@ -10,6 +10,7 @@ A sophisticated, high-performance geospatial analytics dashboard for automated w
 * **15-Day Forecast Horizon**: Validated district forecasts from 1 through 15 days with freshness and provenance metadata.
 * **Local LLM Inference**: AI-powered alert generation through LM Studio for high data privacy and reduced latency.
 * **Multiple Weather Models**: Integration with global weather data providers via Open-Meteo for reliable forecasting.
+* **Ensemble Corroboration**: ECMWF and NCEP GEFS ensemble spread computed per field to quantify forecast uncertainty.
 * **Bilingual Alerts**: Automatic generation of weather alerts in both **English and Urdu**, featuring native Right-to-Left (RTL) text rendering for Urdu.
 * **Intelligent Analytics**: Automated nowcasting and trend analysis for temperature, precipitation, and extreme weather events.
 * **Reliable Forecast Persistence**: MongoDB stores immutable forecast runs, freshness metadata, cache records, and alerts.

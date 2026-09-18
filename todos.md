@@ -184,7 +184,7 @@ Do not expose the system as an authoritative warning service until this phase is
   - Add apparent temperature, humidity/dew point or wet-bulb inputs, wind direction, visibility, pressure/freezing-level, cloud/convective fields, soil/antecedent conditions where supported.
   - Acceptance: Hazard contracts state mandatory/optional fields and produce `insufficient_data` when mandatory evidence is absent.
 
-- [ ] **WX-005: Add source and model corroboration.**
+- [x] **WX-005: Add source and model corroboration.**
   - Add ensemble/model-specific forecasts and at least one independent source where licensing and availability permit.
   - Preserve official PMD/NDMA warnings as authoritative external products rather than blending them into LLM prose.
   - Acceptance: Source disagreement and ensemble spread contribute to certainty and are visible in review and public provenance.
