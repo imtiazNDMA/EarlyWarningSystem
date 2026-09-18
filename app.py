@@ -6,7 +6,7 @@ from flask import Flask
 from flask_cors import CORS
 
 from config import Config
-from extensions import init_services
+from extensions import init_repository, init_services
 from routes.api_routes import api_bp
 from routes.main_routes import main_bp
 from services import database
@@ -28,6 +28,7 @@ def configure_logging(app: Flask) -> None:
 def create_app(
     config: dict[str, Any] | None = None,
     services: dict[str, Any] | None = None,
+    repository: Any | None = None,
 ) -> Flask:
     """Create and configure an application with replaceable dependencies."""
     app = Flask(__name__)
@@ -49,6 +50,7 @@ def create_app(
     else:
         CORS(app, origins=cors_origins)
 
+    init_repository(app, repository)
     init_services(app, services)
     app.register_blueprint(main_bp)
     app.register_blueprint(api_bp)

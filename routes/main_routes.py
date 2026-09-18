@@ -62,7 +62,7 @@ def refresh_map(forecast_days):
         logger.warning(f"Invalid forecast days in refresh map request: {forecast_days}")
         return jsonify({"error": "Invalid forecast days"}), 400
 
-    active_basemap = request.args.get("basemap", "Mapbox Satellite")
+    active_basemap = request.args.get("basemap", "OpenStreetMap")
     selected_districts_str = request.args.get("districts", "")
     selected_districts = (
         selected_districts_str.split(",") if selected_districts_str else []

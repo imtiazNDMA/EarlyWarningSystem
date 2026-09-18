@@ -5,31 +5,45 @@ Health check and monitoring endpoints
 import logging
 
 import requests
+from flask import current_app, has_app_context
+from pymongo import MongoClient
 
 from config import Config
 
 logger = logging.getLogger(__name__)
 
 
-def check_ollama_status():
-    """Check if Ollama is accessible and model is loaded"""
+def check_mongodb_status():
+    """Check that the configured MongoDB repository is reachable."""
     try:
-        response = requests.get(f"{Config.OLLAMA_BASE_URL}/api/tags", timeout=5)
-        if response.status_code == 200:
-            models = response.json().get("models", [])
-            model_names = [m.get("name") for m in models]
-            if any(Config.OLLAMA_MODEL in name for name in model_names):
-                return True, f"Ollama accessible, model {Config.OLLAMA_MODEL} found"
-            else:
-                return (
-                    True,
-                    f"Ollama accessible, but model {Config.OLLAMA_MODEL} NOT found",
-                )
+        if has_app_context() and "repository" in current_app.extensions:
+            current_app.extensions["repository"].ping()
         else:
-            return False, f"Ollama returned status {response.status_code}"
+            client = MongoClient(
+                Config.MONGODB_URI,
+                serverSelectionTimeoutMS=Config.MONGODB_TIMEOUT_MS,
+            )
+            client.admin.command("ping")
+            client.close()
+        return True, f"MongoDB database {Config.MONGODB_DATABASE} accessible"
     except Exception as e:
-        logger.error(f"Ollama status check failed: {e}")
-        return False, f"Ollama error: {str(e)}"
+        logger.error(f"MongoDB status check failed: {e}")
+        return False, f"MongoDB error: {str(e)}"
+
+
+def check_lm_studio_status():
+    """Check whether LM Studio exposes the configured model."""
+    try:
+        response = requests.get(f"{Config.LM_STUDIO_BASE_URL}/models", timeout=5)
+        if response.status_code == 200:
+            model_ids = [model.get("id") for model in response.json().get("data", [])]
+            if Config.LM_STUDIO_MODEL in model_ids:
+                return True, f"LM Studio model {Config.LM_STUDIO_MODEL} found"
+            return False, f"LM Studio model {Config.LM_STUDIO_MODEL} NOT found"
+        return False, f"LM Studio returned status {response.status_code}"
+    except Exception as e:
+        logger.error(f"LM Studio status check failed: {e}")
+        return False, f"LM Studio error: {str(e)}"
 
 
 def check_openmeteo_api():
@@ -77,7 +91,8 @@ def get_health_status():
         dict: Health status information
     """
     checks = {
-        "ollama_status": check_ollama_status(),
+        "mongodb_status": check_mongodb_status(),
+        "lm_studio_status": check_lm_studio_status(),
         "openmeteo_api": check_openmeteo_api(),
         "file_system": check_file_system(),
     }

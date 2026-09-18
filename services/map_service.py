@@ -9,6 +9,7 @@ import folium
 import geopandas as gpd
 
 from config import Config
+from repositories.base import Repository
 from services import database
 from utils.validation import sanitize_filename
 
@@ -18,8 +19,8 @@ logger = logging.getLogger(__name__)
 class MapService:
     """Service for generating interactive maps"""
 
-    def __init__(self, config: dict | None = None):
-        self.mapbox_token = config["MAPBOX_TOKEN"] if config else Config.MAPBOX_TOKEN
+    def __init__(self, repository: Repository | None = None):
+        self.repository = repository
         self._district_to_province = {}
         self._province_index_built = False
         self._centroid_cache: dict[str, tuple[float, float]] = {}
@@ -105,7 +106,7 @@ class MapService:
         self,
         locations: dict[str, tuple[float, float]],
         forecast_days: int = 1,
-        active_basemap: str = "Mapbox Satellite",
+        active_basemap: str = "OpenStreetMap",
         selected_districts: list = None,
         blinking_active: bool = True,
     ) -> str:
@@ -122,44 +123,25 @@ class MapService:
         Returns:
             HTML representation of the map
         """
-        if not self.mapbox_token:
-            raise ValueError("Mapbox token not configured")
-
         if selected_districts is None:
             selected_districts = []
 
-        tileurl = f"https://api.mapbox.com/v4/mapbox.satellite/{{z}}/{{x}}/{{y}}@2x.png?access_token={self.mapbox_token}"
+        available_basemaps = {
+            "OpenStreetMap",
+            "OpenTopoMap",
+            "Esri World Imagery",
+            "Esri World Gray Canvas",
+        }
+        if active_basemap not in available_basemaps:
+            active_basemap = "OpenStreetMap"
 
-        # Define multiple basemaps
         basemaps = {
-            "Mapbox Satellite": folium.TileLayer(
-                tiles=tileurl,
-                attr="&copy; <a href='https://www.mapbox.com/about/maps/'>Mapbox</a>",
-                name="Mapbox Satellite",
-                overlay=False,
-                control=True,
-                show=(active_basemap == "Mapbox Satellite"),
-            ),
             "OpenStreetMap": folium.TileLayer(
                 tiles="openstreetmap",
                 name="OpenStreetMap",
                 overlay=False,
                 control=True,
                 show=(active_basemap == "OpenStreetMap"),
-            ),
-            "CartoDB Positron": folium.TileLayer(
-                tiles="cartodbpositron",
-                name="CartoDB Positron (Light)",
-                overlay=False,
-                control=True,
-                show=(active_basemap == "CartoDB Positron (Light)"),
-            ),
-            "CartoDB Dark Matter": folium.TileLayer(
-                tiles="cartodbdark_matter",
-                name="CartoDB Dark Matter (Dark)",
-                overlay=False,
-                control=True,
-                show=(active_basemap == "CartoDB Dark Matter (Dark)"),
             ),
             "OpenTopoMap": folium.TileLayer(
                 tiles="https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
@@ -170,10 +152,35 @@ class MapService:
                     'OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">'
                     "CC-BY-SA</a>)"
                 ),
-                name="OpenTopoMap (Topographic)",
+                name="OpenTopoMap",
                 overlay=False,
                 control=True,
-                show=(active_basemap == "OpenTopoMap (Topographic)"),
+                show=(active_basemap == "OpenTopoMap"),
+            ),
+            "Esri World Imagery": folium.TileLayer(
+                tiles=(
+                    "https://server.arcgisonline.com/ArcGIS/rest/services/"
+                    "World_Imagery/MapServer/tile/{z}/{y}/{x}"
+                ),
+                attr=(
+                    "Tiles &copy; Esri, Maxar, Earthstar Geographics, and the GIS "
+                    "User Community"
+                ),
+                name="Esri World Imagery",
+                overlay=False,
+                control=True,
+                show=(active_basemap == "Esri World Imagery"),
+            ),
+            "Esri World Gray Canvas": folium.TileLayer(
+                tiles=(
+                    "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/"
+                    "World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}"
+                ),
+                attr="Tiles &copy; Esri and the GIS User Community",
+                name="Esri World Gray Canvas",
+                overlay=False,
+                control=True,
+                show=(active_basemap == "Esri World Gray Canvas"),
             ),
         }
 
@@ -262,8 +269,14 @@ class MapService:
             try:
                 districts_gpd = self._get_boundary_gdf()
                 if districts_gpd is not None:
+                    centroid_points = (
+                        districts_gpd.to_crs(epsg=3857)
+                        .geometry.centroid.to_crs(epsg=4326)
+                    )
                     for centroid, (_, row) in zip(
-                        districts_gpd.geometry.centroid, districts_gpd.iterrows()
+                        centroid_points,
+                        districts_gpd.iterrows(),
+                        strict=True,
                     ):
                         geojson_district = row.get("District") or row.get(
                             "DISTRICT", ""
@@ -301,8 +314,14 @@ class MapService:
             weather_cache_keys.append(cache_key)
             alert_query_tuples.append((province, district, forecast_days))
 
-        weather_batch = database.get_raw_weather_cache_batch(weather_cache_keys)
-        alerts_batch = database.get_alerts_batch(alert_query_tuples)
+        if self.repository:
+            weather_batch = self.repository.get_raw_weather_cache_batch(
+                weather_cache_keys
+            )
+            alerts_batch = self.repository.get_alerts_batch(alert_query_tuples)
+        else:
+            weather_batch = database.get_raw_weather_cache_batch(weather_cache_keys)
+            alerts_batch = database.get_alerts_batch(alert_query_tuples)
 
         for district in actual_locations.keys():
             province = district_to_province.get(district, "Unknown")
@@ -310,8 +329,20 @@ class MapService:
                 f"weather_{forecast_days}_{province}_{sanitize_filename(district)}"
             )
 
-            if cache_key in weather_batch:
-                weather_data, _ = weather_batch[cache_key]
+            run = (
+                self.repository.get_latest_forecast_run(
+                    f"PK:{province}:{sanitize_filename(district)}", forecast_days
+                )
+                if self.repository
+                else None
+            )
+            cache_result = (
+                (run.payload, run.retrieved_at)
+                if run is not None
+                else weather_batch.get(cache_key)
+            )
+            if cache_result:
+                weather_data, _ = cache_result
                 current_weather_cache[district] = weather_data.get("current_weather")
                 daily = weather_data.get("daily", {})
                 if daily:
@@ -500,7 +531,11 @@ class MapService:
 
         for p in provinces_to_try:
             cache_key = f"weather_{days}_{p}_{sanitize_filename(district)}"
-            cache_result = database.get_raw_weather_cache(cache_key)
+            cache_result = (
+                self.repository.get_raw_weather_cache(cache_key)
+                if self.repository
+                else database.get_raw_weather_cache(cache_key)
+            )
 
             if cache_result:
                 weather_data = cache_result[0]
@@ -557,7 +592,11 @@ class MapService:
             provinces_to_try.append(correct_province)
 
         for p in provinces_to_try:
-            alert_text = database.get_alert(p, district, days)
+            alert_text = (
+                self.repository.get_alert(p, district, days)
+                if self.repository
+                else database.get_alert(p, district, days)
+            )
             if alert_text:
                 return alert_text
 

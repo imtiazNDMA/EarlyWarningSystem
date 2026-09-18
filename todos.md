@@ -154,7 +154,7 @@ Do not expose the system as an authoritative warning service until this phase is
   - Fix the health mock target and replace copied parser tests with calls to production code.
   - Use a temporary database fixture and fake external adapters.
   - Record the current known suite result (51 passing, 1 failing in the repository virtual environment) and make all tests deterministic.
-  - Acceptance: Unit/integration tests pass without Ollama, Open-Meteo, Mapbox, network access, or the repository `weather.db`.
+  - Acceptance: Unit/integration tests pass without LM Studio, Open-Meteo, Mapbox, network access, or the repository `weather.db`.
 
 - [ ] **TEST-002: Add Phase 0 security and failure tests.**
   - Cover authentication, RBAC, CSRF, rate limiting, XSS, malformed LLM output, provider timeout, partial districts, DB lock/write failure, and process restart.
@@ -169,12 +169,12 @@ Do not expose the system as an authoritative warning service until this phase is
   - Treat provider maximum capability separately from the product's 15-day limit.
   - Acceptance: API/UI accept 1, 7, 8, 14, and 15; reject 0 and 16; report actual returned horizon and missing dates.
 
-- [ ] **WX-002: Build a typed Open-Meteo provider adapter.**
+- [x] **WX-002: Build a typed Open-Meteo provider adapter.**
   - Keep raw request/response snapshots, request parameters, retrieval timestamp, provider, model/model blend, run/init time where available, grid location, elevation, timezone, units, license/source URL, schema version, and checksums.
   - Use explicit connect/read/total deadlines, bounded retries with jitter, and circuit-breaker behavior.
   - Acceptance: Provider schema changes, unit mismatches, short horizons, stale runs, rate limits, and partial fields become explicit quality failures.
 
-- [ ] **WX-003: Store immutable forecast runs instead of cache-only payloads.**
+- [x] **WX-003: Store immutable forecast runs instead of cache-only payloads.**
   - Separate immutable source data from optional response caches.
   - Add migrations and repositories; use a production-capable relational database such as PostgreSQL/PostGIS for operational deployment.
   - Acceptance: An operator can reconstruct the exact source snapshot and normalized records used for any warning version.
@@ -420,7 +420,7 @@ Do not expose the system as an authoritative warning service until this phase is
 
 - [ ] **PLAT-003: Split liveness, readiness, and diagnostics.**
   - Liveness is local and fast; readiness checks required database/queue/model configuration with bounded cached checks; detailed diagnostics require operator access.
-  - Acceptance: Liveness does not fail because Open-Meteo/Ollama is slow, while readiness detects missing model, DB write failure, queue failure, and stale ingestion.
+  - Acceptance: Liveness does not fail because Open-Meteo/LM Studio is slow, while readiness detects missing model, DB write failure, queue failure, and stale ingestion.
 
 - [ ] **PLAT-004: Define disaster recovery and continuity.**
   - Set RTO/RPO, backup frequency, failover, manual publication fallback, provider-outage behavior, and emergency contacts.
@@ -486,7 +486,7 @@ Do not expose the system as an authoritative warning service until this phase is
 
 - [ ] **DOC-001: Correct product and architecture documentation.**
   - Remove unsupported claims such as nowcasting/multiple-model intelligence until implemented.
-  - Reconcile Ollama defaults, dependency installation, configuration, entry points, API behavior, and authoritative data files.
+  - Reconcile LM Studio defaults, dependency installation, configuration, entry points, API behavior, and authoritative data files.
   - Acceptance: README, `.env.example`, runbooks, architecture diagrams, OpenAPI, and code agree.
 
 - [ ] **DOC-002: Add operational and safety runbooks.**

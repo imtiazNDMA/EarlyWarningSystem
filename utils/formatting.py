@@ -8,11 +8,11 @@ logger = logging.getLogger(__name__)
 
 
 def create_weather_dataframe(daily: dict, cache_key: str | None = None) -> pd.DataFrame:
-    """Create weather DataFrame with SQLite caching"""
+    """Create a weather DataFrame with repository-backed caching."""
     if cache_key:
         cached_df = database.get_weather_cache(cache_key)
         if cached_df is not None:
-            logger.debug(f"Using SQLite cached DataFrame for {cache_key}")
+            logger.debug(f"Using cached DataFrame for {cache_key}")
             return cached_df
 
     df = pd.DataFrame(
@@ -33,6 +33,6 @@ def create_weather_dataframe(daily: dict, cache_key: str | None = None) -> pd.Da
     # Cache if key provided
     if cache_key:
         database.set_weather_cache(cache_key, df)
-        logger.debug(f"Cached DataFrame to SQLite for {cache_key}")
+        logger.debug(f"Cached DataFrame for {cache_key}")
 
     return df

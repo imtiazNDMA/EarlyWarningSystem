@@ -5,6 +5,7 @@ Tests for map_service.py
 from unittest.mock import MagicMock, patch
 
 from services.map_service import MapService
+from repositories.memory import InMemoryRepository
 
 
 class TestMapService:
@@ -12,11 +13,28 @@ class TestMapService:
 
     def setup_method(self):
         """Set up test fixtures"""
-        self.service = MapService()
+        self.service = MapService(InMemoryRepository())
 
     def test_init(self):
         """Test MapService initialization"""
-        assert self.service.mapbox_token is not None
+        assert self.service is not None
+
+    def test_map_uses_only_open_basemap_endpoints(self):
+        """Generated maps expose the approved keyless basemap catalog."""
+        map_html = self.service.create_map({}, 1)
+
+        assert "tile.openstreetmap.org" in map_html
+        assert "tile.opentopomap.org" in map_html
+        assert "World_Imagery/MapServer/tile" in map_html
+        assert "World_Light_Gray_Base/MapServer/tile" in map_html
+        assert "api.mapbox.com" not in map_html
+        assert "basemaps.cartocdn.com" not in map_html
+
+    def test_unknown_basemap_falls_back_to_openstreetmap(self):
+        """A stale browser basemap preference must not create a blank map."""
+        map_html = self.service.create_map({}, 1, active_basemap="Mapbox Satellite")
+
+        assert "tile.openstreetmap.org" in map_html
 
     @patch("services.map_service.folium.Map")
     @patch("services.map_service.gpd.read_file")
@@ -63,8 +81,7 @@ class TestMapService:
         color = self.service._get_marker_color(forecast_data)
         assert color == "red"
 
-    @patch("services.map_service.database")
-    def test_load_forecast_data_exists(self, mock_db):
+    def test_load_forecast_data_exists(self):
         """Test loading existing forecast data"""
         mock_data = {
             "daily": {
@@ -81,8 +98,9 @@ class TestMapService:
             "current_weather": {"temperature": 20, "windspeed": 10},
         }
 
-        # Mock DB return: (data, created_at)
-        mock_db.get_raw_weather_cache.return_value = (mock_data, "2024-01-01 12:00:00")
+        self.service.repository.set_raw_weather_cache(
+            "weather_1_PUNJAB_LAHORE", mock_data
+        )
 
         result = self.service._load_forecast_data("PUNJAB", "LAHORE", 1)
 
@@ -93,11 +111,8 @@ class TestMapService:
         assert len(forecast_data) == 1
         assert current_weather is not None
 
-    @patch("services.map_service.database")
-    def test_load_forecast_data_not_exists(self, mock_db):
+    def test_load_forecast_data_not_exists(self):
         """Test loading non-existent forecast data"""
-        mock_db.get_raw_weather_cache.return_value = None
-
         result = self.service._load_forecast_data("PUNJAB", "NONEXISTENT", 1)
 
         assert result == (None, None)
@@ -123,9 +138,11 @@ class TestMapService:
         row_mock.__getitem__.return_value = centroid_mock  # row["centroid"]
 
         mock_gdf.iterrows.return_value = [(0, row_mock)]
-        mock_gdf.geometry.centroid = [
-            centroid_mock
-        ]  # list of centroids matching iterrows count
+        projected_gdf = MagicMock()
+        projected_centroids = MagicMock()
+        projected_centroids.to_crs.return_value = [centroid_mock]
+        projected_gdf.geometry.centroid = projected_centroids
+        mock_gdf.to_crs.return_value = projected_gdf
 
         mock_read_file.return_value = mock_gdf
 
@@ -133,6 +150,8 @@ class TestMapService:
         self.service.create_map(locations, 1)
         assert len(self.service._centroid_cache) > 0
         assert "Lahore" in self.service._centroid_cache
+        mock_gdf.to_crs.assert_called_once_with(epsg=3857)
+        projected_centroids.to_crs.assert_called_once_with(epsg=4326)
         assert mock_read_file.call_count == 1
 
         # Second call - should NOT read file

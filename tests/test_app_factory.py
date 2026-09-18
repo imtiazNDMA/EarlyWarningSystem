@@ -1,10 +1,10 @@
-import sqlite3
 from unittest.mock import MagicMock
 
 import pytest
 
 from app import create_app
 from extensions import get_service
+from repositories.memory import InMemoryRepository
 from services import database
 
 
@@ -12,7 +12,6 @@ def build_services() -> dict[str, MagicMock]:
     """Create lightweight service doubles for application factory tests."""
     map_service = MagicMock()
     map_service.create_map.return_value = "<div>test map</div>"
-
     return {
         "weather": MagicMock(),
         "alert": MagicMock(),
@@ -21,67 +20,41 @@ def build_services() -> dict[str, MagicMock]:
     }
 
 
-def test_create_app_applies_config_and_initializes_database(tmp_path):
-    database_path = tmp_path / "factory.db"
-
-    app = create_app(
-        {
-            "TESTING": True,
-            "DATABASE_PATH": str(database_path),
-            "CORS_ORIGINS": ["https://warnings.example"],
-        },
-        services=build_services(),
+def create_test_app(repository=None, services=None):
+    return create_app(
+        {"TESTING": True, "CORS_ORIGINS": ["https://warnings.example"]},
+        services=services or build_services(),
+        repository=repository or InMemoryRepository(),
     )
+
+
+def test_create_app_applies_config_and_initializes_repository():
+    repository = MagicMock()
+
+    app = create_test_app(repository=repository)
 
     assert app.config["TESTING"] is True
-    assert app.config["DATABASE_PATH"] == str(database_path)
-    assert database_path.exists()
-
-    with sqlite3.connect(database_path) as connection:
-        tables = {
-            row[0]
-            for row in connection.execute(
-                "SELECT name FROM sqlite_master WHERE type = 'table'"
-            )
-        }
-
-    assert {"weather_cache", "alerts"}.issubset(tables)
+    assert app.extensions["repository"] is repository
+    repository.initialize.assert_called_once_with()
 
 
-def test_factory_apps_use_isolated_database_paths(tmp_path):
-    first_path = tmp_path / "first.db"
-    second_path = tmp_path / "second.db"
-
-    first_app = create_app(
-        {"TESTING": True, "DATABASE_PATH": str(first_path)},
-        services=build_services(),
-    )
-    second_app = create_app(
-        {"TESTING": True, "DATABASE_PATH": str(second_path)},
-        services=build_services(),
-    )
+def test_factory_apps_use_isolated_repositories():
+    first_repository = InMemoryRepository()
+    second_repository = InMemoryRepository()
+    first_app = create_test_app(repository=first_repository)
+    second_app = create_test_app(repository=second_repository)
 
     with first_app.app_context():
-        assert first_app.config["DATABASE_PATH"] == str(first_path)
+        assert database.get_repository() is first_repository
     with second_app.app_context():
-        assert second_app.config["DATABASE_PATH"] == str(second_path)
-
-    assert first_path.exists()
-    assert second_path.exists()
-    assert first_path != second_path
+        assert database.get_repository() is second_repository
 
 
-def test_factory_apps_keep_service_registries_isolated(tmp_path):
+def test_factory_apps_keep_service_registries_isolated():
     first_services = build_services()
     second_services = build_services()
-    first_app = create_app(
-        {"TESTING": True, "DATABASE_PATH": str(tmp_path / "first-services.db")},
-        services=first_services,
-    )
-    second_app = create_app(
-        {"TESTING": True, "DATABASE_PATH": str(tmp_path / "second-services.db")},
-        services=second_services,
-    )
+    first_app = create_test_app(services=first_services)
+    second_app = create_test_app(services=second_services)
 
     with first_app.app_context():
         assert get_service("weather") is first_services["weather"]
@@ -89,36 +62,20 @@ def test_factory_apps_keep_service_registries_isolated(tmp_path):
         assert get_service("weather") is second_services["weather"]
 
 
-def test_background_app_context_uses_configured_database(tmp_path):
-    database_path = tmp_path / "background.db"
-    app = create_app(
-        {"TESTING": True, "DATABASE_PATH": str(database_path)},
-        services=build_services(),
-    )
+def test_factory_fails_when_repository_cannot_initialize():
+    repository = MagicMock()
+    repository.initialize.side_effect = RuntimeError("MongoDB unavailable")
 
-    with app.app_context():
-        assert database.get_database_path() == str(database_path)
+    with pytest.raises(RuntimeError, match="MongoDB unavailable"):
+        create_test_app(repository=repository)
 
 
-def test_factory_fails_when_database_cannot_be_initialized(tmp_path):
-    invalid_path = tmp_path / "missing" / "weather.db"
-
-    with pytest.raises(sqlite3.OperationalError):
-        create_app(
-            {"TESTING": True, "DATABASE_PATH": str(invalid_path)},
-            services=build_services(),
-        )
-
-
-def test_routes_use_injected_services(tmp_path):
+def test_routes_use_injected_services():
     services = build_services()
     services["weather"].get_bulk_weather_data.return_value = {
         "LAHORE": {"daily": {}}
     }
-    app = create_app(
-        {"TESTING": True, "DATABASE_PATH": str(tmp_path / "routes.db")},
-        services=services,
-    )
+    app = create_test_app(services=services)
 
     response = app.test_client().post(
         "/generate_forecast",
@@ -129,12 +86,9 @@ def test_routes_use_injected_services(tmp_path):
     services["weather"].get_bulk_weather_data.assert_called_once()
 
 
-def test_health_route_uses_injected_check(tmp_path):
+def test_health_route_uses_injected_check():
     services = build_services()
-    app = create_app(
-        {"TESTING": True, "DATABASE_PATH": str(tmp_path / "health.db")},
-        services=services,
-    )
+    app = create_test_app(services=services)
 
     response = app.test_client().get("/health")
 

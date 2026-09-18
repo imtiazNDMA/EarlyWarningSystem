@@ -5,6 +5,7 @@ Comprehensive tests for alert_service.py
 from unittest.mock import MagicMock, patch
 
 import pandas as pd
+import pytest
 
 from services.alert_service import AlertService
 
@@ -14,9 +15,8 @@ class TestAlertService:
 
     def setup_method(self):
         """Set up test fixtures with mocks"""
-        # Patch ChatOllama to avoid connection attempts
-        self.ollama_patcher = patch("services.alert_service.ChatOllama")
-        self.mock_ollama = self.ollama_patcher.start()
+        self.client_patcher = patch("services.alert_service.ChatOpenAI")
+        self.mock_client_class = self.client_patcher.start()
 
         # Patch database
         self.db_patcher = patch("services.alert_service.database")
@@ -26,13 +26,18 @@ class TestAlertService:
 
     def teardown_method(self):
         """Clean up patches"""
-        self.ollama_patcher.stop()
+        self.client_patcher.stop()
         self.db_patcher.stop()
 
     def test_init(self):
         """Test AlertService initialization"""
         assert self.service.client is not None
-        assert self.mock_ollama.called
+        self.mock_client_class.assert_called_once_with(
+            model="zai-org/glm-4.7-flash",
+            base_url="http://127.0.0.1:1234/v1",
+            api_key="lm-studio",
+            temperature=0.2,
+        )
 
     def test_parse_district_alerts_valid(self):
         """Test parsing valid district alerts"""
@@ -74,22 +79,10 @@ class TestAlertService:
 
     def test_generate_alert_success(self):
         """Test successful alert generation"""
-        # Mock the client instance returned by ChatOllama()
-        mock_client = MagicMock()
-        self.mock_ollama.return_value = mock_client
-
         # Mock response
         mock_response = MagicMock()
         mock_response.content = "**Lahore Weather Alert** Test alert"
-        mock_client.invoke.return_value = mock_response
 
-        # Re-init service to pick up the mock return value if needed
-        # But self.service.client is already set to the return value
-        # of the previous mock run in setup?
-        # AlertService init calls ChatOllama().
-        # self.mock_ollama returned a MagicMock() by default.
-        # So self.service.client IS that mock.
-        # We just need to configure it.
         self.service.client.invoke.return_value = mock_response
 
         # Create test forecast data
@@ -114,6 +107,26 @@ class TestAlertService:
 
         assert "Lahore" in alert_text
         assert self.service.client.invoke.called
+
+    def test_generate_alert_reports_lm_studio_connection_failure(self):
+        """Connection failures return an actionable LM Studio error."""
+        self.service.client.invoke.side_effect = ConnectionRefusedError(
+            "connection refused"
+        )
+        forecasts = {
+            "Lahore": pd.DataFrame(
+                {
+                    "Date": ["2024-01-01"],
+                    "Max Temp (°C)": [25.0],
+                    "Min Temp (°C)": [15.0],
+                }
+            )
+        }
+
+        with pytest.raises(RuntimeError, match="Start LM Studio"):
+            self.service.generate_alert("PUNJAB", forecasts, forecast_days=1)
+
+        self.service.client.invoke.assert_called_once()
 
     def test_save_district_alerts(self):
         """Test saving district alerts to database"""

@@ -3,10 +3,11 @@ import logging
 
 import pandas as pd
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
 
 from config import Config
 from constants import WEATHER_CODE_DESCRIPTIONS
+from repositories.base import Repository
 from services import database
 from utils.retry import retry_on_failure
 
@@ -16,12 +17,23 @@ logger = logging.getLogger(__name__)
 class AlertService:
     """Service for generating weather alerts using AI"""
 
-    def __init__(self, config: dict | None = None):
-        model = config["OLLAMA_MODEL"] if config else Config.OLLAMA_MODEL
-        base_url = config["OLLAMA_BASE_URL"] if config else Config.OLLAMA_BASE_URL
-        self.client = ChatOllama(
+    def __init__(
+        self, config: dict | None = None, repository: Repository | None = None
+    ):
+        model = config["LM_STUDIO_MODEL"] if config else Config.LM_STUDIO_MODEL
+        base_url = (
+            config["LM_STUDIO_BASE_URL"] if config else Config.LM_STUDIO_BASE_URL
+        )
+        api_key = (
+            config["LM_STUDIO_API_KEY"] if config else Config.LM_STUDIO_API_KEY
+        )
+        self.model = model
+        self.base_url = base_url
+        self.repository = repository
+        self.client = ChatOpenAI(
             model=model,
             base_url=base_url,
+            api_key=api_key,
             temperature=0.2,
         )
 
@@ -85,7 +97,12 @@ class AlertService:
             logger.error(f"Error parsing alerts: {e}")
             return {}
 
-    @retry_on_failure(max_attempts=3, delay=2.0, backoff=2.0)
+    @retry_on_failure(
+        max_attempts=3,
+        delay=2.0,
+        backoff=2.0,
+        non_retryable=(RuntimeError,),
+    )
     def generate_alert(
         self, province: str, forecasts: dict[str, pd.DataFrame], forecast_days: int
     ) -> str:
@@ -261,6 +278,18 @@ class AlertService:
             logger.info(f"Generated alerts for {province} ({len(forecasts)} districts)")
             return alert_text
 
+        except OSError as e:
+            logger.error(
+                "Cannot connect to LM Studio at %s. Start its local server and "
+                "load model %s: %s",
+                self.base_url,
+                self.model,
+                e,
+            )
+            raise RuntimeError(
+                "AI alert service is unavailable. Start LM Studio's local server "
+                "and load the configured model."
+            ) from e
         except Exception as e:
             logger.error(f"Error generating alerts for {province}: {e}")
             raise
@@ -269,7 +298,7 @@ class AlertService:
         self, alerts: dict[str, dict], forecast_days: int, province: str
     ):
         """
-        Save district-level alerts to SQLite database
+        Save district-level alerts to the configured repository.
 
         Args:
             alerts: Dict of district_name -> {"english": "...", "urdu": "..."}
@@ -278,15 +307,24 @@ class AlertService:
         for district, content in alerts.items():
             # Serialize the content dict to a JSON string for storage
             msg_json = json.dumps(content, ensure_ascii=False)
-            database.save_alert(province, district, forecast_days, msg_json)
+            if self.repository:
+                self.repository.save_alert(
+                    province, district, forecast_days, msg_json
+                )
+            else:
+                database.save_alert(province, district, forecast_days, msg_json)
             logger.debug(f"Saved DB alert for {province}/{district}")
 
     def get_alert(self, province: str, district: str, days: int) -> dict | None:
         """
-        Get alert for a specific district from SQLite
+        Get an alert for a specific district from the configured repository.
         """
 
-        alert_json = database.get_alert(province, district, days)
+        alert_json = (
+            self.repository.get_alert(province, district, days)
+            if self.repository
+            else database.get_alert(province, district, days)
+        )
         if alert_json:
             try:
                 # Try to parse it as JSON (new format)
@@ -316,4 +354,6 @@ class AlertService:
         Returns:
             Number of files/rows deleted
         """
+        if self.repository:
+            return self.repository.purge_cache(province, districts, days)
         return database.purge_cache_db(province, districts, days)

@@ -11,7 +11,12 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
-def retry_on_failure(max_attempts: int = 3, delay: float = 1.0, backoff: float = 2.0):
+def retry_on_failure(
+    max_attempts: int = 3,
+    delay: float = 1.0,
+    backoff: float = 2.0,
+    non_retryable: tuple[type[Exception], ...] = (),
+):
     """
     Decorator to retry a function on failure with exponential backoff
 
@@ -31,6 +36,8 @@ def retry_on_failure(max_attempts: int = 3, delay: float = 1.0, backoff: float =
                 try:
                     return func(*args, **kwargs)
                 except Exception as e:
+                    if isinstance(e, non_retryable):
+                        raise
                     last_exception = e
                     if attempt < max_attempts - 1:
                         logger.warning(

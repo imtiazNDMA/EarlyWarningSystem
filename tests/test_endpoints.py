@@ -63,6 +63,8 @@ class TestFlaskEndpoints:
         assert response.status_code == 200
         data = json.loads(response.data)
         assert data["status"] == "success"
+        assert data["requested_districts"] == 1
+        assert data["available_districts"] == 1
 
     def test_generate_forecast_invalid_json(self, client):
         """Test forecast generation with invalid JSON"""
@@ -71,6 +73,27 @@ class TestFlaskEndpoints:
         )
 
         assert response.status_code == 400
+
+    def test_generate_forecast_reports_partial_coverage(self, client, services):
+        services["weather"].get_bulk_weather_data.return_value = {
+            "LAHORE": {"daily": {}, "_meta": {"status": "stale_but_usable"}}
+        }
+
+        response = client.post(
+            "/generate_forecast",
+            json={
+                "province": "PUNJAB",
+                "districts": ["LAHORE", "MULTAN"],
+                "forecast_days": 3,
+            },
+        )
+
+        assert response.status_code == 206
+        data = response.get_json()
+        assert data["status"] == "partial"
+        assert data["requested_districts"] == 2
+        assert data["available_districts"] == 1
+        assert data["data_statuses"] == ["stale_but_usable"]
 
     def test_generate_forecast_too_many_districts(self, client):
         """Test forecast generation with too many districts"""

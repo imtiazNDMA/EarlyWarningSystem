@@ -67,6 +67,7 @@ def get_forecast(province, district, days):
             "district": district,
             "forecast": df.to_dict("records") if not df.empty else [],
             "days": days,
+            "meta": data.get("_meta", {}),
         }
     )
 
@@ -96,7 +97,7 @@ def get_alert(province, district, days):
 
 @api_bp.route("/get_all_alerts/<int:days>")
 def get_all_alerts(days):
-    """Return all alerts for all provinces and districts - optimized with SQLite"""
+    """Return all stored alerts for all provinces and districts."""
     # Validate forecast days
     if not validate_forecast_days(days):
         logger.warning(f"Invalid forecast days in get all alerts request: {days}")
@@ -109,7 +110,7 @@ def get_all_alerts(days):
         for district in PROVINCES[province].keys():
             all_alerts[province][district] = "⚠️ No alert generated yet."
 
-    # Fetch alerts from SQLite
+    # Fetch alerts from the configured repository.
     db_alerts = database.get_all_alerts(days)
 
     # Merge DB alerts into the response structure and parse JSON
@@ -185,18 +186,32 @@ def generate_forecast():
         }
 
     weather_data = get_service("weather").get_bulk_weather_data(
-        province, districts_to_fetch, forecast_days, cache_time=0
+        province, districts_to_fetch, forecast_days
     )
 
-    # Return success status
+    statuses = {
+        payload.get("_meta", {}).get("status", "unknown")
+        for payload in weather_data.values()
+    }
+    response_status = (
+        "success"
+        if len(weather_data) == len(districts_to_fetch)
+        else "partial"
+        if weather_data
+        else "unavailable"
+    )
+    status_code = 200 if response_status == "success" else 206 if weather_data else 503
     return jsonify(
         {
-            "status": "success",
+            "status": response_status,
             "message": f"Forecast generated for {len(weather_data)} districts",
             "province": province,
             "forecast_days": forecast_days,
+            "requested_districts": len(districts_to_fetch),
+            "available_districts": len(weather_data),
+            "data_statuses": sorted(statuses),
         }
-    )
+    ), status_code
 
 
 @api_bp.route("/generate_alerts", methods=["POST"])
@@ -244,7 +259,7 @@ def generate_alerts():
             """Background task for generating alerts"""
             with app.app_context():
                 weather_data = weather_service.get_bulk_weather_data(
-                    province, districts_to_fetch, forecast_days, cache_time=0
+                    province, districts_to_fetch, forecast_days
                 )
 
                 if not weather_data:
@@ -359,7 +374,7 @@ def generate_forecast_and_alerts():
         alert_service = get_service("alert")
 
         weather_data = weather_service.get_bulk_weather_data(
-            province, districts_to_fetch, forecast_days, cache_time=0
+            province, districts_to_fetch, forecast_days
         )
 
         if not weather_data:

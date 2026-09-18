@@ -3,6 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 
 from app import create_app
+from repositories.memory import InMemoryRepository
 
 
 @pytest.fixture
@@ -20,15 +21,21 @@ def services() -> dict[str, MagicMock]:
 
 
 @pytest.fixture
-def app(tmp_path, services):
-    """Create a test application backed by a temporary database."""
+def repository():
+    """Create an isolated persistence adapter for each test."""
+    return InMemoryRepository(cache_time=43200)
+
+
+@pytest.fixture
+def app(services, repository):
+    """Create a test application backed by in-memory persistence."""
     return create_app(
         {
             "TESTING": True,
-            "DATABASE_PATH": str(tmp_path / "weather.db"),
             "CORS_ORIGINS": ["http://localhost"],
         },
         services=services,
+        repository=repository,
     )
 
 
