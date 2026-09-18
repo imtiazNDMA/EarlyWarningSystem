@@ -179,7 +179,7 @@ Do not expose the system as an authoritative warning service until this phase is
   - Add migrations and repositories; use a production-capable relational database such as PostgreSQL/PostGIS for operational deployment.
   - Acceptance: An operator can reconstruct the exact source snapshot and normalized records used for any warning version.
 
-- [ ] **WX-004: Ingest hourly data for short-range hazards and daily outlook data for the full horizon.**
+- [x] **WX-004: Ingest hourly data for short-range hazards and daily outlook data for the full horizon.**
   - Retain hourly data at least for days 1-7 and appropriate aggregate/outlook data for days 8-15.
   - Add apparent temperature, humidity/dew point or wet-bulb inputs, wind direction, visibility, pressure/freezing-level, cloud/convective fields, soil/antecedent conditions where supported.
   - Acceptance: Hazard contracts state mandatory/optional fields and produce `insufficient_data` when mandatory evidence is absent.

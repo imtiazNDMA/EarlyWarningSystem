@@ -29,6 +29,18 @@ class OpenMeteoProvider:
         "uv_index_max",
     )
 
+    HOURLY_FIELDS = (
+        "temperature_2m",
+        "apparent_temperature",
+        "relative_humidity_2m",
+        "dew_point_2m",
+        "wind_speed_10m",
+        "wind_direction_10m",
+        "surface_pressure",
+        "cloud_cover",
+        "visibility",
+    )
+
     def __init__(
         self,
         base_url: str,
@@ -48,9 +60,9 @@ class OpenMeteoProvider:
             "latitude": location.latitude,
             "longitude": location.longitude,
             "daily": list(self.DAILY_FIELDS),
+            "hourly": list(self.HOURLY_FIELDS),
             "timezone": location.timezone,
             "forecast_days": forecast_days,
-            "current_weather": "true",
         }
         response = self.session.get(self.base_url, params=params, timeout=self.timeout)
         response.raise_for_status()
@@ -87,11 +99,10 @@ class OpenMeteoProvider:
             return DataQualityReport(
                 DataStatus.INVALID, forecast_days, 0, issues=("daily time missing",)
             )
-        issues = []
-        for field in self.DAILY_FIELDS:
-            values = daily.get(field)
-            if not isinstance(values, list) or len(values) != len(dates):
-                issues.append(f"{field} length does not match daily time")
+        issues = list(self._check_daily(daily, dates))
+        hourly = payload.get("hourly")
+        hourly_times, hourly_issues = self._parse_hourly(hourly)
+        issues.extend(hourly_issues)
         returned_days = len(dates)
         if issues:
             status = DataStatus.INVALID
@@ -108,3 +119,26 @@ class OpenMeteoProvider:
             returned_days=returned_days,
             issues=tuple(issues),
         )
+
+    @staticmethod
+    def _check_daily(daily: dict, dates: list) -> list[str]:
+        issues: list[str] = []
+        for field in OpenMeteoProvider.DAILY_FIELDS:
+            values = daily.get(field)
+            if not isinstance(values, list) or len(values) != len(dates):
+                issues.append(f"{field} length does not match daily time")
+        return issues
+
+    @staticmethod
+    def _parse_hourly(hourly: object) -> tuple[list[str], list[str]]:
+        if not isinstance(hourly, dict):
+            return [], ["hourly data missing"]
+        hourly_times = hourly.get("time", [])
+        if not isinstance(hourly_times, list):
+            return [], ["hourly time missing"]
+        issues: list[str] = []
+        for field in OpenMeteoProvider.HOURLY_FIELDS:
+            values = hourly.get(field)
+            if not isinstance(values, list) or len(values) != len(hourly_times):
+                issues.append(f"{field} length does not match hourly time")
+        return hourly_times, issues

@@ -16,6 +16,24 @@ NOW = datetime(2026, 9, 18, 6, tzinfo=UTC)
 LAHORE = Location("PK-PB-LHE", "PUNJAB", "LAHORE", 31.5204, 74.3587)
 
 
+def _daily_payload(days: int) -> dict:
+    dates = [f"2026-09-{d:02d}" for d in range(1, days + 1)]
+    return {
+        "time": dates,
+        **{field: [1] * days for field in OpenMeteoProvider.DAILY_FIELDS},
+    }
+
+
+def _hourly_payload(days: int) -> dict:
+    hours = []
+    for d in range(1, days + 1):
+        hours.extend([f"2026-09-{d:02d}T{h:02d}:00" for h in range(24)])
+    return {
+        "time": hours,
+        **{field: [1] * (days * 24) for field in OpenMeteoProvider.HOURLY_FIELDS},
+    }
+
+
 def build_run(
     *,
     retrieved_at: datetime = NOW,
@@ -166,10 +184,8 @@ def test_open_meteo_marks_short_horizon_partial():
     response = MagicMock()
     response.url = "https://api.open-meteo.com/v1/forecast?test=true"
     response.json.return_value = {
-        "daily": {
-            "time": ["2026-09-18", "2026-09-19"],
-            **{field: [1, 1] for field in OpenMeteoProvider.DAILY_FIELDS},
-        }
+        "daily": _daily_payload(2),
+        "hourly": _hourly_payload(2),
     }
     session.get.return_value = response
     provider = OpenMeteoProvider(
@@ -187,12 +203,9 @@ def test_open_meteo_accepts_complete_fifteen_day_horizon():
     session = MagicMock()
     response = MagicMock()
     response.url = "https://api.open-meteo.com/v1/forecast?forecast_days=15"
-    dates = [f"2026-09-{day:02d}" for day in range(1, 16)]
     response.json.return_value = {
-        "daily": {
-            "time": dates,
-            **{field: [1] * 15 for field in OpenMeteoProvider.DAILY_FIELDS},
-        }
+        "daily": _daily_payload(15),
+        "hourly": _hourly_payload(15),
     }
     session.get.return_value = response
     provider = OpenMeteoProvider(
@@ -205,3 +218,26 @@ def test_open_meteo_accepts_complete_fifteen_day_horizon():
     assert run.quality.returned_days == 15
     assert run.requested_days == 15
     assert session.get.call_args.kwargs["params"]["forecast_days"] == 15
+    assert session.get.call_args.kwargs["params"]["hourly"] == list(
+        OpenMeteoProvider.HOURLY_FIELDS
+    )
+    assert "hourly" in run.payload
+    assert len(run.payload["hourly"]["time"]) == 360
+
+
+def test_open_meteo_rejects_missing_hourly_section():
+    session = MagicMock()
+    response = MagicMock()
+    response.url = "https://api.open-meteo.com/v1/forecast"
+    response.json.return_value = {
+        "daily": _daily_payload(3),
+    }
+    session.get.return_value = response
+    provider = OpenMeteoProvider(
+        "https://api.open-meteo.com/v1/forecast", 10, 3600, 7200, session
+    )
+
+    run = provider.fetch(LAHORE, 3)
+
+    assert run.quality.status == DataStatus.INVALID
+    assert any("hourly" in issue for issue in run.quality.issues)
