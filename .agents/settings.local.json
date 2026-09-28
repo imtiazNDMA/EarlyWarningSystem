@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add *)",
+      "Bash(git commit -q -m 'docs: implementation plan for boundary + seismotectonic datasets *)",
+      "Bash(uv run *)",
+      "Bash(git commit *)",
+      "Bash(docker run *)",
+      "Bash(curl -sI \"https://unpkg.com/protomaps-leaflet@4.0.0/dist/protomaps-leaflet.js\")",
+      "Bash(openssl dgst *)",
+      "Bash(openssl base64 *)",
+      "Bash(curl -sL \"https://unpkg.com/protomaps-leaflet@4.0.0/dist/protomaps-leaflet.js\" -o \"C:/temp/pm4-unpkg.js\")",
+      "Read(//c/temp/**)",
+      "Bash(node --check \"G:/Dr. Tanweer/eqMonitoring2/web/app.js\")",
+      "Bash(taskkill /F /FI \"WINDOWTITLE eq uvicorn*\")",
+      "Bash(netstat -ano)",
+      "Bash(taskkill /PID 36984 /F)",
+      "PowerShell(Stop-Process *)",
+      "mcp__plugin_playwright_playwright__browser_take_screenshot",
+      "mcp__plugin_playwright_playwright__browser_evaluate",
+      "mcp__plugin_playwright_playwright__browser_navigate",
+      "Bash(node --check web/app.js)",
+      "mcp__plugin_playwright_playwright__browser_close",
+      "Bash(rm -rf .playwright-mcp)",
+      "Bash(pkill -f \"http.server 8148\")",
+      "Bash(pkill -f \"http.server 8145\")",
+      "Bash(ls *.png)",
+      "Bash(curl -s https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js)",
+      "Bash(curl -s https://cdn.lordicon.com/lordicon.js)",
+      "Bash(./.venv/Scripts/python.exe -m pytest -q)",
+      "Bash(git push *)",
+      "Bash(gh pr *)",
+      "Bash(echo \"PR #2 commits: $\\(gh pr view 2 --json commits --jq '.commits | length'\\)\")"
+    ]
+  }
+}
