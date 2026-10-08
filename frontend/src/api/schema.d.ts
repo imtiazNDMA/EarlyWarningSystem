@@ -47,6 +47,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/districts/{district_id}/forecast": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * District Forecast
+         * @description Latest daily forecast for a district, refreshed when it is too old.
+         */
+        get: operations["district_forecast_api_districts__district_id__forecast_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/health": {
         parameters: {
             query?: never;
@@ -130,6 +150,35 @@ export interface components {
             status: "pass" | "fail";
         };
         /**
+         * DailyForecast
+         * @description One day of forecast for one location. Missing values are None.
+         */
+        DailyForecast: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** Precipitation Mm */
+            precipitation_mm: number | null;
+            /** Precipitation Probability Pct */
+            precipitation_probability_pct: number | null;
+            /** Snowfall Cm */
+            snowfall_cm: number | null;
+            /** Temperature Max C */
+            temperature_max_c: number | null;
+            /** Temperature Min C */
+            temperature_min_c: number | null;
+            /** Uv Index Max */
+            uv_index_max: number | null;
+            /** Weather Code */
+            weather_code: number | null;
+            /** Wind Gusts Max Kmh */
+            wind_gusts_max_kmh: number | null;
+            /** Wind Speed Max Kmh */
+            wind_speed_max_kmh: number | null;
+        };
+        /**
          * DistrictOut
          * @description A district in the registry.
          */
@@ -148,6 +197,25 @@ export interface components {
             name_ur: string | null;
             /** Province */
             province: string;
+        };
+        /**
+         * ForecastOut
+         * @description Daily forecast for a district, with where and when it came from.
+         */
+        ForecastOut: {
+            /** Days */
+            days: components["schemas"]["DailyForecast"][];
+            /** District Id */
+            district_id: string;
+            /**
+             * Fetched At
+             * Format: date-time
+             */
+            fetched_at: string;
+            /** Source */
+            source: string;
+            /** Stale */
+            stale: boolean;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -240,6 +308,51 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["BoundaryCollection"];
                 };
+            };
+        };
+    };
+    district_forecast_api_districts__district_id__forecast_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                district_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForecastOut"];
+                };
+            };
+            /** @description Unknown district */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Forecast source unavailable and nothing stored */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

@@ -5,6 +5,7 @@ import { DistrictMap, type MapFocus } from './features/districts/DistrictMap'
 import { DistrictPanel } from './features/districts/DistrictPanel'
 import { DistrictPicker } from './features/districts/DistrictPicker'
 import { useDistrictBoundaries, useDistricts } from './features/districts/queries'
+import { ForecastSection } from './features/forecast/ForecastSection'
 
 export default function App() {
   const boundaries = useDistrictBoundaries()
@@ -88,7 +89,12 @@ export default function App() {
             boundary={selectedBoundary}
             district={selectedDistrict}
             onClose={() => setSelectedFeatureId(null)}
-          />
+          >
+            {selectedDistrict && (
+              // Keyed so the hovered day resets when another district is chosen
+              <ForecastSection key={selectedDistrict.id} districtId={selectedDistrict.id} />
+            )}
+          </DistrictPanel>
         </div>
       )}
     </main>

@@ -108,6 +108,129 @@
         "title": "CheckResult",
         "type": "object"
       },
+      "DailyForecast": {
+        "description": "One day of forecast for one location. Missing values are None.",
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "precipitation_mm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Precipitation Mm"
+          },
+          "precipitation_probability_pct": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Precipitation Probability Pct"
+          },
+          "snowfall_cm": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Snowfall Cm"
+          },
+          "temperature_max_c": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature Max C"
+          },
+          "temperature_min_c": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Temperature Min C"
+          },
+          "uv_index_max": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uv Index Max"
+          },
+          "weather_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weather Code"
+          },
+          "wind_gusts_max_kmh": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wind Gusts Max Kmh"
+          },
+          "wind_speed_max_kmh": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Wind Speed Max Kmh"
+          }
+        },
+        "required": [
+          "date",
+          "temperature_max_c",
+          "temperature_min_c",
+          "precipitation_mm",
+          "precipitation_probability_pct",
+          "wind_speed_max_kmh",
+          "wind_gusts_max_kmh",
+          "weather_code",
+          "snowfall_cm",
+          "uv_index_max"
+        ],
+        "title": "DailyForecast",
+        "type": "object"
+      },
       "DistrictOut": {
         "description": "A district in the registry.",
         "properties": {
@@ -164,6 +287,44 @@
           "feature_id"
         ],
         "title": "DistrictOut",
+        "type": "object"
+      },
+      "ForecastOut": {
+        "description": "Daily forecast for a district, with where and when it came from.",
+        "properties": {
+          "days": {
+            "items": {
+              "$ref": "#/components/schemas/DailyForecast"
+            },
+            "title": "Days",
+            "type": "array"
+          },
+          "district_id": {
+            "title": "District Id",
+            "type": "string"
+          },
+          "fetched_at": {
+            "format": "date-time",
+            "title": "Fetched At",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "stale": {
+            "title": "Stale",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "district_id",
+          "source",
+          "fetched_at",
+          "stale",
+          "days"
+        ],
+        "title": "ForecastOut",
         "type": "object"
       },
       "HTTPValidationError": {
@@ -328,6 +489,55 @@
         "summary": "District Boundaries",
         "tags": [
           "districts"
+        ]
+      }
+    },
+    "/api/districts/{district_id}/forecast": {
+      "get": {
+        "description": "Latest daily forecast for a district, refreshed when it is too old.",
+        "operationId": "district_forecast_api_districts__district_id__forecast_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "district_id",
+            "required": true,
+            "schema": {
+              "title": "District Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ForecastOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "Unknown district"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "502": {
+            "description": "Forecast source unavailable and nothing stored"
+          }
+        },
+        "summary": "District Forecast",
+        "tags": [
+          "forecasts"
         ]
       }
     },

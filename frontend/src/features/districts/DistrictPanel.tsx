@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+
 import type { BoundaryProperties, District } from '../../api/client'
 import { formatDegreesMinutes } from '../../lib/coordinates'
 
@@ -7,9 +9,11 @@ type Props = {
   /** The registry entry for the boundary, when it has one. */
   district: District | undefined
   onClose: () => void
+  /** Extra detail for a registered district, such as its forecast. */
+  children?: ReactNode
 }
 
-export function DistrictPanel({ boundary, district, onClose }: Props) {
+export function DistrictPanel({ boundary, district, onClose, children }: Props) {
   if (boundary === null) {
     return (
       <aside className="plate hidden md:block" aria-label="Selected district">
@@ -21,7 +25,10 @@ export function DistrictPanel({ boundary, district, onClose }: Props) {
   }
 
   return (
-    <aside className="plate" aria-label="Selected district">
+    <aside
+      className="plate max-h-[60dvh] overflow-y-auto md:max-h-[calc(100dvh-1.5rem)]"
+      aria-label="Selected district"
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="type-label text-signal">{boundary.province}</p>
@@ -47,12 +54,15 @@ export function DistrictPanel({ boundary, district, onClose }: Props) {
       </div>
 
       {district ? (
-        <dl className="mt-4 border-t border-line/30 pt-3">
-          <dt className="type-label text-ink/60">Forecast point</dt>
-          <dd className="mt-0.5 font-mono text-sm text-ink">
-            {formatDegreesMinutes(district.lat, district.lon)}
-          </dd>
-        </dl>
+        <>
+          <dl className="mt-4 border-t border-line/30 pt-3">
+            <dt className="type-label text-ink/60">Forecast point</dt>
+            <dd className="mt-0.5 font-mono text-sm text-ink">
+              {formatDegreesMinutes(district.lat, district.lon)}
+            </dd>
+          </dl>
+          {children && <div className="mt-4 border-t border-line/30 pt-3">{children}</div>}
+        </>
       ) : (
         <p className="mt-4 border-t border-line/30 pt-3 text-sm text-ink/70">
           No forecasts or alerts are produced for this area.

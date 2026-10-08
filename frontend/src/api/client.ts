@@ -8,3 +8,5 @@ export const api = createClient<paths>({ baseUrl: '' })
 export type District = components['schemas']['DistrictOut']
 export type BoundaryProperties = components['schemas']['BoundaryProperties']
 export type BoundaryCollection = components['schemas']['BoundaryCollection']
+export type Forecast = components['schemas']['ForecastOut']
+export type DailyForecast = components['schemas']['DailyForecast']

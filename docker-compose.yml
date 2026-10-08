@@ -24,13 +24,23 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=3)"
+      interval: 3s
+      timeout: 5s
+      retries: 20
 
   web:
     build: ./frontend
     ports:
       - "${EWS_WEB_PORT:-5173}:80"
     depends_on:
-      - api
+      api:
+        condition: service_healthy
 
 volumes:
   ews-db:

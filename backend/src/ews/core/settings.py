@@ -22,6 +22,15 @@ class Settings(BaseSettings):
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     health_check_timeout_seconds: float = 3.0
 
+    # Forecast source
+    open_meteo_forecast_url: str = "https://api.open-meteo.com/v1/forecast"
+    source_timeout_seconds: float = 30.0
+    forecast_days: int = 7
+    # A stored forecast older than this is refreshed when it is next requested
+    forecast_max_age_seconds: int = 3 * 60 * 60
+    # Districts per request when fetching forecasts for all of them
+    forecast_batch_size: int = 50
+
 
 @lru_cache
 def get_settings() -> Settings:

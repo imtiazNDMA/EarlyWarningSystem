@@ -67,7 +67,9 @@ export function DistrictMap({ boundaries, selectedFeatureId, focus, onSelect }: 
       hoveredId = id
     }
 
-    map.on('load', () => {
+    // 'style.load' fires before the base map's tiles arrive, so the districts
+    // appear without waiting for them
+    map.once('style.load', () => {
       // Draw districts under the base map's labels so place names stay readable
       const firstLabel = map.getStyle().layers.find((layer) => layer.type === 'symbol')?.id
 

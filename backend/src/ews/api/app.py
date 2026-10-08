@@ -3,26 +3,33 @@
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
+import httpx
 from fastapi import FastAPI
 from fastapi.middleware.gzip import GZipMiddleware
 
-from ews.api.routers import districts, health
+from ews.api.routers import districts, forecasts, health
 from ews.core.db import create_engine, create_session_factory
 from ews.core.logging import configure_logging
 from ews.core.settings import Settings, get_settings
+from ews.sources.open_meteo import OpenMeteoForecastClient
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    """Open the database engine at start-up and dispose it at shutdown."""
+    """Open the database engine and HTTP client at start-up; close at shutdown."""
     settings: Settings = app.state.settings
     configure_logging(settings.log_level)
 
     engine = create_engine(settings.database_url)
     app.state.session_factory = create_session_factory(engine)
+    http = httpx.AsyncClient(timeout=settings.source_timeout_seconds)
+    app.state.forecast_client = OpenMeteoForecastClient(
+        http, settings.open_meteo_forecast_url
+    )
     try:
         yield
     finally:
+        await http.aclose()
         await engine.dispose()
 
 
@@ -44,4 +51,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.include_router(health.router, prefix="/api")
     app.include_router(districts.router, prefix="/api")
+    app.include_router(forecasts.router, prefix="/api")
     return app
