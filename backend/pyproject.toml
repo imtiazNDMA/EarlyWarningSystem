@@ -33,10 +33,12 @@ packages = ["src/ews"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m 'not eval'"
 asyncio_mode = "auto"
 # One event loop for the whole run, so the session-scoped engine is usable in every test
 asyncio_default_fixture_loop_scope = "session"
 asyncio_default_test_loop_scope = "session"
+markers = ["eval: offline evaluation scenarios run on demand"]
 
 [tool.mypy]
 python_version = "3.12"
