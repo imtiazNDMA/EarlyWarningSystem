@@ -224,26 +224,73 @@ Today district identity is a display string that must match across `models.py`, 
 - One boundary file is kept (chosen by coverage after inspection); the other two are deleted.
 - District names that predate administrative changes (for example the former agencies in Khyber Pakhtunkhwa) are checked against the boundary file during this step.
 
+**Curated query points.** The registry's `lat`/`lon` is the district centroid, which is
+the right query point for an area-wide forecast and the wrong one for a river. The flood
+source needs a point on a modelled GloFAS channel, which a centroid almost never is
+(5.2). River points are therefore a second curated input alongside the boundary
+overrides: built from source data in `backend/data/source/`, verified to return a
+plausible discharge, reviewed by hand and committed. A district with no modelled river
+simply has no river point, and so raises no riverine-flood signal.
+
 ### 5.2 Sources
 
-| Source | Provides | Notes |
-|--------|----------|-------|
-| Open-Meteo Forecast | Daily and hourly temperature, precipitation, wind, snowfall, UV, weather code | Already used. Request several coordinates per call to cut request volume |
-| Open-Meteo Flood | River discharge forecast (GloFAS) | New |
-| Open-Meteo Air Quality | PM2.5, PM10, AQI | New; smog season in Punjab |
-| GDACS | Active disaster events (flood, cyclone, drought, earthquake) | New |
-| USGS earthquake feed | Recent earthquakes as GeoJSON | New |
+All four new sources were confirmed against provider documentation and live calls on
+2026-10-08. The findings, with citations and captured responses, are in
+[`docs/sources.md`](docs/sources.md); the table below is the summary, and three of this
+section's original assumptions did not survive it.
 
-All are keyless. Exact endpoints, response shapes, rate limits and usage terms are confirmed at the start of Phase 2; Open-Meteo's free tier is for non-commercial use, which fits a portfolio project. The Pakistan Meteorological Department has no stable public API, so it is out of scope.
+| Source | Provides | Query shape | Status |
+|--------|----------|-------------|--------|
+| Open-Meteo Forecast | Daily and hourly temperature, precipitation, wind, snowfall, UV, weather code | All districts in one call | In use |
+| Open-Meteo Flood | River discharge forecast (GloFAS) | One call, but **curated river points, not district centroids** | Confirmed; inputs must change |
+| Open-Meteo Air Quality | PM2.5, PM10, AQI | All districts in one call, **capped at 5 forecast days** | Confirmed |
+| GDACS | Active disaster events (flood, cyclone, drought, earthquake) | One country-wide polygon query; no district granularity | Confirmed as **context only** |
+| USGS earthquake feed | Recent earthquakes as GeoJSON | One country-wide bounding-box query | Confirmed |
 
-Each source is a small class with one method that returns typed records. Failures are raised, logged with context, and recorded on the run — never swallowed.
+All are keyless and all returned usable data. Open-Meteo's free tier is non-commercial,
+which fits a portfolio project, and its quota is shared across its hostnames: under
+10,000 calls a day, 5,000 an hour, 600 a minute. The Pakistan Meteorological Department
+has no stable public API, so it is out of scope.
+
+**Three corrections to this section's original assumptions.**
+
+1. **The flood API cannot be driven from district centroids.** GloFAS models river
+   cells, and a centroid is almost never on one. Of the 155 centroids in the registry,
+   59 return exactly `0.00` and none returns more than 100 m³/s; Sukkur's centroid
+   returns zero for every day, while the Indus at Sukkur Barrage about 30 km away
+   returns 3,482 m³/s. Riverine flood therefore needs a curated river point per
+   district, built and hand-reviewed like the district registry itself (5.1).
+   Districts with no modelled river get no riverine signal, which is honest.
+2. **GDACS is context, not a screening input.** Its unit of data is a country-level
+   event with a centroid, it has fired only a handful of times for Pakistan in five
+   years, and its published terms grant no licence — only a request for acknowledgement.
+   It corroborates an alert; it never raises one.
+3. **The air-quality horizon is shorter than the forecast horizon.** CAMS global reaches
+   about five and a half days, so a seven-day request returns 42 trailing null hours.
+   Air quality is requested with its own five-day horizon rather than the project's
+   `forecast_days`, and any day with an incomplete hourly series is discarded before a
+   daily mean is taken.
+
+**Two shapes of source, not one.** The Open-Meteo APIs return a per-district time
+series and fit the `source_snapshots` model. USGS and GDACS return a country-wide list
+of events, which does not; events are stored keyed by their provider event id, and the
+link to a district is derived geometrically.
+
+Each source is a small class with one method that returns typed records. Failures are
+raised, logged with context, and recorded on the run — never swallowed.
+
+**Attribution is a requirement, not a courtesy.** Open-Meteo's licence obliges a
+`Weather data by Open-Meteo.com` link wherever its values are displayed; USGS asks for
+credit; GDACS asks to be acknowledged by name; Copernicus owns the GloFAS and CAMS
+products underneath Open-Meteo. The frontend carries these.
 
 ### 5.3 Tables
 
 | Table | Purpose |
 |-------|---------|
 | `districts` | Registry (5.1) |
-| `source_snapshots` | Raw payload per source, district and fetch time (JSONB). Evidence for alerts points here |
+| `source_snapshots` | Raw payload per source, district and fetch time (JSONB). Evidence for alerts points here. Fits the per-district sources only |
+| `hazard_events` | Country-wide events from USGS and GDACS, keyed by provider event id; the district link is derived geometrically. Needed because these sources do not return a per-district series (5.2) |
 | `hazard_signals` | Output of screening: district, hazard, level, time window, the metrics that triggered it, run id |
 | `alerts` | Append-only alert records (5.4) |
 | `agent_runs` | One row per monitoring cycle or copilot turn: trigger, status, timings, counts, model, prompt version |
@@ -469,8 +516,10 @@ Each phase ends in a working, demonstrable state. Effort is relative: S ≈ days
 
 ### Phase 2 — Data sources and hazard screening (M)
 
-- Confirm endpoints and terms, then add flood, air-quality, GDACS and USGS clients with recorded fixtures.
-- Ingestion job writing `source_snapshots`.
+- ~~Confirm endpoints and terms~~ — done, see [`docs/sources.md`](docs/sources.md).
+- Build the curated river-point table the flood source needs (5.1, 5.2), hand-reviewed like the district registry.
+- Add flood, air-quality, GDACS and USGS clients against the captured fixtures.
+- Ingestion job writing `source_snapshots`, and `hazard_events` for the country-wide sources.
 - `thresholds.yaml`, calibrated starting values, screening rules, `hazard_signals`, `GET /api/signals`.
 - Alert model and lifecycle, initially fed by rule-based template text.
 
