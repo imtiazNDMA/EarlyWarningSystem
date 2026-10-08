@@ -20,7 +20,6 @@ uv run pytest tests/ -v --cov=. --cov-report=term                              #
 
 uv run ruff check .                    # lint (CI gate)
 uv run ruff format --check .           # format check (CI gate); drop --check to apply
-uv run safety check                    # dependency audit (CI gate)
 ```
 
 - `config.py` calls `Config.validate()` at import time and raises if `MAPBOX_TOKEN` is unset. Anything that imports `app`, `config`, or a service — including the tests — needs a `.env` (copy `.env.example`) or `MAPBOX_TOKEN` in the environment. A dummy value is enough for tests.
@@ -43,6 +42,7 @@ uv run pytest                          # needs the db container running
 uv run pytest tests/test_health.py::TestHealth::test_reports_healthy_when_database_is_reachable
 uv run ruff check . && uv run ruff format --check .
 uv run mypy                            # strict
+uv export --frozen --no-dev --no-emit-project -o requirements-audit.txt && uvx pip-audit -r requirements-audit.txt --disable-pip --require-hashes   # dependency audit (CI gate)
 uv run alembic upgrade head            # apply migrations to EWS_DATABASE_URL
 uv run alembic revision -m "message"   # new migration
 ```

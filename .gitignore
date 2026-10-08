@@ -48,6 +48,7 @@ pytest_output.txt
 alert_check.json
 weather_service_lint.txt
 bandit-report.json
+requirements-audit.txt
 *.tmp
 *.temp
 
