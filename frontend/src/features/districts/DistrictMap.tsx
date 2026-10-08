@@ -266,7 +266,7 @@ export function DistrictMap({
               PM2.5: {pm25.get(hover.properties.feature_id)?.toFixed(1) ?? 'No data'}{' '}
               {pm25.get(hover.properties.feature_id) !== null &&
                 pm25.get(hover.properties.feature_id) !== undefined &&
-                'µg/m³'}
+                'μg/m³'}
             </p>
           ) : summaries.has(hover.properties.feature_id) && (
             <p className="mt-1 text-xs">{summaries.get(hover.properties.feature_id)}</p>

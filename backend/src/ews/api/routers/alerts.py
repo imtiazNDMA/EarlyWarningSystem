@@ -43,9 +43,12 @@ class AlertOut(BaseModel):
     certainty: Certainty
     onset: dt.date
     expires: dt.date
-    headline: str
-    body: str
-    instructions: str
+    headline_en: str
+    body_en: str
+    instructions_en: str
+    headline_ur: str | None
+    body_ur: str | None
+    instructions_ur: str | None
     generated_by: str
     evidence: list[EvidenceOut]
     status: AlertStatus
@@ -68,9 +71,12 @@ class AlertOut(BaseModel):
             "certainty": alert.certainty,
             "onset": alert.onset,
             "expires": alert.expires,
-            "headline": alert.headline,
-            "body": alert.body,
-            "instructions": alert.instructions,
+            "headline_en": alert.headline_en,
+            "body_en": alert.body_en,
+            "instructions_en": alert.instructions_en,
+            "headline_ur": alert.headline_ur,
+            "body_ur": alert.body_ur,
+            "instructions_ur": alert.instructions_ur,
             "generated_by": alert.generated_by,
             "evidence": alert.evidence,
             "status": alert.status,

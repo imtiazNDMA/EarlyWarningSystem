@@ -19,9 +19,12 @@ function alert(overrides: Partial<Alert> = {}): Alert {
     certainty: 'likely',
     onset: '2026-10-09',
     expires: '2026-10-10',
-    headline: 'Severe heavy rain alert for Lahore',
-    body: 'Heavy rain peaks at 120 mm on 9 October.',
-    instructions: 'Avoid low-lying areas.',
+    headline_en: 'Severe heavy rain alert for Lahore',
+    body_en: 'Heavy rain peaks at 120 mm on 9 October.',
+    instructions_en: 'Avoid low-lying areas.',
+    headline_ur: null,
+    body_ur: null,
+    instructions_ur: null,
     generated_by: 'rules',
     evidence: [
       {

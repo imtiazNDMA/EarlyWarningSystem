@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     )
     source_timeout_seconds: float = 30.0
     forecast_days: int = 7
+    air_quality_forecast_days: int = 5
     # A stored forecast older than this is refreshed when it is next requested
     forecast_max_age_seconds: int = 3 * 60 * 60
     # Districts per request when fetching forecasts for all of them

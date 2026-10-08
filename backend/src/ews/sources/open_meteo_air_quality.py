@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 SOURCE = "open-meteo-air-quality"
 HOURLY_VARIABLE = "pm2_5"
+PM25_UNIT = "μg/m³"
 
 
 class DailyAirQuality(BaseModel):
@@ -32,30 +33,40 @@ class LocationAirQuality(BaseModel):
 
 
 def parse_daily(payload: dict[str, Any]) -> list[DailyAirQuality]:
-    """Aggregate one location's hourly PM2.5 forecast into daily means."""
+    """Aggregate complete local days of hourly PM2.5 into daily means."""
     hourly = payload.get("hourly")
     if not isinstance(hourly, dict) or "time" not in hourly:
         raise SourceError(SOURCE, "response has no hourly block")
     if HOURLY_VARIABLE not in hourly:
         raise SourceError(SOURCE, f"response is missing {HOURLY_VARIABLE}")
+    hourly_units = payload.get("hourly_units")
+    if (
+        not isinstance(hourly_units, dict)
+        or hourly_units.get(HOURLY_VARIABLE) != PM25_UNIT
+    ):
+        raise SourceError(SOURCE, f"unexpected {HOURLY_VARIABLE} unit")
     try:
-        by_day: dict[dt.date, list[float]] = {}
+        by_day: dict[dt.date, list[float | None]] = {}
         for timestamp, value in zip(
             hourly["time"], hourly[HOURLY_VARIABLE], strict=True
         ):
             day = dt.datetime.fromisoformat(timestamp).date()
-            if value is not None:
-                by_day.setdefault(day, []).append(float(value))
-            else:
-                by_day.setdefault(day, [])
-        return [
-            DailyAirQuality(
-                date=day,
-                pm2_5_mean_ug_m3=(sum(values) / len(values) if values else None),
+            by_day.setdefault(day, []).append(
+                float(value) if value is not None else None
             )
-            for day, values in by_day.items()
-        ]
-    except (IndexError, TypeError, ValidationError) as error:
+        days = []
+        for day, values in by_day.items():
+            if len(values) != 24 or any(value is None for value in values):
+                continue
+            complete_values = [value for value in values if value is not None]
+            days.append(
+                DailyAirQuality(
+                    date=day,
+                    pm2_5_mean_ug_m3=sum(complete_values) / len(complete_values),
+                )
+            )
+        return days
+    except (IndexError, TypeError, ValueError, ValidationError) as error:
         raise SourceError(SOURCE, f"unusable daily values: {error}") from error
 
 

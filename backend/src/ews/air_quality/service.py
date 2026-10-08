@@ -3,8 +3,9 @@
 import datetime as dt
 from itertools import batched
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import aliased
 
 from ews.districts.models import District
 from ews.forecasts.service import latest_snapshot, store_snapshot
@@ -54,11 +55,38 @@ async def latest_air_quality_all(
     session: AsyncSession,
 ) -> list[tuple[str, dt.date, dt.datetime, float | None]]:
     """Latest PM2.5 forecast value for every district that has one."""
-    districts = (await session.scalars(select(District.id).order_by(District.id))).all()
+    ranked = (
+        select(
+            SourceSnapshot,
+            func.row_number()
+            .over(
+                partition_by=SourceSnapshot.district_id,
+                order_by=(
+                    SourceSnapshot.fetched_at.desc(),
+                    SourceSnapshot.id.desc(),
+                ),
+            )
+            .label("recency"),
+        )
+        .where(SourceSnapshot.source == SOURCE)
+        .subquery()
+    )
+    snapshot = aliased(SourceSnapshot, ranked)
+    snapshots = (
+        await session.scalars(
+            select(snapshot).where(ranked.c.recency == 1).order_by(snapshot.district_id)
+        )
+    ).all()
     values = []
-    for district_id in districts:
-        current = await latest_air_quality(session, district_id)
-        if current is not None:
-            snapshot, date, value = current
-            values.append((district_id, date, snapshot.fetched_at, value))
+    for current in snapshots:
+        days = parse_daily(current.payload)
+        if days:
+            values.append(
+                (
+                    current.district_id,
+                    days[0].date,
+                    current.fetched_at,
+                    days[0].pm2_5_mean_ug_m3,
+                )
+            )
     return values

@@ -42,9 +42,20 @@
       "AlertDetail": {
         "description": "An alert, plus the alert that replaced it if it was superseded.",
         "properties": {
-          "body": {
-            "title": "Body",
+          "body_en": {
+            "title": "Body En",
             "type": "string"
+          },
+          "body_ur": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body Ur"
           },
           "certainty": {
             "enum": [
@@ -94,17 +105,39 @@
             "title": "Hazard",
             "type": "string"
           },
-          "headline": {
-            "title": "Headline",
+          "headline_en": {
+            "title": "Headline En",
             "type": "string"
+          },
+          "headline_ur": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headline Ur"
           },
           "id": {
             "title": "Id",
             "type": "integer"
           },
-          "instructions": {
-            "title": "Instructions",
+          "instructions_en": {
+            "title": "Instructions En",
             "type": "string"
+          },
+          "instructions_ur": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instructions Ur"
           },
           "issued_at": {
             "format": "date-time",
@@ -186,9 +219,12 @@
           "certainty",
           "onset",
           "expires",
-          "headline",
-          "body",
-          "instructions",
+          "headline_en",
+          "body_en",
+          "instructions_en",
+          "headline_ur",
+          "body_ur",
+          "instructions_ur",
           "generated_by",
           "evidence",
           "status",
@@ -204,9 +240,20 @@
       "AlertOut": {
         "description": "An alert and the district it was issued for.",
         "properties": {
-          "body": {
-            "title": "Body",
+          "body_en": {
+            "title": "Body En",
             "type": "string"
+          },
+          "body_ur": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body Ur"
           },
           "certainty": {
             "enum": [
@@ -256,17 +303,39 @@
             "title": "Hazard",
             "type": "string"
           },
-          "headline": {
-            "title": "Headline",
+          "headline_en": {
+            "title": "Headline En",
             "type": "string"
+          },
+          "headline_ur": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headline Ur"
           },
           "id": {
             "title": "Id",
             "type": "integer"
           },
-          "instructions": {
-            "title": "Instructions",
+          "instructions_en": {
+            "title": "Instructions En",
             "type": "string"
+          },
+          "instructions_ur": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instructions Ur"
           },
           "issued_at": {
             "format": "date-time",
@@ -337,9 +406,12 @@
           "certainty",
           "onset",
           "expires",
-          "headline",
-          "body",
-          "instructions",
+          "headline_en",
+          "body_en",
+          "instructions_en",
+          "headline_ur",
+          "body_ur",
+          "instructions_ur",
           "generated_by",
           "evidence",
           "status",

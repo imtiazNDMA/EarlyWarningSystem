@@ -11,6 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ews.sources.models import SourceSnapshot
 from tests.conftest import (
     ADMIN_TOKEN,
+    CALM_AIR_QUALITY,
     RECORDED_AIR_QUALITY,
     RECORDED_FORECAST,
     Upstream,
@@ -29,9 +30,12 @@ def wet_in_lahore(lat: str, _lon: str) -> dict[str, Any]:
 
 
 def polluted_lahore(lat: str, _lon: str) -> dict[str, Any]:
-    payload = copy.deepcopy(RECORDED_AIR_QUALITY)
+    payload = copy.deepcopy(CALM_AIR_QUALITY)
     if lat == LAHORE_LAT:
-        payload["hourly"]["pm2_5"] = [60.0, 60.0, 180.0, 80.0]
+        values = {"2026-10-08": 60.0, "2026-10-09": 180.0}
+        payload["hourly"]["pm2_5"] = [
+            values.get(timestamp[:10], 80.0) for timestamp in payload["hourly"]["time"]
+        ]
     return dict(payload)
 
 
@@ -73,6 +77,9 @@ class TestTriggerRun:
         assert run["signal_count"] == 1
         assert run["error"] is None
         assert run["finished_at"] is not None
+        assert upstream.requests[0].url.params["forecast_days"] == "7"
+        assert upstream.air_quality is not None
+        assert upstream.air_quality.requests[0].url.params["forecast_days"] == "5"
 
     async def test_failed_source_is_recorded_on_the_run(
         self, client: AsyncClient, upstream: Upstream, db_session: AsyncSession
@@ -137,13 +144,19 @@ class TestTriggerRun:
                 "hazard": "poor_air_quality",
                 "level": "severe",
                 "onset": "2026-10-08",
-                "expires": "2026-10-10",
+                "expires": "2026-10-12",
                 "metric": "pm2_5_mean_ug_m3",
-                "unit": "µg/m³",
+                "unit": "μg/m³",
                 "peak_value": 180.0,
                 "peak_date": "2026-10-09",
                 "threshold": 150.0,
-                "days_over": ["2026-10-08", "2026-10-09", "2026-10-10"],
+                "days_over": [
+                    "2026-10-08",
+                    "2026-10-09",
+                    "2026-10-10",
+                    "2026-10-11",
+                    "2026-10-12",
+                ],
                 "snapshot_id": signals[0]["snapshot_id"],
             }
         ]
@@ -161,6 +174,8 @@ class TestAirQuality:
         client: AsyncClient,
         upstream: Upstream,  # noqa: ARG002
     ) -> None:
+        assert upstream.air_quality is not None
+        upstream.air_quality.payload_for = lambda _lat, _lon: RECORDED_AIR_QUALITY
         await client.post("/api/runs", headers=ADMIN)
 
         all_values = (await client.get("/api/air-quality")).json()
@@ -169,7 +184,7 @@ class TestAirQuality:
         assert len(all_values) == 155
         assert district["district_id"] == "lahore"
         assert district["date"] == "2026-10-08"
-        assert district["pm2_5_mean_ug_m3"] == 18.0
+        assert district["pm2_5_mean_ug_m3"] == 72.55
         assert district in all_values
 
 

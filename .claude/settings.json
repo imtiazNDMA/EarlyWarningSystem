@@ -1,0 +1,24 @@
+{
+  "enabledPlugins": {
+    "mattpocock-skills@claude-plugins-official": false,
+    "netlify-skills@claude-plugins-official": false,
+    "data-agent-kit-starter-pack@claude-plugins-official": false,
+    "huggingface-skills@claude-plugins-official": false,
+    "figma@claude-plugins-official": false,
+    "shopify-ai-toolkit@claude-plugins-official": false,
+    "shopify@claude-plugins-official": false,
+    "mongodb@claude-plugins-official": false,
+    "bigdata-com@claude-plugins-official": false,
+    "data-engineering@claude-plugins-official": false,
+    "data@claude-plugins-official": false,
+    "stripe@claude-plugins-official": false,
+    "pinecone@claude-plugins-official": false,
+    "searchfit-seo@claude-plugins-official": false,
+    "cloudflare@claude-plugins-official": false,
+    "deploy-on-aws@claude-plugins-official": false,
+    "databases-on-aws@claude-plugins-official": false,
+    "railway@claude-plugins-official": false,
+    "aws-amplify@claude-plugins-official": false,
+    "sourcegraph@claude-plugins-official": false
+  }
+}

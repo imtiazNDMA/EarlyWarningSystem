@@ -17,8 +17,12 @@ describe('AirQualityView', () => {
     )
 
     expect(screen.getByText('72.3')).toBeInTheDocument()
-    expect(screen.getByText('µg/m³ daily mean PM2.5')).toBeInTheDocument()
+    expect(screen.getByText('μg/m³ daily mean PM2.5')).toBeInTheDocument()
     expect(screen.getByText('Forecast for 2026-10-08')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Weather data by Open-Meteo.com' })).toHaveAttribute(
+      'href',
+      'https://open-meteo.com/',
+    )
   })
 
   it('shows an explicit no-data state', () => {

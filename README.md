@@ -57,6 +57,7 @@ All settings are optional for local development.
 | `EWS_WEB_PORT` | Dashboard host port | `5173` |
 | `EWS_LOG_LEVEL` | API logging level | `INFO` |
 | `EWS_FORECAST_DAYS` | Forecast horizon | `7` |
+| `EWS_AIR_QUALITY_FORECAST_DAYS` | Air-quality horizon, capped to complete CAMS days | `5` |
 | `EWS_FORECAST_MAX_AGE_SECONDS` | Stored-forecast freshness window | `10800` |
 | `EWS_FORECAST_BATCH_SIZE` | Districts fetched per Open-Meteo request | `50` |
 

@@ -141,7 +141,7 @@ async def _ingest_and_screen(
             session,
             air_quality_client,
             settings.forecast_batch_size,
-            settings.forecast_days,
+            settings.air_quality_forecast_days,
         )
     except SourceError as error:
         await savepoint.rollback()

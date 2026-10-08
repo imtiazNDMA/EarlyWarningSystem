@@ -63,14 +63,14 @@ export function AlertCard({ alert, compact = false }: { alert: Alert; compact?: 
         </span>
       </div>
       <h4 className="mt-1 text-sm font-semibold leading-snug text-ink">
-        {compact ? `${hazardLabel(alert.hazard)} · ${alert.district_name}` : alert.headline}
+        {compact ? `${hazardLabel(alert.hazard)} · ${alert.district_name}` : alert.headline_en}
       </h4>
       {!compact && (
         <>
-          <p className="mt-1.5 text-xs leading-relaxed text-ink/75">{alert.body}</p>
+          <p className="mt-1.5 text-xs leading-relaxed text-ink/75">{alert.body_en}</p>
           <p className="mt-2 text-xs leading-relaxed text-ink">
             <span className="font-semibold">Safety: </span>
-            {alert.instructions}
+            {alert.instructions_en}
           </p>
           <EvidenceTable alert={alert} />
         </>

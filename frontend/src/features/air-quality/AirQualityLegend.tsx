@@ -8,7 +8,7 @@ const STOPS = [
 export function AirQualityLegend() {
   return (
     <div className="mt-3 border-t border-line/30 pt-3">
-      <p className="type-label text-ink/60">Daily mean PM2.5 · µg/m³</p>
+      <p className="type-label text-ink/60">Daily mean PM2.5 · μg/m³</p>
       <ul className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-ink">
         {STOPS.map(([label, colour]) => (
           <li key={label} className="flex items-center gap-1.5">
@@ -17,6 +17,8 @@ export function AirQualityLegend() {
           </li>
         ))}
       </ul>
+      <AirQualityAttribution />
     </div>
   )
 }
+import { AirQualityAttribution } from './AirQualityAttribution'

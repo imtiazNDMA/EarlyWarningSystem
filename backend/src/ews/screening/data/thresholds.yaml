@@ -40,5 +40,5 @@ hazards:
 
   poor_air_quality:
     metric: pm2_5_mean_ug_m3
-    unit: "µg/m³"
+    unit: "μg/m³"
     levels: { moderate: 55, severe: 150, extreme: 250 }

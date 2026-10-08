@@ -1,6 +1,7 @@
 """Shared fixtures: a disposable database per run and a rolled-back session per test."""
 
 import asyncio
+import copy
 import json
 import os
 import uuid
@@ -45,20 +46,13 @@ RECORDED_FORECAST: dict[str, Any] = json.loads(
         encoding="utf-8"
     )
 )[0]
-RECORDED_AIR_QUALITY: dict[str, Any] = {
-    "latitude": 31.5,
-    "longitude": 74.4,
-    "hourly_units": {"time": "iso8601", "pm2_5": "µg/m³"},
-    "hourly": {
-        "time": [
-            "2026-10-08T00:00",
-            "2026-10-08T12:00",
-            "2026-10-09T00:00",
-            "2026-10-10T00:00",
-        ],
-        "pm2_5": [16.0, 20.0, 20.0, 22.0],
-    },
-}
+RECORDED_AIR_QUALITY: dict[str, Any] = json.loads(
+    (BACKEND_ROOT / "tests/fixtures/open_meteo_air_quality_lahore.json").read_text(
+        encoding="utf-8"
+    )
+)
+CALM_AIR_QUALITY = copy.deepcopy(RECORDED_AIR_QUALITY)
+CALM_AIR_QUALITY["hourly"]["pm2_5"] = [0.0 for _ in CALM_AIR_QUALITY["hourly"]["pm2_5"]]
 
 
 class Upstream:
@@ -66,6 +60,7 @@ class Upstream:
 
     def __init__(self) -> None:
         self.calls = 0
+        self.requests: list[httpx.Request] = []
         self.failing = False
         # (lat, lon) as sent -> payload; None answers with the recorded forecast
         self.payload_for: Callable[[str, str], dict[str, Any]] | None = None
@@ -74,6 +69,7 @@ class Upstream:
 
     def handle(self, request: httpx.Request) -> httpx.Response:
         self.calls += 1
+        self.requests.append(request)
         if self.failing or self.calls == self.fail_on_call:
             body = {"error": True, "reason": "unavailable"}
             return httpx.Response(503, json=body)
@@ -187,7 +183,7 @@ async def upstream(app: FastAPI) -> AsyncIterator[Upstream]:
     upstream = Upstream()
     transport = httpx.MockTransport(upstream.handle)
     air_upstream = Upstream()
-    air_upstream.payload_for = lambda _lat, _lon: RECORDED_AIR_QUALITY
+    air_upstream.payload_for = lambda _lat, _lon: CALM_AIR_QUALITY
     air_transport = httpx.MockTransport(air_upstream.handle)
     async with (
         httpx.AsyncClient(transport=transport) as http,

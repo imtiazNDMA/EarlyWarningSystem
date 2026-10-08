@@ -239,8 +239,10 @@ export interface components {
          * @description An alert, plus the alert that replaced it if it was superseded.
          */
         AlertDetail: {
-            /** Body */
-            body: string;
+            /** Body En */
+            body_en: string;
+            /** Body Ur */
+            body_ur: string | null;
             /**
              * Certainty
              * @enum {string}
@@ -263,12 +265,16 @@ export interface components {
             generated_by: string;
             /** Hazard */
             hazard: string;
-            /** Headline */
-            headline: string;
+            /** Headline En */
+            headline_en: string;
+            /** Headline Ur */
+            headline_ur: string | null;
             /** Id */
             id: number;
-            /** Instructions */
-            instructions: string;
+            /** Instructions En */
+            instructions_en: string;
+            /** Instructions Ur */
+            instructions_ur: string | null;
             /**
              * Issued At
              * Format: date-time
@@ -308,8 +314,10 @@ export interface components {
          * @description An alert and the district it was issued for.
          */
         AlertOut: {
-            /** Body */
-            body: string;
+            /** Body En */
+            body_en: string;
+            /** Body Ur */
+            body_ur: string | null;
             /**
              * Certainty
              * @enum {string}
@@ -332,12 +340,16 @@ export interface components {
             generated_by: string;
             /** Hazard */
             hazard: string;
-            /** Headline */
-            headline: string;
+            /** Headline En */
+            headline_en: string;
+            /** Headline Ur */
+            headline_ur: string | null;
             /** Id */
             id: number;
-            /** Instructions */
-            instructions: string;
+            /** Instructions En */
+            instructions_en: string;
+            /** Instructions Ur */
+            instructions_ur: string | null;
             /**
              * Issued At
              * Format: date-time
