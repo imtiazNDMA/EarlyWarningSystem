@@ -1,0 +1,1397 @@
+[
+  {
+    "id": "islamabad",
+    "name_en": "Islamabad",
+    "name_ur": null,
+    "province": "Federal Capital Territory",
+    "lat": 33.66508854571285,
+    "lon": 73.12121495291125,
+    "feature_id": "islamabad"
+  },
+  {
+    "id": "bagh",
+    "name_en": "Bagh",
+    "name_ur": null,
+    "province": "Azad Kashmir",
+    "lat": 33.99337266039674,
+    "lon": 73.73998450875354,
+    "feature_id": "bagh"
+  },
+  {
+    "id": "bhimber",
+    "name_en": "Bhimber",
+    "name_ur": null,
+    "province": "Azad Kashmir",
+    "lat": 33.01496724426345,
+    "lon": 74.131720196198,
+    "feature_id": "bhimber"
+  },
+  {
+    "id": "hattian-bala",
+    "name_en": "Hattian Bala",
+    "name_ur": null,
+    "province": "Azad Kashmir",
+    "lat": 34.19375765650965,
+    "lon": 73.83354511233324,
+    "feature_id": "hattian-bala"
+  },
+  {
+    "id": "haveli",
+    "name_en": "Haveli",
+    "name_ur": null,
+    "province": "Azad Kashmir",
+    "lat": 33.935924192436794,
+    "lon": 74.11921924165692,
+    "feature_id": "haveli"
+  },
+  {
+    "id": "kotli",
+    "name_en": "Kotli",
+    "name_ur": null,
+    "province": "Azad Kashmir",
+    "lat": 33.45221224482643,
+    "lon": 73.91536457946866,
+    "feature_id": "kotli"
+  },
+  {
+    "id": "mirpur",
+    "name_en": "Mirpur",
+    "name_ur": null,
+    "province": "Azad Kashmir",
+    "lat": 33.233325578941084,
+    "lon": 73.74103700267189,
+    "feature_id": "mirpur"
+  },
+  {
+    "id": "muzaffarabad",
+    "name_en": "Muzaffarabad",
+    "name_ur": null,
+    "province": "Azad Kashmir",
+    "lat": 34.353445235171016,
+    "lon": 73.59187758954516,
+    "feature_id": "muzaffarabad"
+  },
+  {
+    "id": "neelum",
+    "name_en": "Neelum",
+    "name_ur": null,
+    "province": "Azad Kashmir",
+    "lat": 34.79109334423621,
+    "lon": 74.17583133110496,
+    "feature_id": "neelum"
+  },
+  {
+    "id": "poonch",
+    "name_en": "Poonch",
+    "name_ur": null,
+    "province": "Azad Kashmir",
+    "lat": 33.81673508893061,
+    "lon": 73.83770848804653,
+    "feature_id": "poonch"
+  },
+  {
+    "id": "sudhnoti",
+    "name_en": "Sudhnoti",
+    "name_ur": null,
+    "province": "Azad Kashmir",
+    "lat": 33.70248443672862,
+    "lon": 73.74638177882504,
+    "feature_id": "sudhnoti"
+  },
+  {
+    "id": "awaran",
+    "name_en": "Awaran",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 26.194468608615775,
+    "lon": 65.3826293217998,
+    "feature_id": "awaran"
+  },
+  {
+    "id": "barkhan",
+    "name_en": "Barkhan",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 29.954128185660576,
+    "lon": 69.61770653439098,
+    "feature_id": "barkhan"
+  },
+  {
+    "id": "chagai",
+    "name_en": "Chagai",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 28.977363668335656,
+    "lon": 63.2824324823143,
+    "feature_id": "chagai"
+  },
+  {
+    "id": "dera-bugti",
+    "name_en": "Dera Bugti",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 28.95414027047104,
+    "lon": 69.04963404067071,
+    "feature_id": "dera-bugti"
+  },
+  {
+    "id": "gwadar",
+    "name_en": "Gwadar",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 25.397367787265292,
+    "lon": 63.12106627101464,
+    "feature_id": "gwadar"
+  },
+  {
+    "id": "harnai",
+    "name_en": "Harnai",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 30.129007445586883,
+    "lon": 67.86503420187688,
+    "feature_id": "harnai"
+  },
+  {
+    "id": "jaffarabad",
+    "name_en": "Jaffarabad",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 28.228858179433285,
+    "lon": 68.02819907199952,
+    "feature_id": "jaffarabad"
+  },
+  {
+    "id": "jhal-magsi",
+    "name_en": "Jhal Magsi",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 28.405547729809637,
+    "lon": 67.52544405432475,
+    "feature_id": "jhal-magsi"
+  },
+  {
+    "id": "kachhi",
+    "name_en": "Kachhi",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 29.345995582916473,
+    "lon": 67.52696047072224,
+    "feature_id": "kachhi"
+  },
+  {
+    "id": "kalat",
+    "name_en": "Kalat",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 28.891552723827832,
+    "lon": 66.58135670946075,
+    "feature_id": "kalat"
+  },
+  {
+    "id": "kech",
+    "name_en": "Kech",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 25.996858583008965,
+    "lon": 63.06724381944836,
+    "feature_id": "kech"
+  },
+  {
+    "id": "kharan",
+    "name_en": "Kharan",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 28.61316116892041,
+    "lon": 65.46624468976793,
+    "feature_id": "kharan"
+  },
+  {
+    "id": "khuzdar",
+    "name_en": "Khuzdar",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 27.46151488018936,
+    "lon": 66.64568409993014,
+    "feature_id": "khuzdar"
+  },
+  {
+    "id": "killa-abdullah",
+    "name_en": "Killa Abdullah",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 30.726624265215428,
+    "lon": 66.68560658980135,
+    "feature_id": "killa-abdullah"
+  },
+  {
+    "id": "killa-saifullah",
+    "name_en": "Killa Saifullah",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 30.964410174426728,
+    "lon": 68.32258434291485,
+    "feature_id": "killa-saifullah"
+  },
+  {
+    "id": "kohlu",
+    "name_en": "Kohlu",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 29.58888757412747,
+    "lon": 68.84672869961474,
+    "feature_id": "kohlu"
+  },
+  {
+    "id": "lasbela",
+    "name_en": "Lasbela",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 25.79894614408721,
+    "lon": 66.6471293903456,
+    "feature_id": "lasbela"
+  },
+  {
+    "id": "loralai",
+    "name_en": "Loralai",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 30.3034606947165,
+    "lon": 68.89998082597893,
+    "feature_id": "loralai"
+  },
+  {
+    "id": "mastung",
+    "name_en": "Mastung",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 29.78146275795406,
+    "lon": 66.83057842272954,
+    "feature_id": "mastung"
+  },
+  {
+    "id": "musa-khel",
+    "name_en": "Musa Khel",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 30.870503071296593,
+    "lon": 69.92037227719818,
+    "feature_id": "musa-khel"
+  },
+  {
+    "id": "nasirabad",
+    "name_en": "Nasirabad",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 28.594153851401362,
+    "lon": 68.1050421129538,
+    "feature_id": "nasirabad"
+  },
+  {
+    "id": "nushki",
+    "name_en": "Nushki",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 29.454408034507093,
+    "lon": 65.77508272599673,
+    "feature_id": "nushki"
+  },
+  {
+    "id": "panjgur",
+    "name_en": "Panjgur",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 26.742236915314447,
+    "lon": 64.15903015883059,
+    "feature_id": "panjgur"
+  },
+  {
+    "id": "pishin",
+    "name_en": "Pishin",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 30.81001375107903,
+    "lon": 67.25375779812424,
+    "feature_id": "pishin"
+  },
+  {
+    "id": "quetta",
+    "name_en": "Quetta",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 30.15232995295325,
+    "lon": 66.7579855962625,
+    "feature_id": "quetta"
+  },
+  {
+    "id": "sheerani",
+    "name_en": "Sheerani",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 31.643058134497632,
+    "lon": 69.77419431529219,
+    "feature_id": "sheerani"
+  },
+  {
+    "id": "sibi",
+    "name_en": "Sibi",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 29.75989224586491,
+    "lon": 67.94775696708241,
+    "feature_id": "sibi"
+  },
+  {
+    "id": "washuk",
+    "name_en": "Washuk",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 27.74358871301182,
+    "lon": 64.34543660198099,
+    "feature_id": "washuk"
+  },
+  {
+    "id": "zhob",
+    "name_en": "Zhob",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 31.369052892647087,
+    "lon": 69.01877597262535,
+    "feature_id": "zhob"
+  },
+  {
+    "id": "ziarat",
+    "name_en": "Ziarat",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 30.389974962989466,
+    "lon": 67.87112209556487,
+    "feature_id": "ziarat"
+  },
+  {
+    "id": "lehri",
+    "name_en": "Lehri",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 29.00828216174422,
+    "lon": 68.00916670948406,
+    "feature_id": "lehri"
+  },
+  {
+    "id": "sohbatpur",
+    "name_en": "Sohbatpur",
+    "name_ur": null,
+    "province": "Balochistan",
+    "lat": 28.504130775440224,
+    "lon": 68.65036596383705,
+    "feature_id": "sohbatpur"
+  },
+  {
+    "id": "indian-occupied-kashmir",
+    "name_en": "Indian Occupied Kashmir",
+    "name_ur": null,
+    "province": "Indian Occupied Kashmir",
+    "lat": 33.758782348449486,
+    "lon": 76.58410270650111,
+    "feature_id": "indian-occupied-kashmir"
+  },
+  {
+    "id": "astore",
+    "name_en": "Astore",
+    "name_ur": null,
+    "province": "Gilgit Baltistan",
+    "lat": 35.14611465069349,
+    "lon": 74.88347342871366,
+    "feature_id": "astore"
+  },
+  {
+    "id": "diamir",
+    "name_en": "Diamir",
+    "name_ur": null,
+    "province": "Gilgit Baltistan",
+    "lat": 35.51326811059802,
+    "lon": 73.98783268938548,
+    "feature_id": "diamir"
+  },
+  {
+    "id": "ghanche",
+    "name_en": "Ghanche",
+    "name_ur": null,
+    "province": "Gilgit Baltistan",
+    "lat": 35.27939782503475,
+    "lon": 76.71618107769025,
+    "feature_id": "ghanche"
+  },
+  {
+    "id": "ghizer",
+    "name_en": "Ghizer",
+    "name_ur": null,
+    "province": "Gilgit Baltistan",
+    "lat": 36.29046033290771,
+    "lon": 73.42919476828669,
+    "feature_id": "ghizer"
+  },
+  {
+    "id": "gilgit",
+    "name_en": "Gilgit",
+    "name_ur": null,
+    "province": "Gilgit Baltistan",
+    "lat": 35.91658028052811,
+    "lon": 74.4223975101947,
+    "feature_id": "gilgit"
+  },
+  {
+    "id": "hunza-nagar",
+    "name_en": "Hunza Nagar",
+    "name_ur": null,
+    "province": "Gilgit Baltistan",
+    "lat": 36.52363892414839,
+    "lon": 75.0143759635566,
+    "feature_id": "hunza-nagar"
+  },
+  {
+    "id": "skardu",
+    "name_en": "Skardu",
+    "name_ur": null,
+    "province": "Gilgit Baltistan",
+    "lat": 35.384224505728504,
+    "lon": 75.6921206046525,
+    "feature_id": "skardu"
+  },
+  {
+    "id": "abbottabad",
+    "name_en": "Abbottabad",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 34.10833369357426,
+    "lon": 73.269980961596,
+    "feature_id": "abbottabad"
+  },
+  {
+    "id": "bannu",
+    "name_en": "Bannu",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 32.919553771489674,
+    "lon": 70.65651538972138,
+    "feature_id": "bannu"
+  },
+  {
+    "id": "batagram",
+    "name_en": "Batagram",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 34.791419184725314,
+    "lon": 73.12268100517952,
+    "feature_id": "batagram"
+  },
+  {
+    "id": "buner",
+    "name_en": "Buner",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 34.46521411376807,
+    "lon": 72.51782695910988,
+    "feature_id": "buner"
+  },
+  {
+    "id": "charsadda",
+    "name_en": "Charsadda",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 34.24450006146175,
+    "lon": 71.71667874189197,
+    "feature_id": "charsadda"
+  },
+  {
+    "id": "chitral",
+    "name_en": "Chitral",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 36.231755686677616,
+    "lon": 72.23041977467345,
+    "feature_id": "chitral"
+  },
+  {
+    "id": "dera-ismail-khan",
+    "name_en": "Dera Ismail Khan",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 31.86996722240418,
+    "lon": 70.69901147457259,
+    "feature_id": "d-i-khan"
+  },
+  {
+    "id": "hangu",
+    "name_en": "Hangu",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 33.43067194588425,
+    "lon": 70.84740882897853,
+    "feature_id": "hangu"
+  },
+  {
+    "id": "haripur",
+    "name_en": "Haripur",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 34.00567979984634,
+    "lon": 72.89533899224631,
+    "feature_id": "haripur"
+  },
+  {
+    "id": "karak",
+    "name_en": "Karak",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 33.13750266474898,
+    "lon": 71.1092513041414,
+    "feature_id": "karak"
+  },
+  {
+    "id": "kohat",
+    "name_en": "Kohat",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 33.455921088524974,
+    "lon": 71.53948490173813,
+    "feature_id": "kohat"
+  },
+  {
+    "id": "upper-kohistan",
+    "name_en": "Upper Kohistan",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 35.40663027675005,
+    "lon": 73.28929898073416,
+    "feature_id": "upper-kohistan"
+  },
+  {
+    "id": "lakki-marwat",
+    "name_en": "Lakki Marwat",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 32.59846692271624,
+    "lon": 70.83374952821809,
+    "feature_id": "lakki-marwat"
+  },
+  {
+    "id": "lower-dir",
+    "name_en": "Lower Dir",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 34.85064275272859,
+    "lon": 71.8606760260099,
+    "feature_id": "lower-dir"
+  },
+  {
+    "id": "malakand-protected-area",
+    "name_en": "Malakand Protected Area",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 34.54026917806436,
+    "lon": 71.89652697932073,
+    "feature_id": "malakand-protected-area"
+  },
+  {
+    "id": "mansehra",
+    "name_en": "Mansehra",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 34.66699569943102,
+    "lon": 73.44354754556791,
+    "feature_id": "mansehra"
+  },
+  {
+    "id": "mardan",
+    "name_en": "Mardan",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 34.31494606737586,
+    "lon": 72.09786062996879,
+    "feature_id": "mardan"
+  },
+  {
+    "id": "nowshera",
+    "name_en": "Nowshera",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 33.92751882781184,
+    "lon": 71.98487855933959,
+    "feature_id": "nowshera"
+  },
+  {
+    "id": "shangla",
+    "name_en": "Shangla",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 34.847823263019194,
+    "lon": 72.73042273538493,
+    "feature_id": "shangla"
+  },
+  {
+    "id": "swabi",
+    "name_en": "Swabi",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 34.136092569801065,
+    "lon": 72.45922745339396,
+    "feature_id": "swabi"
+  },
+  {
+    "id": "swat",
+    "name_en": "Swat",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 35.25122063559799,
+    "lon": 72.46538836702267,
+    "feature_id": "swat"
+  },
+  {
+    "id": "tank",
+    "name_en": "Tank",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 32.24356165542412,
+    "lon": 70.39242697742712,
+    "feature_id": "tank"
+  },
+  {
+    "id": "tordher",
+    "name_en": "Tordher",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 34.554734331888326,
+    "lon": 72.83424939491341,
+    "feature_id": "tordher"
+  },
+  {
+    "id": "upper-dir",
+    "name_en": "Upper Dir",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 35.29904460564161,
+    "lon": 72.0364617150597,
+    "feature_id": "upper-dir"
+  },
+  {
+    "id": "peshawar",
+    "name_en": "Peshawar",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 33.96761149470331,
+    "lon": 71.57128981272065,
+    "feature_id": "peshawar"
+  },
+  {
+    "id": "lower-kohistan",
+    "name_en": "Lower Kohistan",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 35.1071692601463,
+    "lon": 73.05566849782885,
+    "feature_id": "lower-kohistan"
+  },
+  {
+    "id": "bajaur-agency",
+    "name_en": "Bajaur Agency",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 34.753005682003405,
+    "lon": 71.5049364124211,
+    "feature_id": "bajaur-agency"
+  },
+  {
+    "id": "kurram-agency",
+    "name_en": "Kurram Agency",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 33.70813609495363,
+    "lon": 70.32463178746048,
+    "feature_id": "kurram-agency"
+  },
+  {
+    "id": "mohmand-agency",
+    "name_en": "Mohmand Agency",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 34.46537228639825,
+    "lon": 71.33931010310027,
+    "feature_id": "mohmand-agency"
+  },
+  {
+    "id": "north-wazirastan",
+    "name_en": "North Wazirastan",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 32.9535715884838,
+    "lon": 69.98717716730377,
+    "feature_id": "n-wazirastan"
+  },
+  {
+    "id": "orakzai-agency",
+    "name_en": "Orakzai Agency",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 33.70000678837092,
+    "lon": 70.98913944237998,
+    "feature_id": "orakzai-agency"
+  },
+  {
+    "id": "south-wazirastan",
+    "name_en": "South Wazirastan",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 32.31364548215437,
+    "lon": 69.75031911422629,
+    "feature_id": "s-wazirastan"
+  },
+  {
+    "id": "khyber-agency",
+    "name_en": "Khyber Agency",
+    "name_ur": null,
+    "province": "Khyber Pakhtunkhwa",
+    "lat": 33.959796236818725,
+    "lon": 71.06848063952083,
+    "feature_id": "khyber-agency"
+  },
+  {
+    "id": "attock",
+    "name_en": "Attock",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 33.49317828840168,
+    "lon": 72.30963052755992,
+    "feature_id": "attock"
+  },
+  {
+    "id": "bahawalnagar",
+    "name_en": "Bahawalnagar",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 29.605028549242007,
+    "lon": 73.01572747016809,
+    "feature_id": "bahawalnagar"
+  },
+  {
+    "id": "bahawalpur",
+    "name_en": "Bahawalpur",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 28.832272714361924,
+    "lon": 71.72377552347781,
+    "feature_id": "bahawalpur"
+  },
+  {
+    "id": "bhakkar",
+    "name_en": "Bhakkar",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 31.650961043033778,
+    "lon": 71.42729492955138,
+    "feature_id": "bhakkar"
+  },
+  {
+    "id": "chakwal",
+    "name_en": "Chakwal",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 32.89885419249974,
+    "lon": 72.53696011747022,
+    "feature_id": "chakwal"
+  },
+  {
+    "id": "chiniot",
+    "name_en": "Chiniot",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 31.662844895420605,
+    "lon": 72.82603938637976,
+    "feature_id": "chiniot"
+  },
+  {
+    "id": "dera-ghazi-khan",
+    "name_en": "Dera Ghazi Khan",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 30.40905754339391,
+    "lon": 70.44558340076291,
+    "feature_id": "d-g-khan"
+  },
+  {
+    "id": "faisalabad",
+    "name_en": "Faisalabad",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 31.237193521535197,
+    "lon": 73.15113911003428,
+    "feature_id": "faisalabad"
+  },
+  {
+    "id": "gujranwala",
+    "name_en": "Gujranwala",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 32.1382816210648,
+    "lon": 74.09149706275076,
+    "feature_id": "gujranwala"
+  },
+  {
+    "id": "gujrat",
+    "name_en": "Gujrat",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 32.722182481731885,
+    "lon": 73.99444646713775,
+    "feature_id": "gujrat"
+  },
+  {
+    "id": "hafizabad",
+    "name_en": "Hafizabad",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 32.02538069301891,
+    "lon": 73.50528930287234,
+    "feature_id": "hafizabad"
+  },
+  {
+    "id": "jhang",
+    "name_en": "Jhang",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 31.17351325303782,
+    "lon": 72.17865662385233,
+    "feature_id": "jhang"
+  },
+  {
+    "id": "jhelum",
+    "name_en": "Jhelum",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 32.82994400795851,
+    "lon": 73.29613152200402,
+    "feature_id": "jhelum"
+  },
+  {
+    "id": "kasur",
+    "name_en": "Kasur",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 31.050845571462258,
+    "lon": 74.15457425447345,
+    "feature_id": "kasur"
+  },
+  {
+    "id": "khushab",
+    "name_en": "Khushab",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 32.188441747380075,
+    "lon": 72.10534522387036,
+    "feature_id": "khushab"
+  },
+  {
+    "id": "lahore",
+    "name_en": "Lahore",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 31.461437162052533,
+    "lon": 74.35523137379523,
+    "feature_id": "lahore"
+  },
+  {
+    "id": "layyah",
+    "name_en": "Layyah",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 30.971445485257092,
+    "lon": 71.24871172981585,
+    "feature_id": "layyah"
+  },
+  {
+    "id": "lodhran",
+    "name_en": "Lodhran",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 29.674193178464634,
+    "lon": 71.69240290361216,
+    "feature_id": "lodhran"
+  },
+  {
+    "id": "mandi-bahauddin",
+    "name_en": "Mandi Bahauddin",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 32.43506868699774,
+    "lon": 73.45404085788901,
+    "feature_id": "mandi-bahauddin"
+  },
+  {
+    "id": "mianwali",
+    "name_en": "Mianwali",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 32.66483556255203,
+    "lon": 71.53164571368745,
+    "feature_id": "mianwali"
+  },
+  {
+    "id": "multan",
+    "name_en": "Multan",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 29.939323028888555,
+    "lon": 71.40644710428994,
+    "feature_id": "multan"
+  },
+  {
+    "id": "muzafargarh",
+    "name_en": "Muzafargarh",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 30.05220214840485,
+    "lon": 71.04058747997594,
+    "feature_id": "muzafargarh"
+  },
+  {
+    "id": "nankana-sahib",
+    "name_en": "Nankana Sahib",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 31.496623445058596,
+    "lon": 73.67766808977835,
+    "feature_id": "nankana-sahib"
+  },
+  {
+    "id": "narowal",
+    "name_en": "Narowal",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 32.20918963088176,
+    "lon": 74.994536652713,
+    "feature_id": "narowal"
+  },
+  {
+    "id": "okara",
+    "name_en": "Okara",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 30.70844839718351,
+    "lon": 73.68624792558045,
+    "feature_id": "okara"
+  },
+  {
+    "id": "pakpattan",
+    "name_en": "Pakpattan",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 30.300282447666063,
+    "lon": 73.24800940690359,
+    "feature_id": "pakpattan"
+  },
+  {
+    "id": "rahim-yar-khan",
+    "name_en": "Rahim Yar Khan",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 28.41521887142815,
+    "lon": 70.52996536993976,
+    "feature_id": "r-y-khan"
+  },
+  {
+    "id": "rajanpur",
+    "name_en": "Rajanpur",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 29.164468099979626,
+    "lon": 70.03258687974585,
+    "feature_id": "rajanpur"
+  },
+  {
+    "id": "rawalpindi",
+    "name_en": "Rawalpindi",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 33.465213193395144,
+    "lon": 73.20158036010486,
+    "feature_id": "rawalpindi"
+  },
+  {
+    "id": "sahiwal",
+    "name_en": "Sahiwal",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 30.546728856063204,
+    "lon": 72.89794664594943,
+    "feature_id": "sahiwal"
+  },
+  {
+    "id": "sargodha",
+    "name_en": "Sargodha",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 32.09506969346642,
+    "lon": 72.74342780800751,
+    "feature_id": "sargodha"
+  },
+  {
+    "id": "sheikhupura",
+    "name_en": "Sheikhupura",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 31.734371775160344,
+    "lon": 74.13422872275736,
+    "feature_id": "sheikhupura"
+  },
+  {
+    "id": "sialkot",
+    "name_en": "Sialkot",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 32.41271932476711,
+    "lon": 74.53670666628159,
+    "feature_id": "sialkot"
+  },
+  {
+    "id": "toba-tek-singh",
+    "name_en": "Toba Tek Singh",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 30.877582005929437,
+    "lon": 72.55194984115317,
+    "feature_id": "t-t-singh"
+  },
+  {
+    "id": "vehari",
+    "name_en": "Vehari",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 30.00933406410917,
+    "lon": 72.40883138318326,
+    "feature_id": "vehari"
+  },
+  {
+    "id": "khanewal",
+    "name_en": "Khanewal",
+    "name_ur": null,
+    "province": "Punjab",
+    "lat": 30.367924487955673,
+    "lon": 72.02175854086414,
+    "feature_id": "khanewal"
+  },
+  {
+    "id": "badin",
+    "name_en": "Badin",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 24.718449353375853,
+    "lon": 68.84634617197477,
+    "feature_id": "badin"
+  },
+  {
+    "id": "dadu",
+    "name_en": "Dadu",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 26.87019343337874,
+    "lon": 67.49811992263429,
+    "feature_id": "dadu"
+  },
+  {
+    "id": "ghotki",
+    "name_en": "Ghotki",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 27.827847470776103,
+    "lon": 69.64826533431933,
+    "feature_id": "ghotki"
+  },
+  {
+    "id": "hyderabad",
+    "name_en": "Hyderabad",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 25.341124477415168,
+    "lon": 68.45677507026997,
+    "feature_id": "hyderabad"
+  },
+  {
+    "id": "jacobabad",
+    "name_en": "Jacobabad",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 28.20983213663847,
+    "lon": 68.48176567481053,
+    "feature_id": "jacobabad"
+  },
+  {
+    "id": "jamshoro",
+    "name_en": "Jamshoro",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 25.736111415354998,
+    "lon": 67.7922892321597,
+    "feature_id": "jamshoro"
+  },
+  {
+    "id": "kashmore",
+    "name_en": "Kashmore",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 28.278603365115252,
+    "lon": 69.23777596104802,
+    "feature_id": "kashmore"
+  },
+  {
+    "id": "khairpur",
+    "name_en": "Khairpur",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 26.825320911209705,
+    "lon": 69.08318135687915,
+    "feature_id": "khairpur"
+  },
+  {
+    "id": "larkana",
+    "name_en": "Larkana",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 27.525538976679126,
+    "lon": 68.19410257065637,
+    "feature_id": "larkana"
+  },
+  {
+    "id": "matiari",
+    "name_en": "Matiari",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 25.76639336747788,
+    "lon": 68.45288948319006,
+    "feature_id": "matiari"
+  },
+  {
+    "id": "mirpurkhas",
+    "name_en": "Mirpurkhas",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 25.32565768486128,
+    "lon": 69.16168614250655,
+    "feature_id": "mirpurkhas"
+  },
+  {
+    "id": "naushahro-feroz",
+    "name_en": "Naushahro Feroz",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 26.880154131170567,
+    "lon": 68.1251078035083,
+    "feature_id": "naushahro-feroz"
+  },
+  {
+    "id": "sanghar",
+    "name_en": "Sanghar",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 25.95777872938147,
+    "lon": 69.29876866923976,
+    "feature_id": "sanghar"
+  },
+  {
+    "id": "shahdad-kot",
+    "name_en": "Shahdad Kot",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 27.63808063423217,
+    "lon": 67.71015684965712,
+    "feature_id": "shahdad-kot"
+  },
+  {
+    "id": "shaheed-benazirabad",
+    "name_en": "Shaheed Benazirabad",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 26.360397950597633,
+    "lon": 68.335603336685,
+    "feature_id": "s-benazirabad"
+  },
+  {
+    "id": "shikarphur",
+    "name_en": "Shikarphur",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 27.95016542157049,
+    "lon": 68.60663675562958,
+    "feature_id": "shikarphur"
+  },
+  {
+    "id": "sukkur",
+    "name_en": "Sukkur",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 27.50392092572265,
+    "lon": 69.16836935565509,
+    "feature_id": "sukkur"
+  },
+  {
+    "id": "tando-allahyar",
+    "name_en": "Tando Allahyar",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 25.465445505474474,
+    "lon": 68.77566665033719,
+    "feature_id": "t-ayar"
+  },
+  {
+    "id": "tando-muhmammad-khan",
+    "name_en": "Tando Muhmammad Khan",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 24.99082358537856,
+    "lon": 68.52095611226893,
+    "feature_id": "t-m-khan"
+  },
+  {
+    "id": "tharparkar",
+    "name_en": "Tharparkar",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 24.780701052779456,
+    "lon": 70.18139998889002,
+    "feature_id": "tharparkar"
+  },
+  {
+    "id": "sujjawal",
+    "name_en": "Sujjawal",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 24.246409861732758,
+    "lon": 68.15312290228879,
+    "feature_id": "sujjawal"
+  },
+  {
+    "id": "umerkot",
+    "name_en": "Umerkot",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 25.385107106170956,
+    "lon": 69.77794060748855,
+    "feature_id": "umerkot"
+  },
+  {
+    "id": "karachi-central",
+    "name_en": "Karachi Central",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 24.946946806359648,
+    "lon": 67.05850498155355,
+    "feature_id": "karachi-central"
+  },
+  {
+    "id": "karachi-west",
+    "name_en": "Karachi West",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 24.908472594837935,
+    "lon": 66.86663438900449,
+    "feature_id": "karachi-west"
+  },
+  {
+    "id": "malir-cantonment",
+    "name_en": "Malir Cantonment",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 24.954221626280816,
+    "lon": 67.18886298262063,
+    "feature_id": "malir-cantonment"
+  },
+  {
+    "id": "korangi-creek-cantonment",
+    "name_en": "Korangi Creek Cantonment",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 24.799863663010832,
+    "lon": 67.11064848429702,
+    "feature_id": "korangi-creek-cantonment"
+  },
+  {
+    "id": "manora-cantonment",
+    "name_en": "Manora Cantonment",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 24.802393158825534,
+    "lon": 66.96990079101597,
+    "feature_id": "manora-cantonment"
+  },
+  {
+    "id": "clifton-cantonment",
+    "name_en": "Clifton Cantonment",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 24.793656739839857,
+    "lon": 67.07032958281086,
+    "feature_id": "clifton-cantonment"
+  },
+  {
+    "id": "karachi-cantonment",
+    "name_en": "Karachi Cantonment",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 24.84633211704899,
+    "lon": 67.04546419552419,
+    "feature_id": "karachi-cantonment"
+  },
+  {
+    "id": "faisal-cantonment",
+    "name_en": "Faisal Cantonment",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 24.891961860715327,
+    "lon": 67.13494992680776,
+    "feature_id": "faisal-cantonment"
+  },
+  {
+    "id": "karachi-south",
+    "name_en": "Karachi South",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 24.85077027819597,
+    "lon": 67.03110520580678,
+    "feature_id": "karachi-south"
+  },
+  {
+    "id": "malir",
+    "name_en": "Malir",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 25.13139853420781,
+    "lon": 67.27241560570108,
+    "feature_id": "malir"
+  },
+  {
+    "id": "korangi",
+    "name_en": "Korangi",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 24.8433533946712,
+    "lon": 67.16002094011655,
+    "feature_id": "korangi"
+  },
+  {
+    "id": "karachi-east",
+    "name_en": "Karachi East",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 24.923566203082146,
+    "lon": 67.10780275433206,
+    "feature_id": "karachi-east"
+  },
+  {
+    "id": "thatta",
+    "name_en": "Thatta",
+    "name_ur": null,
+    "province": "Sindh",
+    "lat": 24.732504083184303,
+    "lon": 67.75510318874015,
+    "feature_id": "thatta"
+  }
+]

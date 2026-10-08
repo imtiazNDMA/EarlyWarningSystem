@@ -50,7 +50,8 @@ uv run alembic revision -m "message"   # new migration
 - Settings are `EWS_`-prefixed environment variables read by `ews.core.settings.Settings`; every field has a development default, so nothing fails at import.
 - `ews.api.app.create_app(settings)` is the application factory. The engine is created in the lifespan, so tests that do not start the app must override `ews.api.dependencies.get_session`.
 - Tests create a uniquely named database per run, apply the migrations, and drop it afterwards. The `db_session` fixture wraps each test in a transaction that is rolled back, and the `client` fixture routes requests through that same session, so committed data never leaks between tests. Point `EWS_TEST_ADMIN_DATABASE_URL` at another server if needed.
-- The container applies migrations before starting uvicorn.
+- The container applies migrations and loads the district registry before starting uvicorn.
+- **District registry.** `backend/data/source/` holds the inputs: the coordinate table, the boundary GeoJSON, and `boundary_overrides.json` for districts the two files spell differently. `uv run python -m ews.districts.build` regenerates the packaged registry and boundary file (`src/ews/districts/data/`) and `data/district_mismatch_report.md`; never edit those three by hand, and a test fails if they are stale. A district is attached to a polygon only by exact name or an explicit override. `python -m ews.districts.registry` upserts the registry into the database. District `id` is a slug of the name and is the stable key everything else should use.
 
 The sections below describe the legacy Flask app.
 
@@ -99,7 +100,7 @@ Most functions in `services/database.py` catch every exception and return `None`
 
 `MapService.create_map` builds the whole Folium map server-side and returns HTML. `/` embeds it in `templates/index.html`, and `/refresh_map` returns a fresh copy as JSON for the frontend to swap in. Each call loads weather and alerts for every district with two batch queries (`get_raw_weather_cache_batch`, `get_alerts_batch`).
 
-District polygons come from `static/boundary/district.geojson`, whose names differ from `models.py` (`Dera_Ghazi_Khan` vs `DERA GHAZI KHAN`). `MapService._district_aliases` maps between them; a district added or renamed in `PROVINCES` needs an alias entry if its GeoJSON name is not an exact match. The other GeoJSON files in `static/boundary/` and the path constants in `constants.py` are not used — the only thing imported from `constants.py` is `WEATHER_CODE_DESCRIPTIONS`.
+District polygons come from `static/boundary/district.geojson`, whose names differ from `models.py` (`Dera_Ghazi_Khan` vs `DERA GHAZI KHAN`). `MapService._district_aliases` maps between them; a district added or renamed in `PROVINCES` needs an alias entry if its GeoJSON name is not an exact match. The path constants in `constants.py` are not used — the only thing imported from `constants.py` is `WEATHER_CODE_DESCRIPTIONS`.
 
 ### Frontend
 

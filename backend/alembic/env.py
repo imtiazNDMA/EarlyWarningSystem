@@ -9,6 +9,7 @@ from sqlalchemy.pool import NullPool
 
 from ews.core.db import Base, create_engine
 from ews.core.settings import get_settings
+from ews.districts import models as _district_models  # noqa: F401 - registers tables
 
 config = context.config
 

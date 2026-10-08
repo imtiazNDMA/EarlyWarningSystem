@@ -19,6 +19,7 @@ from ews.api.app import create_app
 from ews.api.dependencies import get_session
 from ews.core.db import create_engine
 from ews.core.settings import Settings
+from ews.districts.registry import sync_districts
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 
@@ -34,6 +35,17 @@ def run_migrations(database_url: str) -> None:
     config.set_main_option("script_location", str(BACKEND_ROOT / "alembic"))
     config.set_main_option("sqlalchemy.url", database_url)
     command.upgrade(config, "head")
+
+
+async def load_reference_data(database_url: str) -> None:
+    """Commit the district registry, which every test may read but none changes."""
+    engine = create_engine(database_url, poolclass=NullPool)
+    try:
+        async with AsyncSession(engine) as session:
+            await sync_districts(session)
+            await session.commit()
+    finally:
+        await engine.dispose()
 
 
 @pytest.fixture(scope="session")
@@ -52,6 +64,7 @@ async def database_url() -> AsyncIterator[str]:
     try:
         # Alembic's async env starts its own event loop, so run it off this one
         await asyncio.to_thread(run_migrations, url)
+        await load_reference_data(url)
         yield url
     finally:
         admin = await asyncpg.connect(ADMIN_URL)

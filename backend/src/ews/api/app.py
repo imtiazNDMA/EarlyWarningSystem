@@ -4,8 +4,9 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.gzip import GZipMiddleware
 
-from ews.api.routers import health
+from ews.api.routers import districts, health
 from ews.core.db import create_engine, create_session_factory
 from ews.core.logging import configure_logging
 from ews.core.settings import Settings, get_settings
@@ -38,5 +39,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app = FastAPI(title="Early Warning System API", lifespan=lifespan)
     app.state.settings = settings or get_settings()
 
+    # The boundary GeoJSON is large and compresses well
+    app.add_middleware(GZipMiddleware, minimum_size=1024)
+
     app.include_router(health.router, prefix="/api")
+    app.include_router(districts.router, prefix="/api")
     return app

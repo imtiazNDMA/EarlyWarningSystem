@@ -18,5 +18,5 @@ RUN uv sync --frozen --no-dev
 
 EXPOSE 8000
 
-# Apply migrations, then serve
-CMD ["sh", "-c", "alembic upgrade head && uvicorn ews.api.app:create_app --factory --host 0.0.0.0 --port 8000"]
+# Apply migrations, load the district registry, then serve
+CMD ["sh", "-c", "alembic upgrade head && python -m ews.districts.registry && uvicorn ews.api.app:create_app --factory --host 0.0.0.0 --port 8000"]
