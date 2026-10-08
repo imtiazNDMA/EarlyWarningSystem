@@ -125,10 +125,16 @@ class TestScreen:
 class TestThresholdConfiguration:
     """Test cases for the threshold configuration file"""
 
-    def test_packaged_file_defines_the_four_weather_hazards(self) -> None:
+    def test_packaged_file_defines_all_supported_hazards(self) -> None:
         rules = {rule.hazard: rule for rule in load_rules()}
 
-        assert set(rules) == {"heavy_rain", "heatwave", "strong_wind", "heavy_snow"}
+        assert set(rules) == {
+            "heavy_rain",
+            "heatwave",
+            "strong_wind",
+            "heavy_snow",
+            "poor_air_quality",
+        }
         assert rules["heavy_rain"].levels == {
             "moderate": 50,
             "severe": 100,

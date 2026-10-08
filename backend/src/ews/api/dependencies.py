@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from ews.core.settings import Settings
 from ews.sources.open_meteo import OpenMeteoForecastClient
+from ews.sources.open_meteo_air_quality import OpenMeteoAirQualityClient
 
 
 def get_app_settings(request: Request) -> Settings:
@@ -26,6 +27,12 @@ async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
 def get_forecast_client(request: Request) -> OpenMeteoForecastClient:
     """Return the forecast client opened at application start-up."""
     client: OpenMeteoForecastClient = request.app.state.forecast_client
+    return client
+
+
+def get_air_quality_client(request: Request) -> OpenMeteoAirQualityClient:
+    """Return the air-quality client opened at application start-up."""
+    client: OpenMeteoAirQualityClient = request.app.state.air_quality_client
     return client
 
 
@@ -52,3 +59,6 @@ def require_admin(
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 ForecastClientDep = Annotated[OpenMeteoForecastClient, Depends(get_forecast_client)]
+AirQualityClientDep = Annotated[
+    OpenMeteoAirQualityClient, Depends(get_air_quality_client)
+]
