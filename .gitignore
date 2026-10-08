@@ -31,8 +31,9 @@ env/
 ENV/
 .venv/
 
-# Ruff
+# Ruff and mypy
 .ruff_cache/
+.mypy_cache/
 ruff_*.txt
 ruff.json
 

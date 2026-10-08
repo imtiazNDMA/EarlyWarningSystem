@@ -29,6 +29,31 @@ uv run safety check                    # dependency audit (CI gate)
 - Linting is ruff only (line length 88, rule set in `pyproject.toml`, including bandit `S` rules and McCabe complexity 10). The flake8/black/bandit commands and the 100-char limit in `AGENTS.md` are outdated.
 - `app.py` is the entry point. The dev server binds to `HOST` (default `127.0.0.1`); set `HOST=0.0.0.0` to expose it on the network.
 
+## New backend (`backend/`)
+
+The Flask app is being replaced by a FastAPI service, built alongside it in `backend/` until it reaches parity (plan in `ai.md`, tickets on GitHub). It is a separate uv project with its own `pyproject.toml`, lockfile and virtualenv; run its commands from `backend/`.
+
+```bash
+docker compose up -d db                # Postgres 16 on host port 5434 (override with EWS_DB_PORT)
+docker compose up --build              # database + API on http://localhost:8000 (EWS_API_PORT)
+
+cd backend
+uv sync
+uv run pytest                          # needs the db container running
+uv run pytest tests/test_health.py::TestHealth::test_reports_healthy_when_database_is_reachable
+uv run ruff check . && uv run ruff format --check .
+uv run mypy                            # strict
+uv run alembic upgrade head            # apply migrations to EWS_DATABASE_URL
+uv run alembic revision -m "message"   # new migration
+```
+
+- Settings are `EWS_`-prefixed environment variables read by `ews.core.settings.Settings`; every field has a development default, so nothing fails at import.
+- `ews.api.app.create_app(settings)` is the application factory. The engine is created in the lifespan, so tests that do not start the app must override `ews.api.dependencies.get_session`.
+- Tests create a uniquely named database per run, apply the migrations, and drop it afterwards. The `db_session` fixture wraps each test in a transaction that is rolled back, and the `client` fixture routes requests through that same session, so committed data never leaks between tests. Point `EWS_TEST_ADMIN_DATABASE_URL` at another server if needed.
+- The container applies migrations before starting uvicorn.
+
+The sections below describe the legacy Flask app.
+
 ## Architecture
 
 ### Wiring

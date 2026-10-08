@@ -65,3 +65,51 @@ jobs:
           path: |
             htmlcov/
             coverage.xml
+
+  backend:
+    name: Backend lint, type check & test
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: backend
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: ews
+          POSTGRES_PASSWORD: ews
+          POSTGRES_DB: ews
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ews -d ews"
+          --health-interval 2s
+          --health-timeout 3s
+          --health-retries 15
+
+    env:
+      EWS_TEST_ADMIN_DATABASE_URL: postgresql://ews:ews@localhost:5432/postgres
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Lint and format check with ruff
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Type check with mypy
+        run: uv run mypy
+
+      - name: Run tests with pytest
+        run: uv run pytest -v
