@@ -74,9 +74,6 @@ app.log
 *.db
 *.sqlite3
 
-# Weather data cache (Legacy)
-static/weatherdata/
-
 # Integration test artifacts
 integration_*.txt
 *.bat
@@ -99,10 +96,6 @@ compare_*.py
 
 # Jupyter notebooks (development artifacts)
 *.ipynb
-
-# Miscellaneous
-AGENTS.md
-CLAUDE.md
 
 # ruff lint output
 ruff_*.txt
