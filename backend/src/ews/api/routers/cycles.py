@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, ConfigDict
 
 from ews.api.dependencies import (
+    AirQualityClientDep,
     ForecastClientDep,
     SessionDep,
     SettingsDep,
@@ -83,14 +84,19 @@ class CurrentSignals(BaseModel):
     },
 )
 async def trigger_run(
-    session: SessionDep, settings: SettingsDep, client: ForecastClientDep
+    session: SessionDep,
+    settings: SettingsDep,
+    client: ForecastClientDep,
+    air_quality_client: AirQualityClientDep,
 ) -> RunOut:
     """Run a monitoring cycle now and return how it ended.
 
     The response is 201 even when the cycle fails, because the run is recorded
     either way; check ``status`` and ``error``.
     """
-    run = await run_cycle(session, client, settings, trigger="manual")
+    run = await run_cycle(
+        session, client, air_quality_client, settings, trigger="manual"
+    )
     return RunOut.model_validate(run)
 
 

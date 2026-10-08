@@ -33,6 +33,8 @@ type Props = {
   levels: Map<string, Level>
   /** One-line active-alert summary per feature_id, shown in the hover tooltip. */
   summaries: Map<string, string>
+  layer: 'alerts' | 'pm2_5'
+  pm25: Map<string, number | null>
 }
 
 export function DistrictMap({
@@ -42,6 +44,8 @@ export function DistrictMap({
   onSelect,
   levels,
   summaries,
+  layer,
+  pm25,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
@@ -98,7 +102,14 @@ export function DistrictMap({
           paint: {
             // An active alert level always wins; selection shows as an outline
             'fill-color': [
-              'match',
+              'case',
+              ['==', ['feature-state', 'view'], 'pm2_5'],
+              [
+                'step', ['coalesce', ['feature-state', 'pm2_5'], -1],
+                UNREGISTERED_TINT, 0, '#CDE5DF', 55, '#79B9AD',
+                150, '#327F83', 250, '#14303F',
+              ],
+              ['match',
               ['coalesce', ['feature-state', 'level'], 'none'],
               'moderate',
               LEVEL_COLOURS.moderate,
@@ -113,10 +124,12 @@ export function DistrictMap({
                 ['==', ['get', 'district_id'], null],
                 UNREGISTERED_TINT,
                 DISTRICT_TINT,
-              ],
+              ]],
             ],
             'fill-opacity': [
               'case',
+              ['==', ['feature-state', 'view'], 'pm2_5'],
+              ['case', ['boolean', ['feature-state', 'hover'], false], 0.85, 0.68],
               ['!=', ['coalesce', ['feature-state', 'level'], 'none'], 'none'],
               ['case', ['boolean', ['feature-state', 'hover'], false], 0.85, 0.7],
               ['boolean', ['feature-state', 'selected'], false],
@@ -216,6 +229,18 @@ export function DistrictMap({
 
   useEffect(() => {
     const map = mapRef.current
+    if (!map || !ready) return
+    for (const feature of boundaries.features) {
+      const id = feature.properties.feature_id
+      map.setFeatureState(
+        { source: SOURCE, id },
+        { pm2_5: pm25.get(id) ?? null, view: layer },
+      )
+    }
+  }, [pm25, layer, boundaries, ready])
+
+  useEffect(() => {
+    const map = mapRef.current
     if (!map || !ready || focus === null) return
     // Not marked essential, so it jumps instead of animating under reduced motion
     map.flyTo({ center: [focus.lon, focus.lat], zoom: Math.max(map.getZoom(), 6.5) })
@@ -236,7 +261,14 @@ export function DistrictMap({
         >
           <p className="text-sm font-semibold leading-tight">{hover.properties.name_en}</p>
           <p className="type-label text-panel/70">{hover.properties.province}</p>
-          {summaries.has(hover.properties.feature_id) && (
+          {layer === 'pm2_5' ? (
+            <p className="mt-1 text-xs">
+              PM2.5: {pm25.get(hover.properties.feature_id)?.toFixed(1) ?? 'No data'}{' '}
+              {pm25.get(hover.properties.feature_id) !== null &&
+                pm25.get(hover.properties.feature_id) !== undefined &&
+                'µg/m³'}
+            </p>
+          ) : summaries.has(hover.properties.feature_id) && (
             <p className="mt-1 text-xs">{summaries.get(hover.properties.feature_id)}</p>
           )}
         </div>

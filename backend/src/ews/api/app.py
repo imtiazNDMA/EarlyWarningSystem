@@ -7,11 +7,12 @@ import httpx
 from fastapi import FastAPI
 from fastapi.middleware.gzip import GZipMiddleware
 
-from ews.api.routers import alerts, cycles, districts, forecasts, health
+from ews.api.routers import air_quality, alerts, cycles, districts, forecasts, health
 from ews.core.db import create_engine, create_session_factory
 from ews.core.logging import configure_logging
 from ews.core.settings import Settings, get_settings
 from ews.sources.open_meteo import OpenMeteoForecastClient
+from ews.sources.open_meteo_air_quality import OpenMeteoAirQualityClient
 
 
 @asynccontextmanager
@@ -25,6 +26,9 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     http = httpx.AsyncClient(timeout=settings.source_timeout_seconds)
     app.state.forecast_client = OpenMeteoForecastClient(
         http, settings.open_meteo_forecast_url
+    )
+    app.state.air_quality_client = OpenMeteoAirQualityClient(
+        http, settings.open_meteo_air_quality_url
     )
     try:
         yield
@@ -52,6 +56,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router, prefix="/api")
     app.include_router(districts.router, prefix="/api")
     app.include_router(forecasts.router, prefix="/api")
+    app.include_router(air_quality.router, prefix="/api")
     app.include_router(cycles.router, prefix="/api")
     app.include_router(alerts.router, prefix="/api")
     return app

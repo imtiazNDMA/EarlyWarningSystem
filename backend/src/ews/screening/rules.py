@@ -6,16 +6,26 @@ which districts need attention.
 
 import datetime as dt
 from collections.abc import Sequence
-from typing import Literal, Self, get_args
+from typing import Any, Literal, Protocol, Self, get_args
 
 from pydantic import BaseModel, model_validator
 
 from ews.sources.open_meteo import DailyForecast
+from ews.sources.open_meteo_air_quality import DailyAirQuality
 
 Level = Literal["moderate", "severe", "extreme"]
 LEVELS: tuple[Level, ...] = get_args(Level)  # lowest first
 
 Thresholds = dict[Level, float]
+SUPPORTED_METRICS = set(DailyForecast.model_fields) | set(DailyAirQuality.model_fields)
+
+
+class DailyValue(Protocol):
+    """A dated daily source record whose metric is selected by a rule."""
+
+    date: dt.date
+
+    def __getattribute__(self, name: str) -> Any: ...
 
 
 def _check_levels(levels: Thresholds, where: str) -> None:
@@ -41,7 +51,7 @@ class HazardRule(BaseModel):
 
     @model_validator(mode="after")
     def _validate(self) -> Self:
-        if self.metric not in DailyForecast.model_fields:
+        if self.metric not in SUPPORTED_METRICS:
             raise ValueError(f"{self.hazard}: {self.metric} is not a forecast value")
         _check_levels(self.levels, self.hazard)
         for province, levels in self.province_levels.items():
@@ -71,7 +81,7 @@ class Signal(BaseModel):
 
 
 def screen(
-    days: Sequence[DailyForecast], province: str, rules: Sequence[HazardRule]
+    days: Sequence[DailyValue], province: str, rules: Sequence[HazardRule]
 ) -> list[Signal]:
     """Screen one district's forecast against every rule.
 

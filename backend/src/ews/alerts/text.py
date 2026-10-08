@@ -14,6 +14,7 @@ HAZARD_NAMES = {
     "heatwave": "heatwave",
     "strong_wind": "strong wind",
     "heavy_snow": "heavy snow",
+    "poor_air_quality": "poor air quality",
 }
 
 METRIC_NAMES = {
@@ -21,6 +22,7 @@ METRIC_NAMES = {
     "temperature_max_c": "maximum temperature",
     "wind_gusts_max_kmh": "wind gusts",
     "snowfall_cm": "snowfall",
+    "pm2_5_mean_ug_m3": "daily mean PM2.5",
 }
 
 INSTRUCTIONS = {
@@ -37,6 +39,11 @@ INSTRUCTIONS = {
     ),
     "heavy_snow": (
         "Avoid unnecessary travel on mountain roads and prepare for road closures."
+    ),
+    "poor_air_quality": (
+        "Reduce prolonged outdoor activity, keep windows closed when possible, "
+        "and use a well-fitting mask outdoors. Children, older people and anyone "
+        "with heart or lung conditions should take extra care."
     ),
 }
 DEFAULT_INSTRUCTIONS = "Follow advice from local authorities."
