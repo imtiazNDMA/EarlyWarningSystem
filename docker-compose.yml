@@ -19,6 +19,8 @@ services:
     build: ./backend
     environment:
       EWS_DATABASE_URL: postgresql+asyncpg://ews:ews@db:5432/ews
+      # Needed to trigger cycles over HTTP; admin actions are disabled while unset
+      EWS_ADMIN_TOKEN: ${EWS_ADMIN_TOKEN:-}
     ports:
       - "${EWS_API_PORT:-8000}:8000"
     depends_on:

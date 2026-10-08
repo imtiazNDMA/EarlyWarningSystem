@@ -9,6 +9,7 @@ from sqlalchemy.pool import NullPool
 
 from ews.core.db import Base, create_engine
 from ews.core.settings import get_settings
+from ews.cycles import models as _cycle_models  # noqa: F401 - registers tables
 from ews.districts import models as _district_models  # noqa: F401 - registers tables
 from ews.sources import models as _source_models  # noqa: F401 - registers tables
 

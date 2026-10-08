@@ -1,12 +1,15 @@
 """Shared fixtures: a disposable database per run and a rolled-back session per test."""
 
 import asyncio
+import json
 import os
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from pathlib import Path
+from typing import Any
 
 import asyncpg
+import httpx
 import pytest
 from alembic import command
 from alembic.config import Config
@@ -16,10 +19,11 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.pool import NullPool
 
 from ews.api.app import create_app
-from ews.api.dependencies import get_session
+from ews.api.dependencies import get_forecast_client, get_session
 from ews.core.db import create_engine
 from ews.core.settings import Settings
 from ews.districts.registry import sync_districts
+from ews.sources.open_meteo import OpenMeteoForecastClient
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 
@@ -27,6 +31,40 @@ BACKEND_ROOT = Path(__file__).resolve().parent.parent
 ADMIN_URL = os.getenv(
     "EWS_TEST_ADMIN_DATABASE_URL", "postgresql://ews:ews@localhost:5434/postgres"
 )
+
+ADMIN_TOKEN = "test-admin-token"  # noqa: S105 - not a real credential
+
+# One location of a real Open-Meteo response: three calm days in Lahore
+RECORDED_FORECAST: dict[str, Any] = json.loads(
+    (BACKEND_ROOT / "tests/fixtures/open_meteo_forecast_two_locations.json").read_text(
+        encoding="utf-8"
+    )
+)[0]
+
+
+class Upstream:
+    """Stand-in for Open-Meteo: counts calls and can be told how to answer."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+        self.failing = False
+        # (lat, lon) as sent -> payload; None answers with the recorded forecast
+        self.payload_for: Callable[[str, str], dict[str, Any]] | None = None
+
+    def handle(self, request: httpx.Request) -> httpx.Response:
+        self.calls += 1
+        if self.failing:
+            body = {"error": True, "reason": "unavailable"}
+            return httpx.Response(503, json=body)
+        latitudes = request.url.params["latitude"].split(",")
+        longitudes = request.url.params["longitude"].split(",")
+        payloads = [
+            self.payload_for(lat, lon) if self.payload_for else RECORDED_FORECAST
+            for lat, lon in zip(latitudes, longitudes, strict=True)
+        ]
+        # Open-Meteo sends a bare object for one location, a list for several
+        body_out: Any = payloads[0] if len(payloads) == 1 else payloads
+        return httpx.Response(200, json=body_out)
 
 
 def run_migrations(database_url: str) -> None:
@@ -102,7 +140,10 @@ async def db_session(engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
 @pytest.fixture
 def app(database_url: str, db_session: AsyncSession) -> FastAPI:
     """Application wired to the test's rolled-back session."""
-    app = create_app(Settings(environment="test", database_url=database_url))
+    settings = Settings(
+        environment="test", database_url=database_url, admin_token=ADMIN_TOKEN
+    )
+    app = create_app(settings)
 
     async def override_session() -> AsyncIterator[AsyncSession]:
         yield db_session
@@ -117,3 +158,14 @@ async def client(app: FastAPI) -> AsyncIterator[AsyncClient]:
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         yield client
+
+
+@pytest.fixture
+async def upstream(app: FastAPI) -> AsyncIterator[Upstream]:
+    """Route the application's forecast client to a stand-in for Open-Meteo."""
+    upstream = Upstream()
+    transport = httpx.MockTransport(upstream.handle)
+    async with httpx.AsyncClient(transport=transport) as http:
+        forecast_client = OpenMeteoForecastClient(http, base_url="https://weather.test")
+        app.dependency_overrides[get_forecast_client] = lambda: forecast_client
+        yield upstream

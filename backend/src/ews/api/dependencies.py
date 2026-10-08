@@ -1,9 +1,10 @@
 """Request-scoped dependencies shared by the routers."""
 
+import secrets
 from collections.abc import AsyncIterator
 from typing import Annotated
 
-from fastapi import Depends, Request
+from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ews.core.settings import Settings
@@ -29,5 +30,25 @@ def get_forecast_client(request: Request) -> OpenMeteoForecastClient:
 
 
 SettingsDep = Annotated[Settings, Depends(get_app_settings)]
+
+
+def require_admin(
+    settings: SettingsDep,
+    x_admin_token: Annotated[str | None, Header()] = None,
+) -> None:
+    """Allow the request only if it carries the configured admin token."""
+    if not settings.admin_token:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Admin actions are disabled: no admin token is configured.",
+        )
+    supplied = (x_admin_token or "").encode()
+    if not secrets.compare_digest(supplied, settings.admin_token.encode()):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="A valid admin token is required.",
+        )
+
+
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 ForecastClientDep = Annotated[OpenMeteoForecastClient, Depends(get_forecast_client)]

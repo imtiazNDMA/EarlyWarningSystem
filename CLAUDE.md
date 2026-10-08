@@ -53,6 +53,8 @@ uv run alembic revision -m "message"   # new migration
 - The container applies migrations and loads the district registry before starting uvicorn.
 - **Sources and snapshots.** Each external data source has a client in `ews/sources/` that returns typed records and raises `SourceError` (logged with context) on any failure; nothing is swallowed. Every fetch is stored unmodified as a `source_snapshots` row (district, source, fetch time, JSONB payload) and parsed again on read, so snapshots can serve as evidence for alerts later. Tests replace the network with `httpx.MockTransport` and recorded responses in `tests/fixtures/`; no test may reach a real source.
 - **Forecasts.** `GET /api/districts/{id}/forecast` serves the latest snapshot, refetching one district when it is older than `EWS_FORECAST_MAX_AGE_SECONDS` (default 3 hours). If the source is down it serves the old snapshot with `stale: true`, or 502 when nothing is stored. `uv run python -m ews.forecasts.service` fetches every district in batches of `EWS_FORECAST_BATCH_SIZE` coordinates per request. Open-Meteo returns a list for several coordinates but a bare object for one.
+- **Monitoring cycles.** `ews.cycles.service.run_cycle` records a `runs` row, fetches a forecast for every district, screens each one and stores `hazard_signals` linked to the run and to the snapshot they were screened from. If a source fails, everything fetched in that run is rolled back and the run is marked failed, so the previous successful run stays current. `GET /api/signals` returns the latest successful run and its signals. `POST /api/runs` runs a cycle synchronously and needs the `X-Admin-Token` header to match `EWS_ADMIN_TOKEN`; while that is unset the endpoint answers 503. `docker compose exec api python -m ews.cycles.service` runs a cycle with no token.
+- **Screening.** `ews/screening/rules.py` is pure logic: a level is reached when a daily value is at or above its threshold, and each hazard yields at most one signal per district at the highest level reached. Thresholds live in `ews/screening/data/thresholds.yaml` (national levels plus optional per-province replacements) and are validated on load. The shipped values are provisional (GitHub issue #20).
 - **District registry.** `backend/data/source/` holds the inputs: the coordinate table, the boundary GeoJSON, and `boundary_overrides.json` for districts the two files spell differently. `uv run python -m ews.districts.build` regenerates the packaged registry and boundary file (`src/ews/districts/data/`) and `data/district_mismatch_report.md`; never edit those three by hand, and a test fails if they are stale. A district is attached to a polygon only by exact name or an explicit override. `python -m ews.districts.registry` upserts the registry into the database. District `id` is a slug of the name and is the stable key everything else should use.
 
 ## Frontend (`frontend/`)
@@ -63,6 +65,7 @@ Vite + React + TypeScript single-page app with a MapLibre map; replaces the Flas
 docker compose up --build              # full stack; app on http://localhost:5173 (EWS_WEB_PORT)
 start.bat                              # Windows: starts Docker Desktop if needed, brings the stack up, waits until healthy, opens the browser (--no-browser to skip)
 stop.bat                               # Windows: docker compose down; data is kept
+run-cycle.bat                          # Windows: run one monitoring cycle in the api container
 
 cd frontend
 npm install
@@ -80,6 +83,7 @@ npm run generate:api                   # regenerate src/api/schema.d.ts from bac
 - Styling is Tailwind 4 with the palette and fonts defined as theme tokens in `src/index.css`. Yellow, orange, red and purple are reserved for alert severity; do not use them for interface chrome. `.plate`, `.type-display` and `.type-label` are the shared building blocks.
 - TypeScript is pinned to 5.9 because `openapi-typescript` does not support 6 yet.
 - Charts are hand-written SVG in `src/features/forecast/ForecastView.tsx`: two aligned single-measure charts rather than one dual-axis chart, a readout that follows the hovered day, and a table view of the same values. Chart colours are one hue per chart and stay clear of the reserved severity hues.
+- Hazard levels reach the map as MapLibre feature state (`level`), set from `GET /api/signals`. A level always decides the fill colour; selection is shown by the outline. Severity colours live in `src/features/signals/signals.ts` and always appear beside the level name, never alone.
 - The map itself is not unit-tested (jsdom has no WebGL); test pure helpers and components, and check map behaviour in a browser.
 
 The sections below describe the legacy Flask app.

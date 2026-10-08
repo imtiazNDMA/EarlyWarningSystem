@@ -108,6 +108,34 @@
         "title": "CheckResult",
         "type": "object"
       },
+      "CurrentSignals": {
+        "description": "The latest successful cycle and the signals it raised.",
+        "properties": {
+          "run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RunOut"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "signals": {
+            "items": {
+              "$ref": "#/components/schemas/SignalOut"
+            },
+            "title": "Signals",
+            "type": "array"
+          }
+        },
+        "required": [
+          "run",
+          "signals"
+        ],
+        "title": "CurrentSignals",
+        "type": "object"
+      },
       "DailyForecast": {
         "description": "One day of forecast for one location. Missing values are None.",
         "properties": {
@@ -366,6 +394,152 @@
         "title": "HealthResponse",
         "type": "object"
       },
+      "RunOut": {
+        "description": "A monitoring cycle and how it ended.",
+        "properties": {
+          "district_count": {
+            "title": "District Count",
+            "type": "integer"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "signal_count": {
+            "title": "Signal Count",
+            "type": "integer"
+          },
+          "started_at": {
+            "format": "date-time",
+            "title": "Started At",
+            "type": "string"
+          },
+          "status": {
+            "title": "Status",
+            "type": "string"
+          },
+          "trigger": {
+            "title": "Trigger",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "trigger",
+          "status",
+          "started_at",
+          "finished_at",
+          "district_count",
+          "signal_count",
+          "error"
+        ],
+        "title": "RunOut",
+        "type": "object"
+      },
+      "SignalOut": {
+        "description": "A hazard threshold reached in a district's forecast.",
+        "properties": {
+          "days_over": {
+            "items": {
+              "format": "date",
+              "type": "string"
+            },
+            "title": "Days Over",
+            "type": "array"
+          },
+          "district_id": {
+            "title": "District Id",
+            "type": "string"
+          },
+          "expires": {
+            "format": "date",
+            "title": "Expires",
+            "type": "string"
+          },
+          "hazard": {
+            "title": "Hazard",
+            "type": "string"
+          },
+          "level": {
+            "enum": [
+              "moderate",
+              "severe",
+              "extreme"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "metric": {
+            "title": "Metric",
+            "type": "string"
+          },
+          "onset": {
+            "format": "date",
+            "title": "Onset",
+            "type": "string"
+          },
+          "peak_date": {
+            "format": "date",
+            "title": "Peak Date",
+            "type": "string"
+          },
+          "peak_value": {
+            "title": "Peak Value",
+            "type": "number"
+          },
+          "snapshot_id": {
+            "title": "Snapshot Id",
+            "type": "integer"
+          },
+          "threshold": {
+            "title": "Threshold",
+            "type": "number"
+          },
+          "unit": {
+            "title": "Unit",
+            "type": "string"
+          }
+        },
+        "required": [
+          "district_id",
+          "hazard",
+          "level",
+          "onset",
+          "expires",
+          "metric",
+          "unit",
+          "peak_value",
+          "peak_date",
+          "threshold",
+          "days_over",
+          "snapshot_id"
+        ],
+        "title": "SignalOut",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -570,6 +744,84 @@
         "summary": "Health",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/api/runs": {
+      "post": {
+        "description": "Run a monitoring cycle now and return how it ended.\n\nThe response is 201 even when the cycle fails, because the run is recorded\neither way; check ``status`` and ``error``.",
+        "operationId": "trigger_run_api_runs_post",
+        "parameters": [
+          {
+            "in": "header",
+            "name": "x-admin-token",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "X-Admin-Token"
+            }
+          }
+        ],
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RunOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Missing or wrong admin token"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "No admin token is configured"
+          }
+        },
+        "summary": "Trigger Run",
+        "tags": [
+          "cycles"
+        ]
+      }
+    },
+    "/api/signals": {
+      "get": {
+        "description": "Hazard signals from the latest successful cycle.",
+        "operationId": "current_signals_api_signals_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CurrentSignals"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Current Signals",
+        "tags": [
+          "cycles"
         ]
       }
     }

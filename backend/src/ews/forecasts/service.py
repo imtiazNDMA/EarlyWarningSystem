@@ -93,7 +93,7 @@ async def current_forecast_snapshot(
 
 async def ingest_all_forecasts(
     session: AsyncSession, client: OpenMeteoForecastClient, batch_size: int, days: int
-) -> int:
+) -> list[SourceSnapshot]:
     """Fetch and store a forecast for every district, several per request.
 
     Args:
@@ -103,21 +103,22 @@ async def ingest_all_forecasts(
         days: Number of forecast days
 
     Returns:
-        Number of snapshots stored
+        The stored snapshots, one per district
 
     Raises:
         SourceError: If any batch fails; nothing is committed by this function
     """
     districts = (await session.scalars(select(District).order_by(District.id))).all()
-    stored = 0
+    stored: list[SourceSnapshot] = []
     for batch in batched(districts, batch_size):
         forecasts = await client.fetch([(d.lat, d.lon) for d in batch], days)
         fetched_at = dt.datetime.now(dt.UTC)
         for district, forecast in zip(batch, forecasts, strict=True):
-            await store_snapshot(
-                session, district.id, SOURCE, forecast.payload, fetched_at
+            stored.append(
+                await store_snapshot(
+                    session, district.id, SOURCE, forecast.payload, fetched_at
+                )
             )
-        stored += len(batch)
     return stored
 
 
@@ -137,7 +138,7 @@ async def _ingest_into_configured_database() -> None:
             await session.commit()
     finally:
         await engine.dispose()
-    logger.info("Stored %s forecast snapshots", stored)
+    logger.info("Stored %s forecast snapshots", len(stored))
 
 
 if __name__ == "__main__":

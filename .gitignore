@@ -82,6 +82,7 @@ integration_*.txt
 *.bat
 !start.bat
 !stop.bat
+!run-cycle.bat
 
 # Development and analysis scripts
 *_search.py

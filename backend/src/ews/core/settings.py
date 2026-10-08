@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+asyncpg://ews:ews@localhost:5434/ews"
     log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = "INFO"
     health_check_timeout_seconds: float = 3.0
+    # Required in the X-Admin-Token header to trigger work; admin actions
+    # are disabled while this is unset
+    admin_token: str | None = None
 
     # Forecast source
     open_meteo_forecast_url: str = "https://api.open-meteo.com/v1/forecast"

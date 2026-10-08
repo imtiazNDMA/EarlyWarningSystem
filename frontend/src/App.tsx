@@ -6,10 +6,15 @@ import { DistrictPanel } from './features/districts/DistrictPanel'
 import { DistrictPicker } from './features/districts/DistrictPicker'
 import { useDistrictBoundaries, useDistricts } from './features/districts/queries'
 import { ForecastSection } from './features/forecast/ForecastSection'
+import { useCurrentSignals } from './features/signals/queries'
+import { SignalLegend } from './features/signals/SignalLegend'
+import { SignalList } from './features/signals/SignalList'
+import { highestLevel, signalsByDistrict, summarise, type Level } from './features/signals/signals'
 
 export default function App() {
   const boundaries = useDistrictBoundaries()
   const districts = useDistricts()
+  const current = useCurrentSignals()
 
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null)
   const [focus, setFocus] = useState<MapFocus | null>(null)
@@ -25,6 +30,25 @@ export default function App() {
     (district) => district.feature_id === selectedFeatureId,
   )
 
+  // Signals are keyed by district; the map is keyed by boundary feature
+  const byDistrict = useMemo(
+    () => signalsByDistrict(current.data?.signals ?? []),
+    [current.data],
+  )
+  const { levels, summaries } = useMemo(() => {
+    const levels = new Map<string, Level>()
+    const summaries = new Map<string, string>()
+    for (const district of districts.data ?? []) {
+      const signals = byDistrict.get(district.id)
+      if (!signals || district.feature_id === null) continue
+      const level = highestLevel(signals)
+      const summary = summarise(signals)
+      if (level) levels.set(district.feature_id, level)
+      if (summary) summaries.set(district.feature_id, summary)
+    }
+    return { levels, summaries }
+  }, [byDistrict, districts.data])
+
   const selectFromList = useCallback((district: District) => {
     setSelectedFeatureId(district.feature_id)
     setFocus({ lon: district.lon, lat: district.lat })
@@ -38,6 +62,8 @@ export default function App() {
           selectedFeatureId={selectedFeatureId}
           focus={focus}
           onSelect={setSelectedFeatureId}
+          levels={levels}
+          summaries={summaries}
         />
       )}
 
@@ -50,6 +76,9 @@ export default function App() {
             selectedFeatureId={selectedFeatureId}
             onSelect={selectFromList}
           />
+        )}
+        {current.data && (
+          <SignalLegend run={current.data.run} flaggedDistricts={byDistrict.size} />
         )}
         {districts.isError && (
           <p className="mt-3 text-sm text-ink/70">
@@ -91,8 +120,19 @@ export default function App() {
             onClose={() => setSelectedFeatureId(null)}
           >
             {selectedDistrict && (
-              // Keyed so the hovered day resets when another district is chosen
-              <ForecastSection key={selectedDistrict.id} districtId={selectedDistrict.id} />
+              <>
+                {current.data && (
+                  <div className="mb-4 border-b border-line/30 pb-4">
+                    <h3 className="type-label mb-2 text-ink/60">Hazard signals</h3>
+                    <SignalList
+                      signals={byDistrict.get(selectedDistrict.id) ?? []}
+                      cycleHasRun={current.data.run !== null}
+                    />
+                  </div>
+                )}
+                {/* Keyed so the hovered day resets when another district is chosen */}
+                <ForecastSection key={selectedDistrict.id} districtId={selectedDistrict.id} />
+              </>
             )}
           </DistrictPanel>
         </div>

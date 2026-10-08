@@ -7,7 +7,7 @@ import httpx
 from fastapi import FastAPI
 from fastapi.middleware.gzip import GZipMiddleware
 
-from ews.api.routers import districts, forecasts, health
+from ews.api.routers import cycles, districts, forecasts, health
 from ews.core.db import create_engine, create_session_factory
 from ews.core.logging import configure_logging
 from ews.core.settings import Settings, get_settings
@@ -52,4 +52,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health.router, prefix="/api")
     app.include_router(districts.router, prefix="/api")
     app.include_router(forecasts.router, prefix="/api")
+    app.include_router(cycles.router, prefix="/api")
     return app

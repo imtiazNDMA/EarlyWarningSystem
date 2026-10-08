@@ -4,6 +4,7 @@ import { Map as MapLibreMap, NavigationControl } from 'maplibre-gl'
 import { useEffect, useRef, useState } from 'react'
 
 import type { BoundaryProperties } from '../../api/client'
+import { LEVEL_COLOURS, type Level } from '../signals/signals'
 import type { DistrictBoundaries } from './queries'
 
 // Free, key-less vector base map
@@ -28,9 +29,20 @@ type Props = {
   /** Position to move to; change the object to move again. */
   focus: MapFocus | null
   onSelect: (featureId: string | null) => void
+  /** Highest hazard level per feature_id; features without one are absent. */
+  levels: Map<string, Level>
+  /** One-line hazard summary per feature_id, shown in the hover tooltip. */
+  summaries: Map<string, string>
 }
 
-export function DistrictMap({ boundaries, selectedFeatureId, focus, onSelect }: Props) {
+export function DistrictMap({
+  boundaries,
+  selectedFeatureId,
+  focus,
+  onSelect,
+  levels,
+  summaries,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<MapLibreMap | null>(null)
   const [ready, setReady] = useState(false)
@@ -84,16 +96,29 @@ export function DistrictMap({ boundaries, selectedFeatureId, focus, onSelect }: 
           type: 'fill',
           source: SOURCE,
           paint: {
+            // A hazard level always wins; selection shows as an outline
             'fill-color': [
-              'case',
-              ['boolean', ['feature-state', 'selected'], false],
-              SIGNAL,
-              ['==', ['get', 'district_id'], null],
-              UNREGISTERED_TINT,
-              DISTRICT_TINT,
+              'match',
+              ['coalesce', ['feature-state', 'level'], 'none'],
+              'moderate',
+              LEVEL_COLOURS.moderate,
+              'severe',
+              LEVEL_COLOURS.severe,
+              'extreme',
+              LEVEL_COLOURS.extreme,
+              [
+                'case',
+                ['boolean', ['feature-state', 'selected'], false],
+                SIGNAL,
+                ['==', ['get', 'district_id'], null],
+                UNREGISTERED_TINT,
+                DISTRICT_TINT,
+              ],
             ],
             'fill-opacity': [
               'case',
+              ['!=', ['coalesce', ['feature-state', 'level'], 'none'], 'none'],
+              ['case', ['boolean', ['feature-state', 'hover'], false], 0.85, 0.7],
               ['boolean', ['feature-state', 'selected'], false],
               0.5,
               ['boolean', ['feature-state', 'hover'], false],
@@ -179,6 +204,16 @@ export function DistrictMap({ boundaries, selectedFeatureId, focus, onSelect }: 
     }
   }, [selectedFeatureId, ready])
 
+  // Mirror hazard levels into feature state
+  useEffect(() => {
+    const map = mapRef.current
+    if (!map || !ready) return
+    for (const feature of boundaries.features) {
+      const id = feature.properties.feature_id
+      map.setFeatureState({ source: SOURCE, id }, { level: levels.get(id) ?? null })
+    }
+  }, [levels, boundaries, ready])
+
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready || focus === null) return
@@ -201,6 +236,9 @@ export function DistrictMap({ boundaries, selectedFeatureId, focus, onSelect }: 
         >
           <p className="text-sm font-semibold leading-tight">{hover.properties.name_en}</p>
           <p className="type-label text-panel/70">{hover.properties.province}</p>
+          {summaries.has(hover.properties.feature_id) && (
+            <p className="mt-1 text-xs">{summaries.get(hover.properties.feature_id)}</p>
+          )}
         </div>
       )}
     </div>

@@ -1,0 +1,39 @@
+# Hazard screening thresholds.
+#
+# PROVISIONAL VALUES. These are starting points for development, not official
+# criteria. They need calibrating against Pakistani practice (for example the
+# Meteorological Department's rainfall categories and regional heat thresholds)
+# before the output is relied on. Tracked in GitHub issue #20.
+#
+# A level is reached when the forecast value for a day is at or above its
+# threshold. Each hazard needs moderate, severe and extreme, in increasing order.
+#
+#   metric     a daily forecast value (a field of DailyForecast)
+#   unit       shown next to the value
+#   levels     national thresholds
+#   provinces  optional: thresholds that replace the national ones in a province
+
+hazards:
+  heavy_rain:
+    metric: precipitation_mm
+    unit: mm
+    levels: { moderate: 50, severe: 100, extreme: 150 }
+
+  heatwave:
+    metric: temperature_max_c
+    unit: "°C"
+    levels: { moderate: 42, severe: 45, extreme: 48 }
+    provinces:
+      # Mountain regions reach dangerous heat at lower temperatures than the plains
+      Gilgit Baltistan: { moderate: 35, severe: 38, extreme: 41 }
+      Azad Kashmir: { moderate: 38, severe: 41, extreme: 44 }
+
+  strong_wind:
+    metric: wind_gusts_max_kmh
+    unit: km/h
+    levels: { moderate: 60, severe: 80, extreme: 100 }
+
+  heavy_snow:
+    metric: snowfall_cm
+    unit: cm
+    levels: { moderate: 10, severe: 30, extreme: 50 }

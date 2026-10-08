@@ -1,56 +1,19 @@
 """Tests for the district forecast endpoint and forecast ingestion."""
 
-import json
-from collections.abc import AsyncIterator
 from datetime import UTC, datetime, timedelta
-from pathlib import Path
-from typing import Any
 
 import httpx
 import pytest
-from fastapi import FastAPI
 from httpx import AsyncClient
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ews.api.dependencies import get_forecast_client
 from ews.forecasts.service import ingest_all_forecasts, store_snapshot
 from ews.sources.models import SourceSnapshot
 from ews.sources.open_meteo import SOURCE, OpenMeteoForecastClient
+from tests.conftest import RECORDED_FORECAST, Upstream
 
-FIXTURES = Path(__file__).parent / "fixtures"
-LAHORE_PAYLOAD: dict[str, Any] = json.loads(
-    (FIXTURES / "open_meteo_forecast_two_locations.json").read_text(encoding="utf-8")
-)[0]
-
-
-class Upstream:
-    """Stand-in for Open-Meteo: counts calls and can be switched to fail."""
-
-    def __init__(self) -> None:
-        self.calls = 0
-        self.failing = False
-
-    def handle(self, request: httpx.Request) -> httpx.Response:
-        self.calls += 1
-        if self.failing:
-            return httpx.Response(503, json={"error": True, "reason": "unavailable"})
-        locations = len(request.url.params["latitude"].split(","))
-        if locations == 1:
-            return httpx.Response(200, json=LAHORE_PAYLOAD)
-        return httpx.Response(200, json=[LAHORE_PAYLOAD] * locations)
-
-
-@pytest.fixture
-async def upstream(app: FastAPI) -> AsyncIterator[Upstream]:
-    """Route the application's forecast client to the stand-in."""
-    upstream = Upstream()
-    async with httpx.AsyncClient(
-        transport=httpx.MockTransport(upstream.handle)
-    ) as http:
-        forecast_client = OpenMeteoForecastClient(http, base_url="https://weather.test")
-        app.dependency_overrides[get_forecast_client] = lambda: forecast_client
-        yield upstream
+LAHORE_PAYLOAD = RECORDED_FORECAST
 
 
 class TestDistrictForecast:
@@ -165,6 +128,6 @@ class TestIngestAllForecasts:
         count = await db_session.scalar(
             select(func.count()).select_from(SourceSnapshot)
         )
-        assert stored == 155
+        assert len(stored) == 155
         assert count == 155
         assert upstream.calls == 4  # 155 districts in batches of 50

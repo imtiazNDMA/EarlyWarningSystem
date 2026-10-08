@@ -87,6 +87,49 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Trigger Run
+         * @description Run a monitoring cycle now and return how it ended.
+         *
+         *     The response is 201 even when the cycle fails, because the run is recorded
+         *     either way; check ``status`` and ``error``.
+         */
+        post: operations["trigger_run_api_runs_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/signals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Current Signals
+         * @description Hazard signals from the latest successful cycle.
+         */
+        get: operations["current_signals_api_signals_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -148,6 +191,15 @@ export interface components {
              * @enum {string}
              */
             status: "pass" | "fail";
+        };
+        /**
+         * CurrentSignals
+         * @description The latest successful cycle and the signals it raised.
+         */
+        CurrentSignals: {
+            run: components["schemas"]["RunOut"] | null;
+            /** Signals */
+            signals: components["schemas"]["SignalOut"][];
         };
         /**
          * DailyForecast
@@ -236,6 +288,73 @@ export interface components {
              * @enum {string}
              */
             status: "healthy" | "unhealthy";
+        };
+        /**
+         * RunOut
+         * @description A monitoring cycle and how it ended.
+         */
+        RunOut: {
+            /** District Count */
+            district_count: number;
+            /** Error */
+            error: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /** Id */
+            id: number;
+            /** Signal Count */
+            signal_count: number;
+            /**
+             * Started At
+             * Format: date-time
+             */
+            started_at: string;
+            /** Status */
+            status: string;
+            /** Trigger */
+            trigger: string;
+        };
+        /**
+         * SignalOut
+         * @description A hazard threshold reached in a district's forecast.
+         */
+        SignalOut: {
+            /** Days Over */
+            days_over: string[];
+            /** District Id */
+            district_id: string;
+            /**
+             * Expires
+             * Format: date
+             */
+            expires: string;
+            /** Hazard */
+            hazard: string;
+            /**
+             * Level
+             * @enum {string}
+             */
+            level: "moderate" | "severe" | "extreme";
+            /** Metric */
+            metric: string;
+            /**
+             * Onset
+             * Format: date
+             */
+            onset: string;
+            /**
+             * Peak Date
+             * Format: date
+             */
+            peak_date: string;
+            /** Peak Value */
+            peak_value: number;
+            /** Snapshot Id */
+            snapshot_id: number;
+            /** Threshold */
+            threshold: number;
+            /** Unit */
+            unit: string;
         };
         /** ValidationError */
         ValidationError: {
@@ -381,6 +500,71 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+        };
+    };
+    trigger_run_api_runs_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-admin-token"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RunOut"];
+                };
+            };
+            /** @description Missing or wrong admin token */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description No admin token is configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    current_signals_api_signals_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurrentSignals"];
                 };
             };
         };
