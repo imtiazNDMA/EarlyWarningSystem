@@ -7,6 +7,7 @@ from alembic import context
 from sqlalchemy.engine import Connection
 from sqlalchemy.pool import NullPool
 
+from ews.alerts import models as _alert_models  # noqa: F401 - registers tables
 from ews.core.db import Base, create_engine
 from ews.core.settings import get_settings
 from ews.cycles import models as _cycle_models  # noqa: F401 - registers tables
