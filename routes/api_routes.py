@@ -21,6 +21,28 @@ from utils.validation import (
 api_bp = Blueprint("api", __name__)
 logger = logging.getLogger(__name__)
 
+NO_ALERTS_PARSED_MESSAGE = (
+    "The model response could not be read. Existing alerts were kept."
+)
+
+
+def _districts_to_fetch(
+    province: str, districts: list[str]
+) -> dict[str, tuple[float, float]]:
+    """
+    Resolve the districts a generation request covers.
+
+    Args:
+        province: Province name
+        districts: Selected district names; empty means the whole province
+
+    Returns:
+        Dict of district_name -> (lat, lon)
+    """
+    if not districts:
+        return PROVINCES[province]
+    return {d: PROVINCES[province][d] for d in districts if d in PROVINCES[province]}
+
 
 @api_bp.route("/get_forecast/<province>/<district>/<int:days>")
 def get_forecast(province, district, days):
@@ -228,13 +250,7 @@ def generate_alerts():
         )
 
     try:
-        # Get selected districts or all districts in province
-        if not districts:
-            districts_to_fetch = PROVINCES[province]
-        else:
-            districts_to_fetch = {
-                d: PROVINCES[province][d] for d in districts if d in PROVINCES[province]
-            }
+        districts_to_fetch = _districts_to_fetch(province, districts)
 
         # Define the background task function
         def generate_alerts_task():
@@ -274,15 +290,12 @@ def generate_alerts():
                 df = create_weather_dataframe(normalized_daily, cache_key)
                 forecasts[d] = df
 
-            # Generate alerts using AlertService
-            alert_text = alert_service.generate_alert(province, forecasts)
-            alerts = alert_service.parse_district_alerts(alert_text)
-
-            # Purge old alerts before saving new ones to ensure fresh data
-            alert_service.purge_cache(province, list(forecasts.keys()), forecast_days)
-
-            # Save district-level alerts
-            alert_service.save_district_alerts(alerts, forecast_days, province)
+            # Generate alerts and replace the stored ones
+            alert_text, replaced = alert_service.refresh_alerts(
+                province, forecasts, forecast_days
+            )
+            if not replaced:
+                raise RuntimeError(NO_ALERTS_PARSED_MESSAGE)
 
             return {
                 "status": "success",
@@ -342,13 +355,7 @@ def generate_forecast_and_alerts():
         )
 
     try:
-        # Get selected districts or all districts in province
-        if not districts:
-            districts_to_fetch = PROVINCES[province]
-        else:
-            districts_to_fetch = {
-                d: PROVINCES[province][d] for d in districts if d in PROVINCES[province]
-            }
+        districts_to_fetch = _districts_to_fetch(province, districts)
 
         # Generate forecasts
         weather_data = weather_service.get_bulk_weather_data(
@@ -373,15 +380,21 @@ def generate_forecast_and_alerts():
             df = create_weather_dataframe(daily, cache_key)
             forecasts[d] = df
 
-        # Generate alerts
-        alert_text = alert_service.generate_alert(province, forecasts)
-        alerts = alert_service.parse_district_alerts(alert_text)
-
-        # Purge old alerts before saving new ones to ensure fresh data
-        alert_service.purge_cache(province, list(forecasts.keys()), forecast_days)
-
-        # Save district-level alerts
-        alert_service.save_district_alerts(alerts, forecast_days, province)
+        # Generate alerts and replace the stored ones
+        alert_text, replaced = alert_service.refresh_alerts(
+            province, forecasts, forecast_days
+        )
+        if not replaced:
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "message": NO_ALERTS_PARSED_MESSAGE,
+                        "province": province,
+                    }
+                ),
+                502,
+            )
 
         return jsonify(
             {

@@ -232,6 +232,48 @@ def save_alert(province: str, district: str, forecast_days: int, alert_text: str
         pass
 
 
+def replace_alerts(province: str, forecast_days: int, alerts: dict[str, str]):
+    """
+    Replace alerts for the given districts in a single transaction.
+
+    Also drops the cached forecast DataFrames for those districts so they are
+    rebuilt from fresh weather data. Unlike the other helpers in this module,
+    errors are raised: either every alert is replaced or none is.
+
+    Args:
+        province: Province name
+        forecast_days: Forecast days
+        alerts: Dict of district_name -> serialized alert text
+    """
+    expires_at = datetime.now().replace(microsecond=0) + pd.Timedelta(
+        seconds=Config.CACHE_TIME
+    )
+
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        for district, alert_text in alerts.items():
+            cursor.execute(
+                """
+                INSERT OR REPLACE INTO alerts (
+                    province, district, forecast_days,
+                    alert_text, created_at, expires_at
+                )
+                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
+            """,
+                (province, district, forecast_days, alert_text, expires_at),
+            )
+            cursor.execute(
+                """
+                DELETE FROM weather_cache
+                WHERE cache_key = ? OR cache_key = ?
+            """,
+                (
+                    f"forecast_{province}_{district}_{forecast_days}",
+                    f"alerts_{province}_{forecast_days}_{district}",
+                ),
+            )
+
+
 def get_alert(province: str, district: str, forecast_days: int) -> str | None:
     """Retrieve alert from database, checking cache expiration"""
     try:

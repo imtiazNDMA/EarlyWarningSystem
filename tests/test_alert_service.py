@@ -110,10 +110,14 @@ class TestAlertService:
             )
         }
 
-        alert_text = self.service.generate_alert("PUNJAB", forecasts)
+        alert_text = self.service.generate_alert("PUNJAB", forecasts, 3)
 
         assert "Lahore" in alert_text
         assert self.service.client.invoke.called
+
+        # The prompt tells the model how many days the advisory covers
+        prompt = self.service.client.invoke.call_args.args[0][1].content
+        assert "FULL 3-DAY PERIOD" in prompt
 
     def test_save_district_alerts(self):
         """Test saving district alerts to database"""

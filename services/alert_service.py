@@ -12,6 +12,8 @@ from utils.retry import retry_on_failure
 
 logger = logging.getLogger(__name__)
 
+REGION_SUMMARY_KEY = "Region's Summary"
+
 
 class AlertService:
     """Service for generating weather alerts using AI"""
@@ -59,8 +61,8 @@ class AlertService:
                 for district, content in data.items():
                     # Handle "Region's Summary" separately if needed,
                     # or treat as special district
-                    if district == "Region's Summary":
-                        alerts["Region's Summary"] = content
+                    if district == REGION_SUMMARY_KEY:
+                        alerts[REGION_SUMMARY_KEY] = content
                         continue
 
                     # Ensure content has english and urdu keys
@@ -84,9 +86,19 @@ class AlertService:
             return {}
 
     @retry_on_failure(max_attempts=3, delay=2.0, backoff=2.0)
-    def generate_alert(self, province: str, forecasts: dict[str, pd.DataFrame]) -> str:
+    def generate_alert(
+        self, province: str, forecasts: dict[str, pd.DataFrame], forecast_days: int
+    ) -> str:
         """
         Generate weather alerts for a province using AI in English and Urdu
+
+        Args:
+            province: Province name
+            forecasts: Dict of district_name -> forecast DataFrame
+            forecast_days: Number of days the advisory must cover
+
+        Returns:
+            Raw text response from the LLM
         """
         forecast_texts = []
         for district, df in forecasts.items():
@@ -276,6 +288,77 @@ class AlertService:
             msg_json = json.dumps(content, ensure_ascii=False)
             database.save_alert(province, district, forecast_days, msg_json)
             logger.debug(f"Saved DB alert for {province}/{district}")
+
+    def replace_district_alerts(
+        self,
+        alerts: dict[str, dict],
+        forecast_days: int,
+        province: str,
+        districts: list[str],
+    ) -> int:
+        """
+        Replace stored alerts with newly parsed ones.
+
+        Only requested districts that came back with advisory text are replaced,
+        so a failed parse, a blank alert or a district the LLM left out keeps
+        the alert it already had. The region summary is stored only alongside
+        at least one district alert.
+
+        Args:
+            alerts: Dict of district_name -> {"english": "...", "urdu": "..."}
+            forecast_days: Forecast days
+            province: Province name
+            districts: Districts the alerts were requested for
+
+        Returns:
+            Number of district alerts replaced
+        """
+        usable = {
+            district: content
+            for district, content in alerts.items()
+            if district in districts and content.get("english", "").strip()
+        }
+        if not usable:
+            return 0
+
+        to_save = dict(usable)
+        if REGION_SUMMARY_KEY in alerts:
+            to_save[REGION_SUMMARY_KEY] = alerts[REGION_SUMMARY_KEY]
+
+        database.replace_alerts(
+            province,
+            forecast_days,
+            {
+                district: json.dumps(content, ensure_ascii=False)
+                for district, content in to_save.items()
+            },
+        )
+        return len(usable)
+
+    def refresh_alerts(
+        self, province: str, forecasts: dict[str, pd.DataFrame], forecast_days: int
+    ) -> tuple[str, int]:
+        """
+        Generate alerts for a province and replace the stored ones.
+
+        Args:
+            province: Province name
+            forecasts: Dict of district_name -> forecast DataFrame
+            forecast_days: Number of days the advisory must cover
+
+        Returns:
+            Tuple of (raw LLM response, number of district alerts replaced)
+        """
+        alert_text = self.generate_alert(province, forecasts, forecast_days)
+        alerts = self.parse_district_alerts(alert_text)
+        replaced = self.replace_district_alerts(
+            alerts, forecast_days, province, list(forecasts)
+        )
+        if not replaced:
+            logger.error(
+                f"No usable alerts in LLM response for {province}; existing alerts kept"
+            )
+        return alert_text, replaced
 
     def get_alert(self, province: str, district: str, days: int) -> dict | None:
         """
