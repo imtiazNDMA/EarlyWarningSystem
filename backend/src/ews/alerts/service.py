@@ -13,8 +13,7 @@ from ews.alerts.lifecycle import Action, ActiveAlert, certainty, decide, urgency
 from ews.alerts.models import Alert
 from ews.alerts.text import write_alert_text
 from ews.districts.models import District
-from ews.screening.rules import Signal
-from ews.sources.open_meteo import DailyForecast
+from ews.screening.rules import DailyValue, Signal
 
 ENDED_STATUS = {
     Action.SUPERSEDE: "superseded",
@@ -29,8 +28,10 @@ class Screened:
 
     district_id: str
     snapshot_id: int
-    days: Sequence[DailyForecast]
+    days: Sequence[DailyValue]
     signals: Sequence[Signal]
+    # Hazards successfully assessed by this source, including those with no signal
+    assessed_hazards: frozenset[str]
 
 
 def _evidence(signal: Signal, screened: Screened) -> list[dict[str, Any]]:
@@ -87,6 +88,7 @@ async def apply_lifecycle(
             hazard
             for district_id, hazard in active_by_key
             if district_id == screened.district_id
+            and hazard in screened.assessed_hazards
         }
 
         for hazard in sorted(hazards):
@@ -117,9 +119,9 @@ async def apply_lifecycle(
                         certainty=certainty(signal.onset, today),
                         onset=signal.onset,
                         expires=signal.expires,
-                        headline=text.headline,
-                        body=text.body,
-                        instructions=text.instructions,
+                        headline_en=text.headline,
+                        body_en=text.body,
+                        instructions_en=text.instructions,
                         generated_by="rules",
                         evidence=_evidence(signal, screened),
                         status="active",

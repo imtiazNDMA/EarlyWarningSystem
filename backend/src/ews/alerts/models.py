@@ -43,9 +43,12 @@ class Alert(Base):
     certainty: Mapped[str] = mapped_column(String(20))
     onset: Mapped[dt.date] = mapped_column(Date)
     expires: Mapped[dt.date] = mapped_column(Date)
-    headline: Mapped[str] = mapped_column(Text)
-    body: Mapped[str] = mapped_column(Text)
-    instructions: Mapped[str] = mapped_column(Text)
+    headline_en: Mapped[str] = mapped_column(Text)
+    body_en: Mapped[str] = mapped_column(Text)
+    instructions_en: Mapped[str] = mapped_column(Text)
+    headline_ur: Mapped[str | None] = mapped_column(Text)
+    body_ur: Mapped[str | None] = mapped_column(Text)
+    instructions_ur: Mapped[str | None] = mapped_column(Text)
     # What wrote the text: "rules" for templates
     generated_by: Mapped[str] = mapped_column(String(20))
     # Values that justify the alert, each pointing at a source snapshot:

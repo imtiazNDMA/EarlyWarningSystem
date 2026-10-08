@@ -1,6 +1,7 @@
 """Shared fixtures: a disposable database per run and a rolled-back session per test."""
 
 import asyncio
+import copy
 import json
 import os
 import uuid
@@ -19,11 +20,16 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from sqlalchemy.pool import NullPool
 
 from ews.api.app import create_app
-from ews.api.dependencies import get_forecast_client, get_session
+from ews.api.dependencies import (
+    get_air_quality_client,
+    get_forecast_client,
+    get_session,
+)
 from ews.core.db import create_engine
 from ews.core.settings import Settings
 from ews.districts.registry import sync_districts
 from ews.sources.open_meteo import OpenMeteoForecastClient
+from ews.sources.open_meteo_air_quality import OpenMeteoAirQualityClient
 
 BACKEND_ROOT = Path(__file__).resolve().parent.parent
 
@@ -40,6 +46,13 @@ RECORDED_FORECAST: dict[str, Any] = json.loads(
         encoding="utf-8"
     )
 )[0]
+RECORDED_AIR_QUALITY: dict[str, Any] = json.loads(
+    (BACKEND_ROOT / "tests/fixtures/open_meteo_air_quality_lahore.json").read_text(
+        encoding="utf-8"
+    )
+)
+CALM_AIR_QUALITY = copy.deepcopy(RECORDED_AIR_QUALITY)
+CALM_AIR_QUALITY["hourly"]["pm2_5"] = [0.0 for _ in CALM_AIR_QUALITY["hourly"]["pm2_5"]]
 
 
 class Upstream:
@@ -47,13 +60,17 @@ class Upstream:
 
     def __init__(self) -> None:
         self.calls = 0
+        self.requests: list[httpx.Request] = []
         self.failing = False
         # (lat, lon) as sent -> payload; None answers with the recorded forecast
         self.payload_for: Callable[[str, str], dict[str, Any]] | None = None
+        self.air_quality: Upstream | None = None
+        self.fail_on_call: int | None = None
 
     def handle(self, request: httpx.Request) -> httpx.Response:
         self.calls += 1
-        if self.failing:
+        self.requests.append(request)
+        if self.failing or self.calls == self.fail_on_call:
             body = {"error": True, "reason": "unavailable"}
             return httpx.Response(503, json=body)
         latitudes = request.url.params["latitude"].split(",")
@@ -165,7 +182,18 @@ async def upstream(app: FastAPI) -> AsyncIterator[Upstream]:
     """Route the application's forecast client to a stand-in for Open-Meteo."""
     upstream = Upstream()
     transport = httpx.MockTransport(upstream.handle)
-    async with httpx.AsyncClient(transport=transport) as http:
+    air_upstream = Upstream()
+    air_upstream.payload_for = lambda _lat, _lon: CALM_AIR_QUALITY
+    air_transport = httpx.MockTransport(air_upstream.handle)
+    async with (
+        httpx.AsyncClient(transport=transport) as http,
+        httpx.AsyncClient(transport=air_transport) as air_http,
+    ):
         forecast_client = OpenMeteoForecastClient(http, base_url="https://weather.test")
+        air_quality_client = OpenMeteoAirQualityClient(
+            air_http, base_url="https://air.test"
+        )
         app.dependency_overrides[get_forecast_client] = lambda: forecast_client
+        app.dependency_overrides[get_air_quality_client] = lambda: air_quality_client
+        upstream.air_quality = air_upstream
         yield upstream

@@ -1,12 +1,61 @@
 {
   "components": {
     "schemas": {
+      "AirQualityOut": {
+        "description": "Latest daily mean PM2.5 forecast for a district.",
+        "properties": {
+          "date": {
+            "format": "date",
+            "title": "Date",
+            "type": "string"
+          },
+          "district_id": {
+            "title": "District Id",
+            "type": "string"
+          },
+          "fetched_at": {
+            "format": "date-time",
+            "title": "Fetched At",
+            "type": "string"
+          },
+          "pm2_5_mean_ug_m3": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pm2 5 Mean Ug M3"
+          }
+        },
+        "required": [
+          "district_id",
+          "date",
+          "pm2_5_mean_ug_m3",
+          "fetched_at"
+        ],
+        "title": "AirQualityOut",
+        "type": "object"
+      },
       "AlertDetail": {
         "description": "An alert, plus the alert that replaced it if it was superseded.",
         "properties": {
-          "body": {
-            "title": "Body",
+          "body_en": {
+            "title": "Body En",
             "type": "string"
+          },
+          "body_ur": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body Ur"
           },
           "certainty": {
             "enum": [
@@ -56,17 +105,39 @@
             "title": "Hazard",
             "type": "string"
           },
-          "headline": {
-            "title": "Headline",
+          "headline_en": {
+            "title": "Headline En",
             "type": "string"
+          },
+          "headline_ur": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headline Ur"
           },
           "id": {
             "title": "Id",
             "type": "integer"
           },
-          "instructions": {
-            "title": "Instructions",
+          "instructions_en": {
+            "title": "Instructions En",
             "type": "string"
+          },
+          "instructions_ur": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instructions Ur"
           },
           "issued_at": {
             "format": "date-time",
@@ -148,9 +219,12 @@
           "certainty",
           "onset",
           "expires",
-          "headline",
-          "body",
-          "instructions",
+          "headline_en",
+          "body_en",
+          "instructions_en",
+          "headline_ur",
+          "body_ur",
+          "instructions_ur",
           "generated_by",
           "evidence",
           "status",
@@ -166,9 +240,20 @@
       "AlertOut": {
         "description": "An alert and the district it was issued for.",
         "properties": {
-          "body": {
-            "title": "Body",
+          "body_en": {
+            "title": "Body En",
             "type": "string"
+          },
+          "body_ur": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body Ur"
           },
           "certainty": {
             "enum": [
@@ -218,17 +303,39 @@
             "title": "Hazard",
             "type": "string"
           },
-          "headline": {
-            "title": "Headline",
+          "headline_en": {
+            "title": "Headline En",
             "type": "string"
+          },
+          "headline_ur": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headline Ur"
           },
           "id": {
             "title": "Id",
             "type": "integer"
           },
-          "instructions": {
-            "title": "Instructions",
+          "instructions_en": {
+            "title": "Instructions En",
             "type": "string"
+          },
+          "instructions_ur": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instructions Ur"
           },
           "issued_at": {
             "format": "date-time",
@@ -299,9 +406,12 @@
           "certainty",
           "onset",
           "expires",
-          "headline",
-          "body",
-          "instructions",
+          "headline_en",
+          "body_en",
+          "instructions_en",
+          "headline_ur",
+          "body_ur",
+          "instructions_ur",
           "generated_by",
           "evidence",
           "status",
@@ -940,6 +1050,32 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/air-quality": {
+      "get": {
+        "description": "Latest PM2.5 value for every district with stored air-quality data.",
+        "operationId": "all_air_quality_api_air_quality_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AirQualityOut"
+                  },
+                  "title": "Response All Air Quality Api Air Quality Get",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "All Air Quality",
+        "tags": [
+          "air quality"
+        ]
+      }
+    },
     "/api/alerts": {
       "get": {
         "description": "Alerts, newest first. With no filters this is the full alert history.",
@@ -1238,6 +1374,52 @@
         "summary": "District Boundaries",
         "tags": [
           "districts"
+        ]
+      }
+    },
+    "/api/districts/{district_id}/air-quality": {
+      "get": {
+        "description": "Latest PM2.5 forecast for one district.",
+        "operationId": "district_air_quality_api_districts__district_id__air_quality_get",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "district_id",
+            "required": true,
+            "schema": {
+              "title": "District Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AirQualityOut"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "No air-quality data"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "District Air Quality",
+        "tags": [
+          "air quality"
         ]
       }
     },

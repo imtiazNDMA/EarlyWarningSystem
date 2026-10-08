@@ -9,6 +9,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ews.air_quality.service import ingest_all_air_quality
 from ews.alerts.service import Screened, apply_lifecycle
 from ews.core.db import create_engine, create_session_factory
 from ews.core.settings import Settings, get_settings
@@ -19,6 +20,8 @@ from ews.screening.rules import HazardRule, screen
 from ews.screening.thresholds import load_rules
 from ews.sources.errors import SourceError
 from ews.sources.open_meteo import OpenMeteoForecastClient, parse_daily
+from ews.sources.open_meteo_air_quality import OpenMeteoAirQualityClient
+from ews.sources.open_meteo_air_quality import parse_daily as parse_air_quality_daily
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +38,7 @@ SIGNAL_METRIC_FIELDS = {
 async def run_cycle(
     session: AsyncSession,
     client: OpenMeteoForecastClient,
+    air_quality_client: OpenMeteoAirQualityClient,
     settings: Settings,
     trigger: str,
     rules: Sequence[HazardRule] | None = None,
@@ -62,7 +66,12 @@ async def run_cycle(
 
     try:
         district_count, signal_count = await _ingest_and_screen(
-            session, client, settings, run_id, rules or load_rules()
+            session,
+            client,
+            air_quality_client,
+            settings,
+            run_id,
+            rules or load_rules(),
         )
     except SourceError as error:
         await session.rollback()
@@ -81,6 +90,7 @@ async def run_cycle(
 async def _ingest_and_screen(
     session: AsyncSession,
     client: OpenMeteoForecastClient,
+    air_quality_client: OpenMeteoAirQualityClient,
     settings: Settings,
     run_id: int,
     rules: Sequence[HazardRule],
@@ -92,12 +102,22 @@ async def _ingest_and_screen(
     rows = await session.execute(select(District.id, District.province))
     provinces = {district_id: province for district_id, province in rows}
 
+    weather_rules = [rule for rule in rules if rule.metric != "pm2_5_mean_ug_m3"]
+    air_quality_rules = [rule for rule in rules if rule.metric == "pm2_5_mean_ug_m3"]
     signal_count = 0
     screenings = []
     for snapshot in snapshots:
         days = parse_daily(snapshot.payload)
-        signals = screen(days, provinces[snapshot.district_id], rules)
-        screenings.append(Screened(snapshot.district_id, snapshot.id, days, signals))
+        signals = screen(days, provinces[snapshot.district_id], weather_rules)
+        screenings.append(
+            Screened(
+                snapshot.district_id,
+                snapshot.id,
+                days,
+                signals,
+                frozenset(rule.hazard for rule in weather_rules),
+            )
+        )
         for signal in signals:
             session.add(
                 HazardSignal(
@@ -114,6 +134,50 @@ async def _ingest_and_screen(
                 )
             )
             signal_count += 1
+
+    savepoint = await session.begin_nested()
+    try:
+        air_snapshots = await ingest_all_air_quality(
+            session,
+            air_quality_client,
+            settings.forecast_batch_size,
+            settings.air_quality_forecast_days,
+        )
+    except SourceError as error:
+        await savepoint.rollback()
+        logger.warning("Run %s continues without air quality: %s", run_id, error)
+    else:
+        await savepoint.commit()
+        for snapshot in air_snapshots:
+            air_days = parse_air_quality_daily(snapshot.payload)
+            signals = screen(
+                air_days, provinces[snapshot.district_id], air_quality_rules
+            )
+            screenings.append(
+                Screened(
+                    snapshot.district_id,
+                    snapshot.id,
+                    air_days,
+                    signals,
+                    frozenset(rule.hazard for rule in air_quality_rules),
+                )
+            )
+            for signal in signals:
+                session.add(
+                    HazardSignal(
+                        run_id=run_id,
+                        district_id=snapshot.district_id,
+                        snapshot_id=snapshot.id,
+                        hazard=signal.hazard,
+                        level=signal.level,
+                        onset=signal.onset,
+                        expires=signal.expires,
+                        metrics=signal.model_dump(
+                            mode="json", include=SIGNAL_METRIC_FIELDS
+                        ),
+                    )
+                )
+                signal_count += 1
 
     actions = await apply_lifecycle(session, run_id, screenings)
     logger.info("Run %s alert actions: %s", run_id, dict(actions))
@@ -177,7 +241,12 @@ async def _run_against_configured_database() -> None:
             create_session_factory(engine)() as session,
         ):
             client = OpenMeteoForecastClient(http, settings.open_meteo_forecast_url)
-            await run_cycle(session, client, settings, trigger="command")
+            air_quality_client = OpenMeteoAirQualityClient(
+                http, settings.open_meteo_air_quality_url
+            )
+            await run_cycle(
+                session, client, air_quality_client, settings, trigger="command"
+            )
     finally:
         await engine.dispose()
 

@@ -6,7 +6,10 @@ from typing import Any
 
 import pytest
 from httpx import AsyncClient
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from ews.alerts.models import Alert
 from tests.conftest import ADMIN_TOKEN, RECORDED_FORECAST, Upstream
 
 ADMIN = {"X-Admin-Token": ADMIN_TOKEN}
@@ -73,9 +76,12 @@ class TestAlertLifecycle:
         assert alert["ended_at"] is None
         assert alert["supersedes_id"] is None
         assert alert["generated_by"] == "rules"
-        assert alert["headline"] == "Severe heavy rain alert for Lahore"
-        assert "peaks at 120 mm on 9 October" in alert["body"]
-        assert alert["instructions"].startswith("Avoid low-lying areas")
+        assert alert["headline_en"] == "Severe heavy rain alert for Lahore"
+        assert "peaks at 120 mm on 9 October" in alert["body_en"]
+        assert alert["instructions_en"].startswith("Avoid low-lying areas")
+        assert alert["headline_ur"] is None
+        assert alert["body_ur"] is None
+        assert alert["instructions_ur"] is None
         snapshot_id = alert["evidence"][0]["snapshot_id"]
         assert alert["evidence"] == [
             {
@@ -95,6 +101,25 @@ class TestAlertLifecycle:
                 "threshold": 100.0,
             },
         ]
+
+    async def test_urdu_text_round_trips_without_ascii_escaping(
+        self, client: AsyncClient, upstream: Upstream, db_session: AsyncSession
+    ) -> None:
+        await run_cycle(client, upstream, only_in(LAHORE_LAT, SEVERE_RAIN))
+        alert = await db_session.scalar(select(Alert))
+        assert alert is not None
+        alert.headline_ur = "لاہور کے لیے شدید بارش کا انتباہ"
+        alert.body_ur = "شدید بارش متوقع ہے۔"
+        alert.instructions_ur = "نشیبی علاقوں سے دور رہیں۔"
+        await db_session.flush()
+        alert_id = alert.id
+        db_session.expire(alert)
+
+        stored = await db_session.get_one(Alert, alert_id)
+
+        assert stored.headline_ur == "لاہور کے لیے شدید بارش کا انتباہ"
+        assert stored.body_ur == "شدید بارش متوقع ہے۔"
+        assert stored.instructions_ur == "نشیبی علاقوں سے دور رہیں۔"
 
     async def test_an_unchanged_signal_keeps_the_same_alert(
         self, client: AsyncClient, upstream: Upstream

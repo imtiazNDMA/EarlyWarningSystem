@@ -4,6 +4,26 @@
  */
 
 export interface paths {
+    "/api/air-quality": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * All Air Quality
+         * @description Latest PM2.5 value for every district with stored air-quality data.
+         */
+        get: operations["all_air_quality_api_air_quality_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/alerts": {
         parameters: {
             query?: never;
@@ -79,6 +99,26 @@ export interface paths {
          *     ``district_id`` so the map has no holes.
          */
         get: operations["district_boundaries_api_districts_geojson_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/districts/{district_id}/air-quality": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * District Air Quality
+         * @description Latest PM2.5 forecast for one district.
+         */
+        get: operations["district_air_quality_api_districts__district_id__air_quality_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -175,12 +215,34 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * AirQualityOut
+         * @description Latest daily mean PM2.5 forecast for a district.
+         */
+        AirQualityOut: {
+            /**
+             * Date
+             * Format: date
+             */
+            date: string;
+            /** District Id */
+            district_id: string;
+            /**
+             * Fetched At
+             * Format: date-time
+             */
+            fetched_at: string;
+            /** Pm2 5 Mean Ug M3 */
+            pm2_5_mean_ug_m3: number | null;
+        };
+        /**
          * AlertDetail
          * @description An alert, plus the alert that replaced it if it was superseded.
          */
         AlertDetail: {
-            /** Body */
-            body: string;
+            /** Body En */
+            body_en: string;
+            /** Body Ur */
+            body_ur: string | null;
             /**
              * Certainty
              * @enum {string}
@@ -203,12 +265,16 @@ export interface components {
             generated_by: string;
             /** Hazard */
             hazard: string;
-            /** Headline */
-            headline: string;
+            /** Headline En */
+            headline_en: string;
+            /** Headline Ur */
+            headline_ur: string | null;
             /** Id */
             id: number;
-            /** Instructions */
-            instructions: string;
+            /** Instructions En */
+            instructions_en: string;
+            /** Instructions Ur */
+            instructions_ur: string | null;
             /**
              * Issued At
              * Format: date-time
@@ -248,8 +314,10 @@ export interface components {
          * @description An alert and the district it was issued for.
          */
         AlertOut: {
-            /** Body */
-            body: string;
+            /** Body En */
+            body_en: string;
+            /** Body Ur */
+            body_ur: string | null;
             /**
              * Certainty
              * @enum {string}
@@ -272,12 +340,16 @@ export interface components {
             generated_by: string;
             /** Hazard */
             hazard: string;
-            /** Headline */
-            headline: string;
+            /** Headline En */
+            headline_en: string;
+            /** Headline Ur */
+            headline_ur: string | null;
             /** Id */
             id: number;
-            /** Instructions */
-            instructions: string;
+            /** Instructions En */
+            instructions_en: string;
+            /** Instructions Ur */
+            instructions_ur: string | null;
             /**
              * Issued At
              * Format: date-time
@@ -575,6 +647,26 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    all_air_quality_api_air_quality_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AirQualityOut"][];
+                };
+            };
+        };
+    };
     alerts_api_alerts_get: {
         parameters: {
             query?: {
@@ -700,6 +792,44 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["BoundaryCollection"];
+                };
+            };
+        };
+    };
+    district_air_quality_api_districts__district_id__air_quality_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                district_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AirQualityOut"];
+                };
+            };
+            /** @description No air-quality data */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

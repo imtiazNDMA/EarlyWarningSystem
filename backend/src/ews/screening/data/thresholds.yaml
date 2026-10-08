@@ -37,3 +37,8 @@ hazards:
     metric: snowfall_cm
     unit: cm
     levels: { moderate: 10, severe: 30, extreme: 50 }
+
+  poor_air_quality:
+    metric: pm2_5_mean_ug_m3
+    unit: "μg/m³"
+    levels: { moderate: 55, severe: 150, extreme: 250 }
