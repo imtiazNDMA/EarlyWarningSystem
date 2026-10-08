@@ -94,3 +94,34 @@ Compose reads `.env` at the repository root. Important values are
 `EWS_ADMIN_TOKEN`, `EWS_DB_PORT`, `EWS_API_PORT` and `EWS_WEB_PORT`. Backend settings
 also include `EWS_DATABASE_URL`, `EWS_LOG_LEVEL`, source timeout, forecast horizon,
 freshness window and batch size; see `backend/src/ews/core/settings.py`.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs live as GitHub issues in `imtiazNDMA/EarlyWarningSystem`, managed
+with the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five canonical triage roles, each label string equal to its name. See
+`docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: `CONTEXT.md` and `docs/adr/` at the repository root, created
+lazily when terms or decisions are resolved. See `docs/agents/domain.md`.
+
+### Skill routing
+
+`.claude/skills/` holds 16 skills vendored from mattpocock/skills, pinned and
+adapted to this stack; see `.claude/skills/VENDORED.md`. The upstream plugin is
+disabled in `.claude/settings.json`, so these are the only copies.
+
+**Vendored wins.** Where a vendored skill and another plugin cover the same
+ground, use the vendored one: `tdd` for test-first work, `diagnosing-bugs` for
+anything broken or slow, `code-review` for reviewing changes, `codebase-design`
+for interface and seam decisions, `research` for gathering facts.
+
+Planned work runs `to-spec` → `to-tickets` → `implement` against GitHub issues.
+`grilling` stress-tests a design that already exists.
