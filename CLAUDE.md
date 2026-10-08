@@ -61,6 +61,8 @@ Vite + React + TypeScript single-page app with a MapLibre map; replaces the Flas
 
 ```bash
 docker compose up --build              # full stack; app on http://localhost:5173 (EWS_WEB_PORT)
+start.bat                              # Windows: starts Docker Desktop if needed, brings the stack up, waits until healthy, opens the browser (--no-browser to skip)
+stop.bat                               # Windows: docker compose down; data is kept
 
 cd frontend
 npm install
