@@ -1,128 +1,123 @@
-# NEOC AI-Based Early Warning System
+# Pakistan Early Warning System
 
-A sophisticated, high-performance geospatial analytics dashboard for automated weather forecasting and early warning alerts across Pakistan.
+District-level weather monitoring and lifecycle-managed hazard alerts for Pakistan.
+The platform fetches Open-Meteo forecasts, screens them against configurable
+thresholds, preserves the evidence behind every alert, and presents current and
+historical alerts on an interactive map.
 
-![System Dashboard Interface](UI.png)
+## Stack
 
-## Core Capabilities
+- **API:** FastAPI, SQLAlchemy and Alembic under `backend/`
+- **Database:** PostgreSQL 16
+- **Web:** React 19, TypeScript, Vite and MapLibre under `frontend/`
+- **Operations:** Docker Compose, with Windows helpers at `start.bat`, `stop.bat`
+  and `run-cycle.bat`
 
-* **Geospatial Intelligence**: Interactive map with real-time district-level weather visualization and dynamic heat-map blinking effects.
-* **Local LLM Inference**: AI-powered alert generation using localized Large Language Models (Ollama) for high data privacy and reduced latency.
-* **Multiple Weather Models**: Integration with global weather data providers via Open-Meteo for reliable forecasting.
-* **Bilingual Alerts**: Automatic generation of weather alerts in both **English and Urdu**, featuring native Right-to-Left (RTL) text rendering for Urdu.
-* **Intelligent Analytics**: Automated nowcasting and trend analysis for temperature, precipitation, and extreme weather events.
-* **High-Performance Caching**: **SQLite-based** persistence layer for efficient O(1) data retrieval, replacing legacy file-based I/O.
-* **Professional UI/UX**: State-of-the-art Glassmorphic design with responsive animations and real-time typing effects.
+## Run Locally
 
-## Technology Stack
+Docker Desktop is the only prerequisite for the complete stack.
 
-* **Backend**: Python / Flask (Layered Service-Oriented Architecture)
-* **Database**: SQLite (Asset Caching & Alert Persistence)
-* **Geospacial**: Folium / Leaflet / GeoPandas
-* **Inference**: Local LLM Deployment (Ollama / LangChain)
-* **Frontend**: Vanilla JS (Typed.js, Bootstrap 5, FontAwesome)
-
-## System Architecture
-
-The system follows a modular micro-service pattern within a monolithic Flask application, ensuring separation of concerns and scalability.
-
-```mermaid
-graph TD
-    Client[Web Client] <-->|HTTP/AJAX| App[Flask Verification]
-    
-    subgraph "Core Application"
-        App --> WeatherSvc[Weather Service]
-        App --> AlertSvc[Alert Service]
-        App --> MapSvc[Map Service]
-    end
-    
-    subgraph "Data Persistence"
-        WeatherSvc <-->|Read/Write| DB[("SQLite Database")]
-        AlertSvc <-->|Read/Write| DB
-        MapSvc <-->|Read Only| DB
-    end
-    
-    subgraph "External Services"
-        WeatherSvc <-->|API| OpenMeteo["Weather API"]
-        AlertSvc <-->|Inference| Ollama["Local LLM (Llama3.1)"]
-        MapSvc -->|Tiles| Mapbox["Mapbox API"]
-    end
+```powershell
+copy .env.example .env
+start.bat
 ```
 
-## Workflows
+The dashboard opens at <http://localhost:5173>. The API is available at
+<http://localhost:8000>, including interactive documentation at `/docs`.
 
-### 1. Alert Generation Workflow
+To run a monitoring cycle over every registered district:
 
-1. **User Request**: User selects province and forecast duration.
-2. **Data Fetch**: `WeatherService` fetches raw data from Open-Meteo.
-3. **Caching**: Data is structured and cached in `weather.db` (SQLite).
-4. **Inference**: `AlertService` retrieves cached data and prompts the Local LLM.
-5. **Persistence**: Generated alerts are saved to `weather.db`.
-6. **Response**: Alerts are returned to the user and displayed on the map.
+```powershell
+run-cycle.bat
+```
 
-### 2. Map Visualization Logic
+Stop the services without deleting PostgreSQL data:
 
-* **Pre-Loading**: `MapService` queries `weather.db` for all available district data in minimal time.
-* **Rendering**: Generates Folium map with custom markers.
-* **Alert Indication**: If an alert exists in `weather.db` for a district, the marker popup includes a **Critical Alert** action button.
+```powershell
+stop.bat
+```
 
-## Installation
-
-### Prerequisites
-
-* Python 3.10+
-* [Ollama](https://ollama.ai/) (Running locally with `qwen3-coder:latest` model)
-* Mapbox API Token
-
-### Setup
-
-1. **Clone & Navigate**:
-
-    ```bash
-    git clone <repository-url>
-    cd earlywarnings
-    ```
-
-2. **Environment Configuration**:
-
-    ```bash
-    cp .env.example .env
-    # Edit .env and configure MAPBOX_TOKEN
-    ```
-
-3. **Dependency Installation**:
-
-    ```bash
-    uv sync
-    ```
-
-4. **Database Initialization**:
-    The system automatically creates `weather.db` on the first run.
-
-5. **Launch Application**:
-
-    ```bash
-    python app.py
-    ```
-
-## Configuration Matrix
-
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `MAPBOX_TOKEN` | Required for premium Mapbox tiles | `N/A` |
-| `OLLAMA_BASE_URL` | Endpoint for local model inference | `http://localhost:11434` |
-| `OLLAMA_MODEL` | ID of the local model to be used | `qwen3-coder:latest` |
-| `SECRET_KEY` | Session encryption key | `dev_secret` |
-| `CACHE_TIME` | Data persistence duration (seconds) | `43200` |
-| `API_TIMEOUT` | Timeout for external API calls (seconds) | `120` |
-
-## Quality Assurance
-
-The system maintains a rigorous testing protocol:
+The equivalent cross-platform commands are:
 
 ```bash
-# Execute local test suite
-uv run pytest tests/ -v
+docker compose up --build
+docker compose exec api python -m ews.cycles.service
+docker compose down
+```
+
+## Configuration
+
+All settings are optional for local development.
+
+| Variable | Purpose | Default |
+| --- | --- | --- |
+| `EWS_ADMIN_TOKEN` | Enables `POST /api/runs`; sent as `X-Admin-Token` | unset |
+| `EWS_DB_PORT` | PostgreSQL host port | `5434` |
+| `EWS_API_PORT` | API host port | `8000` |
+| `EWS_WEB_PORT` | Dashboard host port | `5173` |
+| `EWS_LOG_LEVEL` | API logging level | `INFO` |
+| `EWS_FORECAST_DAYS` | Forecast horizon | `7` |
+| `EWS_FORECAST_MAX_AGE_SECONDS` | Stored-forecast freshness window | `10800` |
+| `EWS_FORECAST_BATCH_SIZE` | Districts fetched per Open-Meteo request | `50` |
+
+Backend-only settings such as `EWS_DATABASE_URL` use development defaults and can
+be overridden when running the API outside Docker.
+
+## Development
+
+### Backend
+
+Python 3.12 and [uv](https://docs.astral.sh/uv/) are required.
+
+```bash
+docker compose up -d db
+cd backend
+uv sync
+uv run alembic upgrade head
+uv run pytest
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy
+uv run uvicorn ews.api.app:app --reload
+```
+
+### Frontend
+
+Node.js 24 is used in CI.
+
+```bash
+cd frontend
+npm ci
+npm test
+npm run lint
+npm run typecheck
+npm run build
+npm run dev
+```
+
+When an API schema changes, regenerate both committed schemas:
+
+```bash
+cd backend
+uv run python -m ews.api.openapi
+cd ../frontend
+npm run generate:api
+```
+
+## Architecture
+
+Monitoring cycles fetch and persist source snapshots before screening daily values
+against `backend/src/ews/screening/data/thresholds.yaml`. Signals issue, supersede,
+cancel or expire append-only alert records. Every alert retains the source snapshot
+and forecast values that justified it. The React client uses the generated OpenAPI
+types to display forecasts, active alerts, evidence and alert history.
+
+Source registry inputs live in `backend/data/source/`. Generated registry assets in
+`backend/src/ews/districts/data/` must be rebuilt with:
+
+```bash
+cd backend
+uv run python -m ews.districts.build
 ```
 
 ## License

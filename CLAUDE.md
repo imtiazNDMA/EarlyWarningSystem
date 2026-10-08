@@ -1,165 +1,96 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for working in this repository.
 
-## Overview
+## System Layout
 
-Flask dashboard for district-level weather forecasting and bilingual (English/Urdu) early-warning alerts across Pakistan (NDMA/NEOC). Weather comes from Open-Meteo, alerts are written by a local LLM through Ollama, and everything is cached in SQLite and rendered onto a server-side Folium map.
+The application has one active stack:
+
+- `backend/`: Python 3.12 FastAPI API, SQLAlchemy models, Alembic migrations and tests.
+- `frontend/`: React 19, TypeScript, Vite, TanStack Query and MapLibre.
+- `docker-compose.yml`: PostgreSQL, API and nginx-served frontend.
+- `ai.md`: long-term product and architecture plan.
+
+There is no root Python application. Run Python tooling from `backend/` and Node
+tooling from `frontend/`.
 
 ## Commands
 
-The project is managed with **uv** (`pyproject.toml` + `uv.lock`); there is no `requirements.txt`. Python must be >=3.10,<3.13 (`.python-version` pins 3.12).
+Full stack from the repository root:
 
 ```bash
-uv sync                                # install runtime + dev dependencies
-uv run python app.py                   # dev server on http://localhost:5001
-
-uv run pytest tests/ -v                # all tests
-uv run pytest tests/test_endpoints.py::TestFlaskEndpoints::test_index_get -v   # single test
-uv run pytest tests/ -v --cov=. --cov-report=term                              # as CI runs it
-
-uv run ruff check .                    # lint (CI gate)
-uv run ruff format --check .           # format check (CI gate); drop --check to apply
+docker compose up --build
+docker compose down
+docker compose exec api python -m ews.cycles.service
 ```
 
-- `config.py` calls `Config.validate()` at import time and raises if `MAPBOX_TOKEN` is unset. Anything that imports `app`, `config`, or a service — including the tests — needs a `.env` (copy `.env.example`) or `MAPBOX_TOKEN` in the environment. A dummy value is enough for tests.
-- Run everything from the repo root: `weather.db`, `app.log`, and `static/boundary/district.geojson` are opened by relative path.
-- Most tests are not isolated from the database: they import the real `app`, which calls `database.init_db()` and reads/writes `weather.db` in the working directory. `tests/test_alert_generation.py` shows the isolated pattern (temporary `DB_FILE`). Patch service methods on the class, not on the singletons in `extensions.py`.
-- Linting is ruff only (line length 88, rule set in `pyproject.toml`, including bandit `S` rules and McCabe complexity 10). The flake8/black/bandit commands and the 100-char limit in `AGENTS.md` are outdated.
-- `app.py` is the entry point. The dev server binds to `HOST` (default `127.0.0.1`); set `HOST=0.0.0.0` to expose it on the network.
+Windows helpers provide the same flows: `start.bat`, `stop.bat`, `run-cycle.bat`.
 
-## New backend (`backend/`)
-
-The Flask app is being replaced by a FastAPI service and a React frontend, built alongside it in `backend/` and `frontend/` until it reaches parity (plan in `ai.md`, tickets on GitHub). It is a separate uv project with its own `pyproject.toml`, lockfile and virtualenv; run its commands from `backend/`.
+Backend:
 
 ```bash
-docker compose up -d db                # Postgres 16 on host port 5434 (override with EWS_DB_PORT)
-docker compose up --build              # database + API on http://localhost:8000 (EWS_API_PORT)
-
 cd backend
 uv sync
-uv run pytest                          # needs the db container running
-uv run pytest tests/test_health.py::TestHealth::test_reports_healthy_when_database_is_reachable
-uv run ruff check . && uv run ruff format --check .
-uv run mypy                            # strict
-uv export --frozen --no-dev --no-emit-project -o requirements-audit.txt && uvx pip-audit -r requirements-audit.txt --disable-pip --require-hashes   # dependency audit (CI gate)
-uv run alembic upgrade head            # apply migrations to EWS_DATABASE_URL
-uv run alembic revision -m "message"   # new migration
+uv run pytest
+uv run pytest tests/test_alerts_api.py::TestListAlerts::test_lists_newest_first
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy
+uv run alembic upgrade head
+uv run python -m ews.api.openapi
 ```
 
-- Settings are `EWS_`-prefixed environment variables read by `ews.core.settings.Settings`; every field has a development default, so nothing fails at import.
-- `ews.api.app.create_app(settings)` is the application factory. The engine is created in the lifespan, so tests that do not start the app must override `ews.api.dependencies.get_session`.
-- Tests create a uniquely named database per run, apply the migrations, and drop it afterwards. The `db_session` fixture wraps each test in a transaction that is rolled back, and the `client` fixture routes requests through that same session, so committed data never leaks between tests. Point `EWS_TEST_ADMIN_DATABASE_URL` at another server if needed.
-- The container applies migrations and loads the district registry before starting uvicorn.
-- **Sources and snapshots.** Each external data source has a client in `ews/sources/` that returns typed records and raises `SourceError` (logged with context) on any failure; nothing is swallowed. Every fetch is stored unmodified as a `source_snapshots` row (district, source, fetch time, JSONB payload) and parsed again on read, so snapshots can serve as evidence for alerts later. Tests replace the network with `httpx.MockTransport` and recorded responses in `tests/fixtures/`; no test may reach a real source.
-- **Forecasts.** `GET /api/districts/{id}/forecast` serves the latest snapshot, refetching one district when it is older than `EWS_FORECAST_MAX_AGE_SECONDS` (default 3 hours). If the source is down it serves the old snapshot with `stale: true`, or 502 when nothing is stored. `uv run python -m ews.forecasts.service` fetches every district in batches of `EWS_FORECAST_BATCH_SIZE` coordinates per request. Open-Meteo returns a list for several coordinates but a bare object for one.
-- **Monitoring cycles.** `ews.cycles.service.run_cycle` records a `runs` row, fetches a forecast for every district, screens each one and stores `hazard_signals` linked to the run and to the snapshot they were screened from. If a source fails, everything fetched in that run is rolled back and the run is marked failed, so the previous successful run stays current. `GET /api/signals` returns the latest successful run and its signals. `POST /api/runs` runs a cycle synchronously and needs the `X-Admin-Token` header to match `EWS_ADMIN_TOKEN`; while that is unset the endpoint answers 503. `docker compose exec api python -m ews.cycles.service` runs a cycle with no token.
-- **Screening.** `ews/screening/rules.py` is pure logic: a level is reached when a daily value is at or above its threshold, and each hazard yields at most one signal per district at the highest level reached. Thresholds live in `ews/screening/data/thresholds.yaml` (national levels plus optional per-province replacements) and are validated on load. The shipped values are provisional (GitHub issue #20).
-- **District registry.** `backend/data/source/` holds the inputs: the coordinate table, the boundary GeoJSON, and `boundary_overrides.json` for districts the two files spell differently. `uv run python -m ews.districts.build` regenerates the packaged registry and boundary file (`src/ews/districts/data/`) and `data/district_mismatch_report.md`; never edit those three by hand, and a test fails if they are stale. A district is attached to a polygon only by exact name or an explicit override. `python -m ews.districts.registry` upserts the registry into the database. District `id` is a slug of the name and is the stable key everything else should use.
-
-## Frontend (`frontend/`)
-
-Vite + React + TypeScript single-page app with a MapLibre map; replaces the Flask template.
+Frontend:
 
 ```bash
-docker compose up --build              # full stack; app on http://localhost:5173 (EWS_WEB_PORT)
-start.bat                              # Windows: starts Docker Desktop if needed, brings the stack up, waits until healthy, opens the browser (--no-browser to skip)
-stop.bat                               # Windows: docker compose down; data is kept
-run-cycle.bat                          # Windows: run one monitoring cycle in the api container
-
 cd frontend
-npm install
-npm run dev                            # dev server on :5173, proxies /api to localhost:8000 (VITE_API_PROXY_TARGET)
-npm test                               # vitest; single file: npx vitest run src/lib/coordinates.test.ts
-npm run lint && npm run typecheck
+npm ci
+npm test
+npm run lint
+npm run typecheck
 npm run build
-npm run generate:api                   # regenerate src/api/schema.d.ts from backend/openapi.json
+npm run generate:api
 ```
 
-- **API types are generated, never hand-written.** After changing a backend endpoint: `uv run python -m ews.api.openapi` in `backend/` (rewrites `backend/openapi.json`), then `npm run generate:api`. A backend test and a CI step fail if either file is stale. `src/api/client.ts` exports the typed client and type aliases.
-- The app always calls the API on its own origin (`/api/...`): Vite proxies in development and nginx proxies in the container, so there is no CORS configuration.
-- MapLibre 6 needs its worker URL set explicitly under a bundler; `src/lib/maplibreWorker.ts` does this and must be imported before a map is created.
-- District layers are inserted beneath the base map's first label layer. Hover and selection use MapLibre feature state keyed by `feature_id`.
-- Styling is Tailwind 4 with the palette and fonts defined as theme tokens in `src/index.css`. Yellow, orange, red and purple are reserved for alert severity; do not use them for interface chrome. `.plate`, `.type-display` and `.type-label` are the shared building blocks.
-- TypeScript is pinned to 5.9 because `openapi-typescript` does not support 6 yet.
-- Charts are hand-written SVG in `src/features/forecast/ForecastView.tsx`: two aligned single-measure charts rather than one dual-axis chart, a readout that follows the hovered day, and a table view of the same values. Chart colours are one hue per chart and stay clear of the reserved severity hues.
-- Hazard levels reach the map as MapLibre feature state (`level`), set from `GET /api/signals`. A level always decides the fill colour; selection is shown by the outline. Severity colours live in `src/features/signals/signals.ts` and always appear beside the level name, never alone.
-- The map itself is not unit-tested (jsdom has no WebGL); test pure helpers and components, and check map behaviour in a browser.
+## Backend Conventions
 
-The sections below describe the legacy Flask app.
+- Settings are `EWS_`-prefixed and defined in `ews.core.settings.Settings`. Defaults
+  support local development; `EWS_ADMIN_TOKEN` enables HTTP cycle triggering.
+- `ews.api.app.create_app(settings)` is the application factory. Engines are created
+  in lifespan context; tests override the session dependency.
+- Tests create an isolated PostgreSQL database, apply every migration and roll back
+  each test. They never contact live external services.
+- Source clients return typed records and raise `SourceError`. Raw payloads are saved
+  as `source_snapshots` before use so alerts can cite immutable evidence.
+- Monitoring cycles are transactional. Failed source ingestion rolls back snapshots,
+  signals and alert lifecycle changes while preserving the failed run record.
+- Screening and lifecycle decisions are pure logic. Thresholds are loaded from
+  `ews/screening/data/thresholds.yaml`.
+- Alerts are append-only. Lifecycle changes end old records and create replacements;
+  historical records are never overwritten or deleted.
+- District source inputs live in `backend/data/source/`. Run
+  `uv run python -m ews.districts.build` after changing them; generated registry files
+  and the mismatch report must remain current.
+- After changing API routes or schemas, run `uv run python -m ews.api.openapi`, then
+  `npm run generate:api` in `frontend/`. CI checks both committed outputs.
 
-## Architecture
+## Frontend Conventions
 
-### Wiring
-
-`app.py` configures logging and CORS, calls `database.init_db()`, and registers two blueprints:
-
-- `routes/main_routes.py` — pages and map HTML (`/`, `/refresh_map/<days>`, `/get_districts/<province>`)
-- `routes/api_routes.py` — JSON API (forecast, alerts, generation, `/purge_cache`, `/health`)
-
-Routes do not construct services. `extensions.py` holds the module-level singletons (`weather_service`, `alert_service`, `map_service`) and routes import them from there. `services/database.py` is a module of plain functions rather than a class; services and `utils/formatting.py` call it directly.
-
-`models.py` contains `PROVINCES` (province -> district -> `(lat, lon)`), the source of truth for which provinces and districts exist. District keys are mostly upper-case with their own spellings (`"MUZAFARGARH"`, `"Shaheed BENAZIRABAD"`), and they are used verbatim as database keys, LLM prompt labels, and API path segments. `utils/validation.py` keeps a separate hard-coded `ALLOWED_PROVINCES` set that has to be updated alongside `PROVINCES`.
-
-### Generation flow
-
-The dashboard's generate button posts to `/generate_forecast_and_alerts`, which runs synchronously:
-
-1. `WeatherService.get_bulk_weather_data(..., cache_time=0)` fetches Open-Meteo daily data per district in a thread pool and stores the raw JSON response.
-2. `utils.formatting.create_weather_dataframe` turns each district's `daily` block into a DataFrame with display column names (`"Max Temp (°C)"`, `"Weather Code"`, ...). `AlertService.generate_alert` reads these column names when building the prompt.
-3. `AlertService.generate_alert` makes **one** LLM call per province covering all requested districts and asks for a JSON object keyed by exact district name plus a `"Region's Summary"` key, each mapping to `{"english": ..., "urdu": ...}`.
-4. `parse_district_alerts` strips code fences and extracts the JSON; `save_district_alerts` stores each entry as a JSON string in the `alerts` table (`"Region's Summary"` is saved as if it were a district).
-
-`/generate_alerts` does the same work in a daemon thread via `utils/background.py` and returns a `task_id`, but no endpoint exposes task status or results.
-
-Alert readers (`AlertService.get_alert`, `/get_all_alerts`, the map popups) accept both the JSON form and legacy plain-text alerts, wrapping plain text as `{"english": text, "urdu": ""}`. Keep `ensure_ascii=False` when serialising alerts so Urdu is stored readably.
-
-### Caching (`weather.db`)
-
-Two tables, both with an `expires_at` set to now + `CACHE_TIME` on write, and all reads filter on it:
-
-- `alerts`, primary key `(province, district, forecast_days)`.
-- `weather_cache`, keyed by a string `cache_key`, holding two different payload shapes:
-  - `weather_{days}_{province}_{sanitize_filename(district)}` — raw Open-Meteo JSON. `WeatherService` writes this key and `MapService` rebuilds the same string to read it, so the format must change in both places together.
-  - `forecast_{province}_{district}_{days}`, `alerts_{province}_{days}_{district}`, `combined_{province}_{days}_{district}` — DataFrames serialised as JSON records by `create_weather_dataframe`.
-
-`get_bulk_weather_data` additionally compares the row's age against its `cache_time` argument; the generation endpoints pass `cache_time=0` to force a refetch. `/get_forecast` only reads the cache and never fetches.
-
-`database.purge_cache_db` deletes alerts and the `forecast_`/`alerts_` DataFrame keys. It does not delete raw `weather_` or `combined_` entries.
-
-Most functions in `services/database.py` catch every exception and return `None`, `0`, or `{}`. A database failure therefore looks like a cache miss to callers; check `app.log` when data seems to be missing.
-
-### Map rendering
-
-`MapService.create_map` builds the whole Folium map server-side and returns HTML. `/` embeds it in `templates/index.html`, and `/refresh_map` returns a fresh copy as JSON for the frontend to swap in. Each call loads weather and alerts for every district with two batch queries (`get_raw_weather_cache_batch`, `get_alerts_batch`).
-
-District polygons come from `static/boundary/district.geojson`, whose names differ from `models.py` (`Dera_Ghazi_Khan` vs `DERA GHAZI KHAN`). `MapService._district_aliases` maps between them; a district added or renamed in `PROVINCES` needs an alias entry if its GeoJSON name is not an exact match. The path constants in `constants.py` are not used — the only thing imported from `constants.py` is `WEATHER_CODE_DESCRIPTIONS`.
-
-### Frontend
-
-`templates/index.html` is the single live template, with its JavaScript inline. It calls `/get_districts`, `/refresh_map`, `/get_forecast`, `/get_alert`, `/get_all_alerts`, `/generate_forecast_and_alerts`, and `/purge_cache`.
+- API types are generated in `src/api/schema.d.ts`; do not hand-write API payload
+  interfaces. Export convenient aliases from `src/api/client.ts`.
+- The browser always calls `/api`; Vite and nginx proxy requests to the backend.
+- MapLibre district hover, selection and active-alert severity use feature state keyed
+  by `feature_id`. Layers sit below base-map labels.
+- Tailwind 4 theme tokens and shared typography/panel classes live in `src/index.css`.
+  Yellow, orange and red are reserved for alert severity.
+- MapLibre is not unit-tested under jsdom. Test pure helpers and components, then run
+  a browser smoke test for map behavior.
+- Forecast charts are hand-written SVG and retain a table representation of the same
+  values for accessibility.
 
 ## Configuration
 
-Loaded from `.env` by `config.py`: `MAPBOX_TOKEN` (required), `OLLAMA_BASE_URL` (default `http://localhost:11434`), `OLLAMA_MODEL` (code default `llama3.1`; the README mentions `qwen3-coder:latest`), `SECRET_KEY`, `CACHE_TIME` (seconds, default 43200), `API_TIMEOUT` (default 120), `BASE_URL` (Open-Meteo), `TIMEZONE` (default `Asia/Karachi`), `HOST` (dev server bind address, default `127.0.0.1`), `CORS_ORIGINS` (comma-separated, default `*`), `MAX_DISTRICTS_PER_REQUEST` (default 100), `LOG_LEVEL`, `LOG_FILE`.
-
-## Conventions
-
-- Type hints on function parameters and return values; docstrings describing purpose, args, and returns.
-- Tests use pytest with class-based organisation and mock external services (Open-Meteo, Ollama).
-- API responses go through `jsonify()`; request input is checked with the helpers in `utils/validation.py` before use.
-- Settings are read through `Config`, not `os.getenv` at call sites.
-
-## Agent skills
-
-### Issue tracker
-
-Issues are tracked as GitHub issues in `imtiazNDMA/EarlyWarningSystem`, via the `gh` CLI. See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-The five default triage labels are used unchanged (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`). See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Single-context: one `CONTEXT.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
+Compose reads `.env` at the repository root. Important values are
+`EWS_ADMIN_TOKEN`, `EWS_DB_PORT`, `EWS_API_PORT` and `EWS_WEB_PORT`. Backend settings
+also include `EWS_DATABASE_URL`, `EWS_LOG_LEVEL`, source timeout, forecast horizon,
+freshness window and batch size; see `backend/src/ews/core/settings.py`.
