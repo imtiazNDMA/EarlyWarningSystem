@@ -1,0 +1,75 @@
+@import 'tailwindcss';
+@import 'maplibre-gl/dist/maplibre-gl.css';
+
+/*
+  Chart palette. Yellow, orange, red and purple are left unused on purpose:
+  they are reserved for alert severity.
+*/
+@theme {
+  --color-ink: #14303f;
+  --color-panel: #f5f8f7;
+  --color-line: #5e7f8e;
+  --color-wash: #dce6df;
+  --color-signal: #0e6f77;
+
+  --font-sans: 'Archivo Variable', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+}
+
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    color: var(--color-ink);
+    background: var(--color-wash);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-signal);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  /* Archivo's width axis: wide for names, condensed capitals for labels */
+  .type-display {
+    font-stretch: 118%;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+  }
+
+  .type-label {
+    font-stretch: 72%;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+  }
+
+  /* A panel that sits over the map, like the legend plate on a chart */
+  .plate {
+    background: color-mix(in srgb, var(--color-panel) 96%, transparent);
+    border: 1px solid color-mix(in srgb, var(--color-line) 45%, transparent);
+    border-radius: 0.125rem;
+    box-shadow: 0 1px 2px rgb(20 48 63 / 0.12);
+    padding: 0.875rem 1rem;
+  }
+}
+
+/* On phones the detail panel takes the bottom edge; pinch to zoom instead */
+@media (width < 48rem) {
+  .maplibregl-ctrl-bottom-right .maplibregl-ctrl-group {
+    display: none;
+  }
+}
+
+/* Match the map's own controls to the chart palette */
+.maplibregl-ctrl-group {
+  border-radius: 0.125rem;
+  box-shadow: 0 1px 2px rgb(20 48 63 / 0.2);
+}

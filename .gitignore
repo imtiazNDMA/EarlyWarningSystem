@@ -52,6 +52,9 @@ requirements-audit.txt
 *.tmp
 *.temp
 
+# Browser automation output
+.playwright-mcp/
+
 # IDE
 .vscode/
 .idea/
@@ -101,3 +104,5 @@ CLAUDE.md
 # ruff lint output
 ruff_*.txt
 ruff_*.json
+# The Python rule for lib/ above must not hide frontend source
+!frontend/src/lib/

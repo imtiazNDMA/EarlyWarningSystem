@@ -30,7 +30,7 @@ uv run ruff format --check .           # format check (CI gate); drop --check to
 
 ## New backend (`backend/`)
 
-The Flask app is being replaced by a FastAPI service, built alongside it in `backend/` until it reaches parity (plan in `ai.md`, tickets on GitHub). It is a separate uv project with its own `pyproject.toml`, lockfile and virtualenv; run its commands from `backend/`.
+The Flask app is being replaced by a FastAPI service and a React frontend, built alongside it in `backend/` and `frontend/` until it reaches parity (plan in `ai.md`, tickets on GitHub). It is a separate uv project with its own `pyproject.toml`, lockfile and virtualenv; run its commands from `backend/`.
 
 ```bash
 docker compose up -d db                # Postgres 16 on host port 5434 (override with EWS_DB_PORT)
@@ -52,6 +52,30 @@ uv run alembic revision -m "message"   # new migration
 - Tests create a uniquely named database per run, apply the migrations, and drop it afterwards. The `db_session` fixture wraps each test in a transaction that is rolled back, and the `client` fixture routes requests through that same session, so committed data never leaks between tests. Point `EWS_TEST_ADMIN_DATABASE_URL` at another server if needed.
 - The container applies migrations and loads the district registry before starting uvicorn.
 - **District registry.** `backend/data/source/` holds the inputs: the coordinate table, the boundary GeoJSON, and `boundary_overrides.json` for districts the two files spell differently. `uv run python -m ews.districts.build` regenerates the packaged registry and boundary file (`src/ews/districts/data/`) and `data/district_mismatch_report.md`; never edit those three by hand, and a test fails if they are stale. A district is attached to a polygon only by exact name or an explicit override. `python -m ews.districts.registry` upserts the registry into the database. District `id` is a slug of the name and is the stable key everything else should use.
+
+## Frontend (`frontend/`)
+
+Vite + React + TypeScript single-page app with a MapLibre map; replaces the Flask template.
+
+```bash
+docker compose up --build              # full stack; app on http://localhost:5173 (EWS_WEB_PORT)
+
+cd frontend
+npm install
+npm run dev                            # dev server on :5173, proxies /api to localhost:8000 (VITE_API_PROXY_TARGET)
+npm test                               # vitest; single file: npx vitest run src/lib/coordinates.test.ts
+npm run lint && npm run typecheck
+npm run build
+npm run generate:api                   # regenerate src/api/schema.d.ts from backend/openapi.json
+```
+
+- **API types are generated, never hand-written.** After changing a backend endpoint: `uv run python -m ews.api.openapi` in `backend/` (rewrites `backend/openapi.json`), then `npm run generate:api`. A backend test and a CI step fail if either file is stale. `src/api/client.ts` exports the typed client and type aliases.
+- The app always calls the API on its own origin (`/api/...`): Vite proxies in development and nginx proxies in the container, so there is no CORS configuration.
+- MapLibre 6 needs its worker URL set explicitly under a bundler; `src/lib/maplibreWorker.ts` does this and must be imported before a map is created.
+- District layers are inserted beneath the base map's first label layer. Hover and selection use MapLibre feature state keyed by `feature_id`.
+- Styling is Tailwind 4 with the palette and fonts defined as theme tokens in `src/index.css`. Yellow, orange, red and purple are reserved for alert severity; do not use them for interface chrome. `.plate`, `.type-display` and `.type-label` are the shared building blocks.
+- TypeScript is pinned to 5.9 because `openapi-typescript` does not support 6 yet.
+- The map itself is not unit-tested (jsdom has no WebGL); test pure helpers and components, and check map behaviour in a browser.
 
 The sections below describe the legacy Flask app.
 

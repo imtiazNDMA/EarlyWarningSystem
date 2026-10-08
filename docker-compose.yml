@@ -25,5 +25,12 @@ services:
       db:
         condition: service_healthy
 
+  web:
+    build: ./frontend
+    ports:
+      - "${EWS_WEB_PORT:-5173}:80"
+    depends_on:
+      - api
+
 volumes:
   ews-db:

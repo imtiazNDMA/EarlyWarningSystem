@@ -1,6 +1,6 @@
 """District registry and boundary endpoints."""
 
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict
@@ -48,8 +48,32 @@ async def list_districts(
     return [DistrictOut.model_validate(district) for district in districts]
 
 
+class BoundaryProperties(BaseModel):
+    """Properties of one boundary polygon."""
+
+    feature_id: str
+    district_id: str | None
+    name_en: str
+    province: str
+
+
+class BoundaryFeature(BaseModel):
+    """A GeoJSON feature for one boundary polygon."""
+
+    type: Literal["Feature"] = "Feature"
+    properties: BoundaryProperties
+    geometry: dict[str, Any]
+
+
+class BoundaryCollection(BaseModel):
+    """A GeoJSON FeatureCollection of boundary polygons."""
+
+    type: Literal["FeatureCollection"] = "FeatureCollection"
+    features: list[BoundaryFeature]
+
+
 @router.get("/geojson")
-async def district_boundaries(session: SessionDep) -> dict[str, Any]:
+async def district_boundaries(session: SessionDep) -> BoundaryCollection:
     """Boundary polygons as GeoJSON, each tagged with the district it belongs to.
 
     Polygons with no district in the registry are included with a null
@@ -63,19 +87,16 @@ async def district_boundaries(session: SessionDep) -> dict[str, Any]:
         source = feature["properties"]
         district = by_feature.get(source["feature_id"])
         features.append(
-            {
-                "type": "Feature",
-                "properties": {
-                    "feature_id": source["feature_id"],
-                    "district_id": district.id if district else None,
-                    "name_en": district.name_en
-                    if district
-                    else source["boundary_name"],
-                    "province": district.province
-                    if district
-                    else source["boundary_province"],
-                },
-                "geometry": feature["geometry"],
-            }
+            BoundaryFeature(
+                properties=BoundaryProperties(
+                    feature_id=source["feature_id"],
+                    district_id=district.id if district else None,
+                    name_en=district.name_en if district else source["boundary_name"],
+                    province=(
+                        district.province if district else source["boundary_province"]
+                    ),
+                ),
+                geometry=feature["geometry"],
+            )
         )
-    return {"type": "FeatureCollection", "features": features}
+    return BoundaryCollection(features=features)
