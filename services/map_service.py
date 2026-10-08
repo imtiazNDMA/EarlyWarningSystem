@@ -101,7 +101,8 @@ class MapService:
                 return None
         return self._boundary_gdf
 
-    def create_map(
+    # Legacy function, replaced by the FastAPI migration rather than refactored
+    def create_map(  # noqa: C901
         self,
         locations: dict[str, tuple[float, float]],
         forecast_days: int = 1,
@@ -222,18 +223,18 @@ class MapService:
         <script>
         document.addEventListener('DOMContentLoaded', function() {
             var map = %s;
-            
+
             // Set initial blinking state
             if (%s) {
                 document.body.classList.add('blinking-on');
             }
-            
+
             map.on('baselayerchange', function(e) {
                 if (window.parent && window.parent.updateActiveBasemap) {
                     window.parent.updateActiveBasemap(e.name);
                 }
             });
-            
+
             // Global function for parent to toggle blinking
             window.toggleBlinking = function(active) {
                 if (active) {
@@ -263,7 +264,9 @@ class MapService:
                 districts_gpd = self._get_boundary_gdf()
                 if districts_gpd is not None:
                     for centroid, (_, row) in zip(
-                        districts_gpd.geometry.centroid, districts_gpd.iterrows()
+                        districts_gpd.geometry.centroid,
+                        districts_gpd.iterrows(),
+                        strict=True,
                     ):
                         geojson_district = row.get("District") or row.get(
                             "DISTRICT", ""
@@ -347,7 +350,7 @@ class MapService:
                                 }
                             )
                         forecast_data_cache[district] = forecast_days_data
-                    except:
+                    except Exception:
                         forecast_data_cache[district] = None
                 else:
                     forecast_data_cache[district] = None
@@ -415,7 +418,6 @@ class MapService:
                 popup_html = self._build_popup_html(
                     model_district,
                     province.replace("_", " "),
-                    forecast_days,
                     forecast_data_cache.get(model_district),
                     alert_data_cache.get(model_district),
                     current_weather_cache.get(model_district),
@@ -434,7 +436,7 @@ class MapService:
                 popup=folium.GeoJsonPopup(
                     fields=["nowcast_html"], labels=False, max_width=450
                 ),
-                highlight_function=lambda feature: {
+                highlight_function=lambda _feature: {
                     "fillColor": "orange",
                     "color": "red",
                     "weight": 2,
@@ -459,7 +461,7 @@ class MapService:
                                 var element = layer._path || (layer.getElement ? layer.getElement() : null);
                                 if (element) {
                                     element.classList.add('blinking-district');
-                                    element.style.animationDelay = (Math.random() * -4).toFixed(2) + 's'; 
+                                    element.style.animationDelay = (Math.random() * -4).toFixed(2) + 's';
                                     element.style.animationDuration = (3 + Math.random() * 2).toFixed(2) + 's';
                                 }
                             }
@@ -567,7 +569,6 @@ class MapService:
         self,
         district: str,
         province: str,
-        forecast_days: int,
         forecast_data: list,
         alert_data: str,
         current_weather: dict = None,
@@ -579,7 +580,7 @@ class MapService:
                 <b style="font-size: 1.2em; color: #333;">{district}</b>
                 <span style="font-size: 0.8em; color: #666; background: #f0f0f0; padding: 2px 6px; border-radius: 10px;">{province}</span>
             </div>
-            
+
             <div style="background: linear-gradient(135deg, #183B4E 0%, #224d64 100%); color: white; padding: 16px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.4); border: 1px solid rgba(255, 255, 255, 0.15);">
                 <div style="font-size: 0.9em; font-weight: bold; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1.2px; color: #b7e806;">Nowcasting</div>
         """

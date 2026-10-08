@@ -40,7 +40,7 @@ class TestAlertService:
         {
             "Islamabad": {
                 "english": "Expect sunny weather with highs of 25°C.",
-                "urdu": "اسلام آباد: دھوپ نکلے گی اور درجہ حرارت 25 ڈگری سینٹی گریڈ تک جائے گا۔"
+                "urdu": "اسلام آباد: دھوپ نکلے گی اور درجہ حرارت 25 ڈگری تک جائے گا۔"
             },
             "Rawalpindi": {
                 "english": "Partly cloudy with chance of light rain.",

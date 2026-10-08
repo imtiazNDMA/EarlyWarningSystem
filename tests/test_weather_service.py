@@ -2,7 +2,6 @@
 Tests for weather_service.py
 """
 
-import os
 from datetime import datetime
 from unittest.mock import patch
 
@@ -15,11 +14,6 @@ class TestWeatherService:
     def setup_method(self):
         """Set up test fixtures"""
         self.service = WeatherService()
-        # Clean up any test files (legacy check, can remove if confirmed no usage)
-        if os.path.exists("static/weatherdata"):
-            for f in os.listdir("static/weatherdata"):
-                if f.startswith("test_"):
-                    os.remove(f"static/weatherdata/{f}")
 
     def teardown_method(self):
         """Clean up after tests"""

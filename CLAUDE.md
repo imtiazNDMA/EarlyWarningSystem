@@ -25,9 +25,9 @@ uv run safety check                    # dependency audit (CI gate)
 
 - `config.py` calls `Config.validate()` at import time and raises if `MAPBOX_TOKEN` is unset. Anything that imports `app`, `config`, or a service — including the tests — needs a `.env` (copy `.env.example`) or `MAPBOX_TOKEN` in the environment. A dummy value is enough for tests.
 - Run everything from the repo root: `weather.db`, `app.log`, and `static/boundary/district.geojson` are opened by relative path.
-- Tests are not isolated from the database: they import the real `app`, which calls `database.init_db()` and reads/writes `weather.db` in the working directory.
+- Most tests are not isolated from the database: they import the real `app`, which calls `database.init_db()` and reads/writes `weather.db` in the working directory. `tests/test_alert_generation.py` shows the isolated pattern (temporary `DB_FILE`). Patch service methods on the class, not on the singletons in `extensions.py`.
 - Linting is ruff only (line length 88, rule set in `pyproject.toml`, including bandit `S` rules and McCabe complexity 10). The flake8/black/bandit commands and the 100-char limit in `AGENTS.md` are outdated.
-- `main.py` is an unused uv scaffold; `app.py` is the entry point.
+- `app.py` is the entry point. The dev server binds to `HOST` (default `127.0.0.1`); set `HOST=0.0.0.0` to expose it on the network.
 
 ## Architecture
 
@@ -78,16 +78,16 @@ District polygons come from `static/boundary/district.geojson`, whose names diff
 
 ### Frontend
 
-`templates/index.html` is the single live template, with its JavaScript inline (`index copy.html` and `index.backup.html` are leftovers). It calls `/get_districts`, `/refresh_map`, `/get_forecast`, `/get_alert`, `/get_all_alerts`, `/generate_forecast_and_alerts`, and `/purge_cache`.
+`templates/index.html` is the single live template, with its JavaScript inline. It calls `/get_districts`, `/refresh_map`, `/get_forecast`, `/get_alert`, `/get_all_alerts`, `/generate_forecast_and_alerts`, and `/purge_cache`.
 
 ## Configuration
 
-Loaded from `.env` by `config.py`: `MAPBOX_TOKEN` (required), `OLLAMA_BASE_URL` (default `http://localhost:11434`), `OLLAMA_MODEL` (code default `llama3.1`; the README mentions `qwen3-coder:latest`), `SECRET_KEY`, `CACHE_TIME` (seconds, default 43200), `API_TIMEOUT` (default 120), `BASE_URL` (Open-Meteo), `TIMEZONE` (default `Asia/Karachi`), `CORS_ORIGINS` (comma-separated, default `*`), `MAX_DISTRICTS_PER_REQUEST` (default 100), `LOG_LEVEL`, `LOG_FILE`.
+Loaded from `.env` by `config.py`: `MAPBOX_TOKEN` (required), `OLLAMA_BASE_URL` (default `http://localhost:11434`), `OLLAMA_MODEL` (code default `llama3.1`; the README mentions `qwen3-coder:latest`), `SECRET_KEY`, `CACHE_TIME` (seconds, default 43200), `API_TIMEOUT` (default 120), `BASE_URL` (Open-Meteo), `TIMEZONE` (default `Asia/Karachi`), `HOST` (dev server bind address, default `127.0.0.1`), `CORS_ORIGINS` (comma-separated, default `*`), `MAX_DISTRICTS_PER_REQUEST` (default 100), `LOG_LEVEL`, `LOG_FILE`.
 
 ## Conventions
 
 - Type hints on function parameters and return values; docstrings describing purpose, args, and returns.
-- Tests use pytest with class-based organisation and mock external services (Open-Meteo, Ollama). `tests/verify_integration.py` is a standalone script with stale imports, not part of the suite.
+- Tests use pytest with class-based organisation and mock external services (Open-Meteo, Ollama).
 - API responses go through `jsonify()`; request input is checked with the helpers in `utils/validation.py` before use.
 - Settings are read through `Config`, not `os.getenv` at call sites.
 

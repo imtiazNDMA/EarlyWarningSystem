@@ -111,8 +111,14 @@ def get_alert(province, district, days):
 
     data = alert_service.get_alert(province, district, days)
     if not data:
-        return jsonify({"district": district, "status": "no_data", "alert": "⚠️ No alert generated yet."})
-    
+        return jsonify(
+            {
+                "district": district,
+                "status": "no_data",
+                "alert": "⚠️ No alert generated yet.",
+            }
+        )
+
     data["status"] = "success"
     return jsonify(data)
 
@@ -154,7 +160,7 @@ def get_all_alerts(days):
                                 "english": alert_text,
                                 "urdu": "",
                             }
-                    except:
+                    except Exception:
                         # Fallback for plain text
                         all_alerts[province][district] = {
                             "english": alert_text,
@@ -199,17 +205,11 @@ def generate_forecast():
             400,
         )
 
-    # Get selected districts or all districts in province
-    if not districts:
-        districts_to_fetch = PROVINCES[province]
-    else:
-        districts_to_fetch = {
-            d: PROVINCES[province][d] for d in districts if d in PROVINCES[province]
-        }
+    districts_to_fetch = _districts_to_fetch(province, districts)
 
-        weather_data = weather_service.get_bulk_weather_data(
-            province, districts_to_fetch, forecast_days, cache_time=0
-        )
+    weather_data = weather_service.get_bulk_weather_data(
+        province, districts_to_fetch, forecast_days, cache_time=0
+    )
 
     # Return success status
     return jsonify(
@@ -311,7 +311,10 @@ def generate_alerts():
         return jsonify(
             {
                 "status": "processing",
-                "message": f"Alert generation started for {province}. This may take a few minutes.",
+                "message": (
+                    f"Alert generation started for {province}. "
+                    "This may take a few minutes."
+                ),
                 "task_id": task_id,
                 "province": province,
             }
@@ -399,7 +402,10 @@ def generate_forecast_and_alerts():
         return jsonify(
             {
                 "status": "success",
-                "message": f"Forecasts and alerts generated for {len(weather_data)} districts in {province}",
+                "message": (
+                    f"Forecasts and alerts generated for {len(weather_data)} "
+                    f"districts in {province}"
+                ),
                 "alert_text": alert_text,
                 "province": province,
             }
@@ -434,7 +440,9 @@ def purge_cache():
         return jsonify(
             {
                 "status": "success",
-                "message": f"Cache purged successfully. Deleted approx {purged_count} records.",
+                "message": (
+                    f"Cache purged successfully. Deleted approx {purged_count} records."
+                ),
                 "purged_count": purged_count,
             }
         )

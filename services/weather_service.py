@@ -51,7 +51,8 @@ class WeatherService:
 
         logger.info("Connection pooling initialized with 10 pools, 20 max connections")
 
-    def get_bulk_weather_data(
+    # Legacy function, replaced by the FastAPI migration rather than refactored
+    def get_bulk_weather_data(  # noqa: C901
         self,
         province: str,
         districts: dict[str, tuple[float, float]],
@@ -94,8 +95,8 @@ class WeatherService:
                     try:
                         dt = datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S")
                         age = (datetime.now() - dt).total_seconds()
-                    except Exception:
-                        pass
+                    except ValueError:
+                        logger.debug(f"Unreadable cache timestamp for {cache_key}")
 
                 if age < cache_time:
                     cached_data[district_name] = data

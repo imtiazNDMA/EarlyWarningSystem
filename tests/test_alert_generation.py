@@ -10,8 +10,9 @@ import pytest
 from werkzeug.test import TestResponse
 
 from app import app
-from extensions import alert_service, weather_service
+from extensions import alert_service
 from services import database
+from services.weather_service import WeatherService
 from utils.background import background_tasks
 
 PROVINCE = "PUNJAB"
@@ -51,10 +52,12 @@ class AlertGenerationTestCase:
         monkeypatch.setattr(database, "DB_FILE", str(tmp_path / "test.db"))
         database.init_db()
 
-        def fake_weather(province, districts, forecast_days, cache_time=None):
+        def fake_weather(self, province, districts, forecast_days, cache_time=None):
             return dict.fromkeys(districts, OPEN_METEO_RESPONSE)
 
-        monkeypatch.setattr(weather_service, "get_bulk_weather_data", fake_weather)
+        # Patch the class: restoring an instance attribute would leave a bound
+        # method behind that shadows class-level patches in other tests
+        monkeypatch.setattr(WeatherService, "get_bulk_weather_data", fake_weather)
 
         self.llm = MagicMock()
         monkeypatch.setattr(alert_service, "client", self.llm)

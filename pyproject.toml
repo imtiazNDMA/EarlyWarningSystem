@@ -49,5 +49,8 @@ ignore = ["S101"] # Allow asserts in tests
 max-complexity = 10
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "ARG001"] # Allow asserts and unused args in tests
+"tests/*" = ["S101", "ARG001", "ARG002"] # Allow asserts and unused args in tests
+# Long lines in these two files are the LLM prompt and embedded map HTML/JS
+"services/alert_service.py" = ["E501"]
+"services/map_service.py" = ["E501"]
 "**/__init__.py" = ["F401"]

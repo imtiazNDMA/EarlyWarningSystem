@@ -24,7 +24,7 @@ class TestFlaskEndpoints:
 
     def test_health_check(self):
         """Test health check endpoint"""
-        with patch("utils.health_check.get_health_status") as mock_health:
+        with patch("routes.api_routes.get_health_status") as mock_health:
             mock_health.return_value = {"status": "healthy", "checks": {}}
 
             response = self.client.get("/health")
@@ -73,6 +73,24 @@ class TestFlaskEndpoints:
         assert response.status_code == 200
         data = json.loads(response.data)
         assert data["status"] == "success"
+
+    @patch("services.weather_service.WeatherService.get_bulk_weather_data")
+    def test_generate_forecast_without_districts_covers_province(self, mock_weather):
+        """Test forecast generation with no districts fetches the whole province"""
+        mock_weather.side_effect = lambda _province, districts, *_, **__: dict.fromkeys(
+            districts, {"daily": {}}
+        )
+
+        response = self.client.post(
+            "/generate_forecast",
+            data=json.dumps({"province": "SINDH", "districts": [], "forecast_days": 3}),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["status"] == "success"
+        assert data["message"] == "Forecast generated for 35 districts"
 
     def test_generate_forecast_invalid_json(self):
         """Test forecast generation with invalid JSON"""

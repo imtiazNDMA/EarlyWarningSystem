@@ -10,12 +10,15 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+# Placeholder used outside production; validate() rejects it in production
+DEFAULT_SECRET_KEY = "dev_secret_key_change_in_production"  # noqa: S105
+
 
 class Config:
     """Application configuration"""
 
     # Flask Configuration
-    SECRET_KEY = os.getenv("SECRET_KEY", "dev_secret_key_change_in_production")
+    SECRET_KEY = os.getenv("SECRET_KEY", DEFAULT_SECRET_KEY)
     DEBUG = os.getenv("FLASK_DEBUG", "True").lower() == "true"
     ENV = os.getenv("FLASK_ENV", "development")
 
@@ -32,6 +35,9 @@ class Config:
     BASE_URL = os.getenv("BASE_URL", "https://api.open-meteo.com/v1/forecast")
     API_TIMEOUT = int(os.getenv("API_TIMEOUT", 120))
     TIMEZONE = os.getenv("TIMEZONE", "Asia/Karachi")
+
+    # Development server bind address
+    HOST = os.getenv("HOST", "127.0.0.1")
 
     # Application Configuration
     CACHE_TIME = int(os.getenv("CACHE_TIME", 43200))
@@ -54,12 +60,10 @@ class Config:
             )
 
         # Check for insecure secret key in production
-        if (
-            cls.ENV == "production"
-            and cls.SECRET_KEY == "dev_secret_key_change_in_production"
-        ):
+        if cls.ENV == "production" and cls.SECRET_KEY == DEFAULT_SECRET_KEY:
             raise ValueError(
-                "Cannot use default SECRET_KEY in production. Set a secure SECRET_KEY environment variable."
+                "Cannot use default SECRET_KEY in production. "
+                "Set a secure SECRET_KEY environment variable."
             )
 
         return True
