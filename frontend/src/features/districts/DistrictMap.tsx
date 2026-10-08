@@ -29,9 +29,9 @@ type Props = {
   /** Position to move to; change the object to move again. */
   focus: MapFocus | null
   onSelect: (featureId: string | null) => void
-  /** Highest hazard level per feature_id; features without one are absent. */
+  /** Highest active alert level per feature_id; features without one are absent. */
   levels: Map<string, Level>
-  /** One-line hazard summary per feature_id, shown in the hover tooltip. */
+  /** One-line active-alert summary per feature_id, shown in the hover tooltip. */
   summaries: Map<string, string>
 }
 
@@ -96,7 +96,7 @@ export function DistrictMap({
           type: 'fill',
           source: SOURCE,
           paint: {
-            // A hazard level always wins; selection shows as an outline
+            // An active alert level always wins; selection shows as an outline
             'fill-color': [
               'match',
               ['coalesce', ['feature-state', 'level'], 'none'],
@@ -204,7 +204,7 @@ export function DistrictMap({
     }
   }, [selectedFeatureId, ready])
 
-  // Mirror hazard levels into feature state
+  // Mirror active alert levels into feature state
   useEffect(() => {
     const map = mapRef.current
     if (!map || !ready) return

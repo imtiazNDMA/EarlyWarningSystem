@@ -9,6 +9,7 @@ import httpx
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from ews.alerts.service import Screened, apply_lifecycle
 from ews.core.db import create_engine, create_session_factory
 from ews.core.settings import Settings, get_settings
 from ews.cycles.models import HazardSignal, Run
@@ -92,9 +93,12 @@ async def _ingest_and_screen(
     provinces = {district_id: province for district_id, province in rows}
 
     signal_count = 0
+    screenings = []
     for snapshot in snapshots:
         days = parse_daily(snapshot.payload)
-        for signal in screen(days, provinces[snapshot.district_id], rules):
+        signals = screen(days, provinces[snapshot.district_id], rules)
+        screenings.append(Screened(snapshot.district_id, snapshot.id, days, signals))
+        for signal in signals:
             session.add(
                 HazardSignal(
                     run_id=run_id,
@@ -110,6 +114,9 @@ async def _ingest_and_screen(
                 )
             )
             signal_count += 1
+
+    actions = await apply_lifecycle(session, run_id, screenings)
+    logger.info("Run %s alert actions: %s", run_id, dict(actions))
     return len(snapshots), signal_count
 
 
