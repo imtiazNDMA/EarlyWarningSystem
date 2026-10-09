@@ -632,3 +632,19 @@ limit. Tracked in issues #38 and #39.
 | Which of the three boundary files becomes canonical | Phase 1 |
 | Calibrated threshold values and regional variants | Phase 2 |
 | Where the demo is hosted | Phase 8 |
+
+---
+
+## 15. Deferred work
+
+Decided on 2026-10-09. These remain described above as designed, but nothing in the
+current phases depends on them and no ticket is scheduled.
+
+| Item | Where it stands |
+|------|-----------------|
+| River-flood source and riverine-flood hazard (issue #18) | Postponed. A later plan based on Flood Forecasting Division data is in [`docs/ffd-ingestion-plan.md`](docs/ffd-ingestion-plan.md), with the research behind it in [`docs/ffd-sources.md`](docs/ffd-sources.md) |
+| Earthquakes and disaster events (issue #19, USGS and GDACS) | Closed as not planned for now; research kept in [`docs/sources.md`](docs/sources.md) |
+
+Until they are taken up, the system's sources are the Open-Meteo forecast and air
+quality, and the river-discharge map layer and analyst tools that depended on them are
+out of scope.

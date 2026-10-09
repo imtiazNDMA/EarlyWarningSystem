@@ -1,9 +1,10 @@
 # Plan: river-flood monitoring from Flood Forecasting Division data
 
-Status: proposal, not yet agreed. Written 2026-10-09 from the findings in
+Status: **deferred as a future plan** (decided 2026-10-09). River-flood work, issue #18
+included, is postponed; nothing here is scheduled. Written 2026-10-09 from the findings in
 [`ffd-sources.md`](ffd-sources.md), which records what `ffd.pmd.gov.pk` actually
 served on that date. Where this plan states a fact about the site, that note is the
-source. It replaces the approach in issue #18 if adopted.
+source. If it is taken up later, it replaces the approach in issue #18.
 
 ## 1. What changes, in one paragraph
 
