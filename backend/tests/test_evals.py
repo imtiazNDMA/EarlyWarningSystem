@@ -89,6 +89,75 @@ scenarios:
     assert report.texts_checked == 2
     assert report.groundedness == 1.0
     assert report.hold_rate == 0.0
+    assert report.urdu_texts_checked == 0
+
+
+RAIN_DAY = """
+          open-meteo-forecast:
+            daily:
+              time: [2026-10-08]
+              temperature_2m_max: [30]
+              temperature_2m_min: [20]
+              precipitation_sum: [100]
+              precipitation_probability_max: [80]
+              wind_speed_10m_max: [10]
+              wind_gusts_10m_max: [20]
+              weather_code: [61]
+              snowfall_sum: [0]
+              uv_index_max: [5]
+"""
+
+
+def test_evaluate_scores_recorded_urdu_against_the_rule_wording(
+    tmp_path: Path,
+) -> None:
+    scenarios = tmp_path / "urdu.yaml"
+    scenarios.write_text(
+        f"""
+version: urdu-v1
+scenarios:
+  - id: recorded-urdu
+    districts:
+      - id: lahore
+        province: Punjab
+        source_payloads: {RAIN_DAY}
+        expected:
+          - hazard: heavy_rain
+            severity: severe
+            urdu:
+              headline: لاہور کے لیے شدید بارش کا انتباہ
+              body: 8 اکتوبر کو بارش 100 ملی میٹر تک، جو 100 ملی میٹر کی شدید حد ہے۔
+              instructions: نشیبی علاقوں سے دور رہیں۔
+      - id: kasur
+        province: Punjab
+        source_payloads: {RAIN_DAY}
+        expected:
+          - hazard: heavy_rain
+            severity: severe
+            urdu:
+              headline: Kasur کے لیے شدید بارش کا انتباہ
+              body: 8 اکتوبر کو بارش 100 ملی میٹر تک، جو 100 ملی میٹر کی شدید حد ہے۔
+              instructions: نشیبی علاقوں سے دور رہیں۔
+      - id: multan
+        province: Punjab
+        source_payloads: {RAIN_DAY}
+        expected:
+          - hazard: heavy_rain
+            severity: severe
+            urdu:
+              headline: ملتان کے لیے شدید رین کا انتباہ
+              body: 8 اکتوبر کو 150 ملی میٹر تک، جو 100 ملی میٹر کی شدید حد ہے۔
+              instructions: نشیبی علاقوں سے دور رہیں۔
+""",
+        encoding="utf-8",
+    )
+
+    report = evaluate(scenarios)
+
+    assert report.severity_accuracy == 1.0
+    assert report.urdu_texts_checked == 3
+    assert report.urdu_glossary_compliance == pytest.approx(1 / 3)
+    assert report.urdu_equivalence == pytest.approx(2 / 3)
 
 
 def test_evaluate_rejects_duplicate_scenario_ids(tmp_path: Path) -> None:
@@ -127,6 +196,8 @@ scenarios:
     assert report.severity_accuracy is None
     assert report.groundedness is None
     assert report.hold_rate is None
+    assert report.urdu_glossary_compliance is None
+    assert report.urdu_equivalence is None
 
 
 @pytest.mark.eval

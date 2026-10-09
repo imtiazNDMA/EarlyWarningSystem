@@ -102,9 +102,10 @@ class TestRouting:
         finished = await analysed_run(client, upstream, model, submit())
 
         steps = await events_named(client, finished["id"], "step_started")
-        assert [step["step"] for step in steps][-3:] == [
+        assert [step["step"] for step in steps][-4:] == [
             "analyse_signals",
             "draft_alerts",
+            "write_urdu",
             "apply_alert_lifecycle",
         ]
         assert len(model.requests) == 1
@@ -449,7 +450,8 @@ class TestCheckpoints:
             "signal_count": 1,
             "analysed": 1,
             "drafted": 0,
+            "urdu_written": 0,
             "alert_actions": {"issue": 1},
         }
         # One before anything ran, one for the input, and one after each node
-        assert len([checkpoint async for checkpoint in saver.alist(thread)]) == 7
+        assert len([checkpoint async for checkpoint in saver.alist(thread)]) == 8

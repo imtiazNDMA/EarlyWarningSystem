@@ -1,3 +1,5 @@
+import { useState } from 'react'
+
 import type { Alert } from '../../api/client'
 import { LEVEL_COLOURS, LEVEL_LABELS, hazardLabel } from '../signals/signals'
 
@@ -71,7 +73,32 @@ type CardProps = {
   onOpenRun?: OpenRun
 }
 
+type Wording = { headline: string; body: string; instructions: string }
+
+/** An alert's Urdu wording; null unless all of it was published. */
+function urduWording(alert: Alert): Wording | null {
+  const { headline_ur: headline, body_ur: body, instructions_ur: instructions } = alert
+  return headline && body && instructions ? { headline, body, instructions } : null
+}
+
+function UrduText({ wording }: { wording: Wording }) {
+  return (
+    <div dir="rtl" lang="ur" className="type-urdu mt-1">
+      <h4 className="text-base font-semibold text-ink">{wording.headline}</h4>
+      <p className="text-sm text-ink/75">{wording.body}</p>
+      <p className="text-sm text-ink">
+        <span className="font-semibold">حفاظتی ہدایات: </span>
+        {wording.instructions}
+      </p>
+    </div>
+  )
+}
+
 export function AlertCard({ alert, compact = false, onOpenRun }: CardProps) {
+  const [urduChosen, setUrduChosen] = useState(false)
+  const urdu = compact ? null : urduWording(alert)
+  const inUrdu = urduChosen && urdu !== null
+
   return (
     <article className="border-l-[3px] pl-3" style={{ borderColor: LEVEL_COLOURS[alert.severity] }}>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -82,30 +109,46 @@ export function AlertCard({ alert, compact = false, onOpenRun }: CardProps) {
           {compact && alert.status !== 'active' ? `${alert.status} · ` : ''}
           {period(alert)}
         </span>
+        {urdu && (
+          <button
+            type="button"
+            onClick={() => setUrduChosen(!inUrdu)}
+            lang={inUrdu ? 'en' : 'ur'}
+            className={`ml-auto text-xs text-ink/70 underline hover:text-ink ${inUrdu ? '' : 'font-urdu'}`}
+          >
+            {inUrdu ? 'English' : 'اردو'}
+          </button>
+        )}
       </div>
-      <h4 className="mt-1 text-sm font-semibold leading-snug text-ink">
-        {compact ? `${hazardLabel(alert.hazard)} · ${alert.district_name}` : alert.headline_en}
-      </h4>
-      {alert.status === 'held' && (
-        <div className="mt-1.5 text-xs text-ink/75">
-          <p className="font-semibold text-ink">Held: not published</p>
-          <ul className="mt-0.5 list-disc pl-4">
-            {(alert.held_reasons ?? []).map((reason) => (
-              <li key={reason}>{reason}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-      {!compact && (
+      {inUrdu ? (
+        <UrduText wording={urdu} />
+      ) : (
         <>
-          <p className="mt-1.5 text-xs leading-relaxed text-ink/75">{alert.body_en}</p>
-          <p className="mt-2 text-xs leading-relaxed text-ink">
-            <span className="font-semibold">Safety: </span>
-            {alert.instructions_en}
-          </p>
-          <EvidenceTable alert={alert} onOpenRun={onOpenRun} />
+          <h4 className="mt-1 text-sm font-semibold leading-snug text-ink">
+            {compact ? `${hazardLabel(alert.hazard)} · ${alert.district_name}` : alert.headline_en}
+          </h4>
+          {alert.status === 'held' && (
+            <div className="mt-1.5 text-xs text-ink/75">
+              <p className="font-semibold text-ink">Held: not published</p>
+              <ul className="mt-0.5 list-disc pl-4">
+                {(alert.held_reasons ?? []).map((reason) => (
+                  <li key={reason}>{reason}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {!compact && (
+            <>
+              <p className="mt-1.5 text-xs leading-relaxed text-ink/75">{alert.body_en}</p>
+              <p className="mt-2 text-xs leading-relaxed text-ink">
+                <span className="font-semibold">Safety: </span>
+                {alert.instructions_en}
+              </p>
+            </>
+          )}
         </>
       )}
+      {!compact && <EvidenceTable alert={alert} onOpenRun={onOpenRun} />}
     </article>
   )
 }

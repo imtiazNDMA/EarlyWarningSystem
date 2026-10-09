@@ -24,6 +24,7 @@ from ews.alerts.service import (
     evidence_for,
     plan_lifecycle,
 )
+from ews.alerts.text import write_alert_text
 from ews.analyst.agent import analyse
 from ews.analyst.assessment import HazardAssessment, assessed_signal
 from ews.analyst.tools import Toolbox
@@ -34,9 +35,10 @@ from ews.cycles.events import RunEventLog, RunRecorder
 from ews.cycles.models import HazardSignal, Run
 from ews.districts.models import District
 from ews.drafting.drafter import draft_alert
+from ews.drafting.urdu import write_urdu
 from ews.drafting.verifier import Facts
 from ews.forecasts.service import ingest_all_forecasts
-from ews.llm.gateway import LLMGateway
+from ews.llm.gateway import LLMGateway, ModelAvailability
 from ews.screening.rules import LEVELS, DailyValue, HazardRule, Signal, screen
 from ews.screening.thresholds import load_rules
 from ews.sources.errors import SourceError
@@ -70,6 +72,7 @@ class CycleState(TypedDict, total=False):
     signal_count: int
     analysed: int
     drafted: int
+    urdu_written: int
     alert_actions: dict[str, int]
 
 
@@ -150,8 +153,8 @@ async def run_cycle(
 class _Cycle:
     """One run's work, as the nodes of the monitoring graph.
 
-    Ingest, screening and the alert lifecycle are plain code; only the analyst
-    uses the model.
+    Ingest, screening and the alert lifecycle are plain code; the analyst, the
+    drafter and the Urdu writer use the model.
     """
 
     def __init__(
@@ -181,6 +184,7 @@ class _Cycle:
         self._assessments: dict[tuple[str, str], HazardAssessment] = {}
         self._authored: dict[tuple[str, str], Authored] = {}
         self._plan: list[Planned] | None = None
+        self._availability: ModelAvailability | None = None
 
     def graph(
         self, checkpointer: BaseCheckpointSaver[str]
@@ -191,16 +195,20 @@ class _Cycle:
         builder.add_node("screen", self._screen)
         builder.add_node("analyse", self._analyse)
         builder.add_node("draft", self._draft)
+        builder.add_node("write_urdu", self._write_urdu)
         builder.add_node("apply_lifecycle", self._apply_lifecycle)
         builder.add_edge(START, "ingest")
         builder.add_edge("ingest", "screen")
         builder.add_conditional_edges(
-            "screen", self._after_screening, ["analyse", "apply_lifecycle"]
+            "screen",
+            self._after_screening,
+            ["analyse", "write_urdu", "apply_lifecycle"],
         )
         builder.add_conditional_edges(
-            "analyse", self._after_analysis, ["draft", "apply_lifecycle"]
+            "analyse", self._after_analysis, ["draft", "write_urdu", "apply_lifecycle"]
         )
-        builder.add_edge("draft", "apply_lifecycle")
+        builder.add_edge("draft", "write_urdu")
+        builder.add_edge("write_urdu", "apply_lifecycle")
         builder.add_edge("apply_lifecycle", END)
         return builder.compile(checkpointer=checkpointer)
 
@@ -211,12 +219,17 @@ class _Cycle:
             and self._gateway is not None
             and self._settings.analyst_max_signals > 0
         )
-        return "analyse" if wanted else "apply_lifecycle"
+        return "analyse" if wanted else self._before_applying(state)
 
-    def _after_analysis(self, state: CycleState) -> str:  # noqa: ARG002
+    def _after_analysis(self, state: CycleState) -> str:
         """Only signals the analyst upheld have wording for the model to write."""
         upheld = any(a.supported for a in self._assessments.values())
-        return "draft" if upheld else "apply_lifecycle"
+        return "draft" if upheld else self._before_applying(state)
+
+    def _before_applying(self, state: CycleState) -> str:
+        """Only a run with signals and a model has alerts to put into Urdu."""
+        wanted = state["signal_count"] > 0 and self._gateway is not None
+        return "write_urdu" if wanted else "apply_lifecycle"
 
     async def _ingest(self, state: CycleState) -> CycleState:  # noqa: ARG002
         """Store a snapshot per district from each source."""
@@ -356,9 +369,7 @@ class _Cycle:
         analysed = 0
 
         async with self._recorder.step("analyse_signals") as outcome:
-            available = await gateway.availability(
-                settings.health_check_timeout_seconds
-            )
+            available = await self._model_availability(gateway)
             if not available.available:
                 logger.warning("Analysis skipped: %s", available.message)
                 await self._recorder.emit(
@@ -400,6 +411,14 @@ class _Cycle:
             outcome["analysed"] = analysed
         return {"analysed": analysed}
 
+    async def _model_availability(self, gateway: LLMGateway) -> ModelAvailability:
+        """Whether the model can serve calls, asked once per run."""
+        if self._availability is None:
+            self._availability = await gateway.availability(
+                self._settings.health_check_timeout_seconds
+            )
+        return self._availability
+
     async def _planned(self) -> list[Planned]:
         """The lifecycle's decisions for this run, made once."""
         if self._plan is None:
@@ -425,13 +444,7 @@ class _Cycle:
                     {"district_id": district.id, "hazard": planned.hazard},
                     district.name_en,
                     district.province,
-                    Facts(
-                        hazard=planned.hazard,
-                        severity=signal.level,
-                        onset=signal.onset,
-                        expires=signal.expires,
-                        evidence=evidence_for(signal, planned.screened),
-                    ),
+                    _facts(planned, signal),
                     assessment.urgency,
                     assessment.certainty,
                     max_revisions=self._settings.drafter_max_revisions,
@@ -444,6 +457,55 @@ class _Cycle:
             outcome["held"] = held
         return {"drafted": drafted}
 
+    async def _write_urdu(self, state: CycleState) -> CycleState:  # noqa: ARG002
+        """Have the model put the alerts about to be published into Urdu."""
+        gateway = self._gateway
+        # A held alert is not published, so it needs no Urdu
+        new_alerts = [
+            (planned, planned.signal)
+            for planned in await self._planned()
+            if planned.needs_text
+            and planned.signal is not None
+            and not (
+                planned.key in self._authored
+                and self._authored[planned.key].held_reasons is not None
+            )
+        ]
+        if gateway is None or not new_alerts:
+            return {"urdu_written": 0}
+        written = 0
+
+        async with self._recorder.step("write_urdu") as outcome:
+            available = await self._model_availability(gateway)
+            if not available.available:
+                logger.warning("Urdu skipped: %s", available.message)
+                await self._recorder.emit(
+                    "urdu_skipped", reason="model unavailable", alerts=len(new_alerts)
+                )
+                new_alerts = []
+
+            for planned, signal in new_alerts:
+                district = self._districts[planned.screened.district_id]
+                wording = self._authored.get(planned.key) or Authored(
+                    write_alert_text(signal, district.name_en), "rules"
+                )
+                urdu = await write_urdu(
+                    gateway,
+                    self._recorder,
+                    {"district_id": district.id, "hazard": planned.hazard},
+                    wording.text,
+                    _facts(planned, signal),
+                    max_revisions=self._settings.drafter_max_revisions,
+                )
+                if urdu is not None:
+                    self._authored[planned.key] = dataclasses.replace(
+                        wording, urdu=urdu
+                    )
+                    written += 1
+            outcome["written"] = written
+            outcome["english_only"] = len(new_alerts) - written
+        return {"urdu_written": written}
+
     async def _apply_lifecycle(self, state: CycleState) -> CycleState:  # noqa: ARG002
         """Issue, keep, replace or end alerts to match the screenings."""
         async with self._recorder.step("apply_alert_lifecycle") as outcome:
@@ -453,6 +515,17 @@ class _Cycle:
             outcome["actions"] = dict(actions)
         logger.info("Alert actions: %s", dict(actions))
         return {"alert_actions": {str(action): n for action, n in actions.items()}}
+
+
+def _facts(planned: Planned, signal: Signal) -> Facts:
+    """What the wording of a planned alert may say."""
+    return Facts(
+        hazard=planned.hazard,
+        severity=signal.level,
+        onset=signal.onset,
+        expires=signal.expires,
+        evidence=evidence_for(signal, planned.screened),
+    )
 
 
 def _judged(

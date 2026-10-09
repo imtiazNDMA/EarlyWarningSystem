@@ -26,3 +26,12 @@ every number and date in the evidence, and no other hazard or severity named. Th
 hold rate is the share that would be held. For the rules-only system these describe
 the template wording, which is never revised, so the hold rate is one minus
 groundedness; they are the figures model-written alerts are compared against.
+
+Urdu glossary compliance and English/Urdu equivalence are scored on recorded Urdu: an
+expected outcome may carry a `urdu` block with `headline`, `body` and `instructions`,
+which is checked against the rule-based English for the same signal. Compliance is the
+share with no transliterated weather word and no Latin-script word; equivalence is the
+share that states the same dates and numbers and names the same hazard and severity.
+Rule-based wording has no Urdu of its own, so a scenario set with no recorded Urdu
+reports zero texts checked and both figures as null. These checks do not replace a
+native speaker's read.

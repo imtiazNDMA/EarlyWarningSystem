@@ -70,7 +70,7 @@ All settings are optional for local development.
 | `EWS_ANALYST_MAX_SIGNALS` | Signals the analyst judges per cycle, most severe first; `0` turns it off | `10` |
 | `EWS_ANALYST_MAX_STEPS` | Model turns allowed for one signal | `6` |
 | `EWS_ANALYST_TIME_BUDGET_SECONDS` | Time allowed for one signal's analysis | `120` |
-| `EWS_DRAFTER_MAX_REVISIONS` | Rewrites allowed for alert text that fails verification, before the alert is held | `2` |
+| `EWS_DRAFTER_MAX_REVISIONS` | Rewrites allowed for alert text that fails verification, before the alert is held; and for its Urdu, before the alert is published in English alone | `2` |
 
 Under Docker Compose, LM Studio running on the host is reached with
 `EWS_LLM_BASE_URL=http://host.docker.internal:1234/v1`. `GET /api/health` reports

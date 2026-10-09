@@ -142,11 +142,14 @@ class TestRunEvents:
             ("step_started", "analyse_signals"),
             ("analysis_skipped", None),
             ("step_finished", "analyse_signals"),
+            ("step_started", "write_urdu"),
+            ("urdu_skipped", None),
+            ("step_finished", "write_urdu"),
             ("step_started", "apply_alert_lifecycle"),
             ("step_finished", "apply_alert_lifecycle"),
             ("run_finished", None),
         ]
-        assert [event["seq"] for event in events] == list(range(1, 19))
+        assert [event["seq"] for event in events] == list(range(1, 22))
 
     async def test_events_carry_what_happened(
         self, client: AsyncClient, upstream: Upstream

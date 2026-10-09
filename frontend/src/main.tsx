@@ -1,5 +1,6 @@
 import '@fontsource-variable/archivo/wdth.css'
 import '@fontsource/ibm-plex-mono/400.css'
+import '@fontsource-variable/noto-nastaliq-urdu/wght.css'
 import './index.css'
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'

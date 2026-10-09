@@ -95,6 +95,8 @@ class Authored:
     generated_by: str
     # Checks the wording failed; a held alert is stored but never active
     held_reasons: list[str] | None = None
+    # The same wording in Urdu; without it the alert is published in English alone
+    urdu: AlertText | None = None
 
 
 async def plan_lifecycle(
@@ -153,9 +155,9 @@ async def apply_plan(
         run_id: The run the plan belongs to
         plan: Decisions from ``plan_lifecycle``
         authored: Wording by district and hazard for the alerts being written;
-            an alert with none gets rule-based wording. Wording that is held
-            is stored as a held alert, and the alert it would have replaced
-            stays active.
+            an alert with none gets rule-based wording, in English alone.
+            Wording that is held is stored as a held alert, and the alert it
+            would have replaced stays active.
 
     Returns:
         How many times each action was taken
@@ -202,6 +204,9 @@ async def apply_plan(
                 headline_en=wording.text.headline,
                 body_en=wording.text.body,
                 instructions_en=wording.text.instructions,
+                headline_ur=wording.urdu.headline if wording.urdu else None,
+                body_ur=wording.urdu.body if wording.urdu else None,
+                instructions_ur=wording.urdu.instructions if wording.urdu else None,
                 generated_by=wording.generated_by,
                 evidence=evidence_for(signal, screened),
                 status="held" if held else "active",

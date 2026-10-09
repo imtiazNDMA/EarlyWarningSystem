@@ -11,8 +11,14 @@ import yaml
 from pydantic import BaseModel, model_validator
 
 from ews.alerts.service import Screened, evidence_for
-from ews.alerts.text import write_alert_text
-from ews.drafting.verifier import AlertDraft, Facts, verify
+from ews.alerts.text import AlertText, write_alert_text
+from ews.drafting.verifier import (
+    AlertDraft,
+    Facts,
+    equivalence_problems,
+    glossary_problems,
+    verify,
+)
 from ews.screening.rules import DailyValue, HazardRule, Level, Signal, screen
 from ews.screening.thresholds import load_rules
 from ews.sources.open_meteo import DailyForecast
@@ -33,6 +39,8 @@ class ExpectedOutcome(BaseModel):
 
     hazard: str
     severity: Level
+    # Recorded Urdu of the rule-based alert for this outcome, to be scored
+    urdu: AlertDraft | None = None
 
 
 class DistrictScenario(BaseModel):
@@ -99,6 +107,12 @@ class EvalReport(BaseModel):
     texts_checked: int
     groundedness: float | None
     hold_rate: float | None
+    # Recorded Urdu put through the checks that gate it: the share that keeps
+    # to the glossary, and the share that makes the same claims as its English.
+    # Rule-based wording has no Urdu, so these are null without recorded texts
+    urdu_texts_checked: int
+    urdu_glossary_compliance: float | None
+    urdu_equivalence: float | None
 
 
 def _rules_for(fields: set[str], rules: Sequence[HazardRule]) -> list[HazardRule]:
@@ -123,12 +137,11 @@ def _screen_source(
     return days, screen(days, province, source_rules)
 
 
-def _wording_verifies(
+def _rule_wording(
     district_id: str, days: Sequence[DailyValue], signal: Signal
-) -> bool:
-    """Whether the rule-based alert text for a signal passes the verifier."""
+) -> tuple[AlertText, Facts]:
+    """The rule-based alert text for a signal, and the facts it is checked against."""
     screened = Screened(district_id, 0, days, [signal], frozenset())
-    text = write_alert_text(signal, district_id)
     facts = Facts(
         hazard=signal.hazard,
         severity=signal.level,
@@ -136,7 +149,7 @@ def _wording_verifies(
         expires=signal.expires,
         evidence=evidence_for(signal, screened),
     )
-    return not verify(AlertDraft(**vars(text)), facts)
+    return write_alert_text(signal, district_id), facts
 
 
 def evaluate(path: Path) -> EvalReport:
@@ -152,20 +165,31 @@ def evaluate(path: Path) -> EvalReport:
     district_count = 0
     texts_checked = 0
     texts_verified = 0
+    urdu_checked = 0
+    urdu_compliant = 0
+    urdu_equivalent = 0
 
     for scenario in scenario_set.scenarios:
         for district in scenario.districts:
             district_count += 1
+            recorded_urdu = {}
             for outcome in district.expected:
                 expected[(scenario.id, district.id, outcome.hazard)] = outcome.severity
+                recorded_urdu[outcome.hazard] = outcome.urdu
             for source, payload in district.source_payloads.items():
                 days, signals = _screen_source(
                     source, payload, district.province, rules
                 )
                 for signal in signals:
                     predicted[(scenario.id, district.id, signal.hazard)] = signal.level
+                    text, facts = _rule_wording(district.id, days, signal)
                     texts_checked += 1
-                    texts_verified += _wording_verifies(district.id, days, signal)
+                    texts_verified += not verify(AlertDraft(**vars(text)), facts)
+                    urdu = recorded_urdu.get(signal.hazard)
+                    if urdu is not None:
+                        urdu_checked += 1
+                        urdu_compliant += not glossary_problems(urdu)
+                        urdu_equivalent += not equivalence_problems(urdu, text, facts)
 
     expected_keys = set(expected)
     predicted_keys = set(predicted)
@@ -198,6 +222,11 @@ def evaluate(path: Path) -> EvalReport:
         texts_checked=texts_checked,
         groundedness=texts_verified / texts_checked if texts_checked else None,
         hold_rate=1 - texts_verified / texts_checked if texts_checked else None,
+        urdu_texts_checked=urdu_checked,
+        urdu_glossary_compliance=(
+            urdu_compliant / urdu_checked if urdu_checked else None
+        ),
+        urdu_equivalence=urdu_equivalent / urdu_checked if urdu_checked else None,
     )
 
 
