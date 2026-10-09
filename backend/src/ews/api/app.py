@@ -11,6 +11,7 @@ from ews.api.routers import air_quality, alerts, cycles, districts, forecasts, h
 from ews.core.db import create_engine, create_session_factory
 from ews.core.logging import configure_logging
 from ews.core.settings import Settings, get_settings
+from ews.llm.gateway import LLMGateway
 from ews.sources.open_meteo import OpenMeteoForecastClient
 from ews.sources.open_meteo_air_quality import OpenMeteoAirQualityClient
 
@@ -30,6 +31,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.air_quality_client = OpenMeteoAirQualityClient(
         http, settings.open_meteo_air_quality_url
     )
+    # The gateway sets its own timeout on each request
+    app.state.llm_gateway = LLMGateway.from_settings(settings, http)
     try:
         yield
     finally:

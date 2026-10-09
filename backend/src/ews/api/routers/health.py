@@ -9,7 +9,8 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ews.api.dependencies import SessionDep, SettingsDep
+from ews.api.dependencies import LLMGatewayDep, SessionDep, SettingsDep
+from ews.llm.gateway import LLMGateway
 
 logger = logging.getLogger(__name__)
 
@@ -46,18 +47,36 @@ async def check_database(session: AsyncSession, timeout_seconds: float) -> Check
     return CheckResult(status="pass", message="reachable")
 
 
+async def check_llm(gateway: LLMGateway, timeout_seconds: float) -> CheckResult:
+    """Check that the configured model can serve a call within the timeout."""
+    availability = await gateway.availability(timeout_seconds)
+    if not availability.available:
+        logger.warning("LLM health check failed: %s", availability.message)
+    return CheckResult(
+        status="pass" if availability.available else "fail",
+        message=availability.message,
+    )
+
+
 @router.get(
     "/health",
     responses={status.HTTP_503_SERVICE_UNAVAILABLE: {"model": HealthResponse}},
 )
 async def health(
-    session: SessionDep, settings: SettingsDep, response: Response
+    session: SessionDep,
+    settings: SettingsDep,
+    gateway: LLMGatewayDep,
+    response: Response,
 ) -> HealthResponse:
     """Report whether the service and its dependencies are usable."""
-    checks = {
-        "database": await check_database(session, settings.health_check_timeout_seconds)
-    }
-    healthy = all(check.status == "pass" for check in checks.values())
+    timeout = settings.health_check_timeout_seconds
+    database, llm = await asyncio.gather(
+        check_database(session, timeout), check_llm(gateway, timeout)
+    )
+    checks = {"database": database, "llm": llm}
+    # Without a model, ingestion and screening still run, so only the database
+    # decides the overall status; the container health check relies on this
+    healthy = database.status == "pass"
     if not healthy:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return HealthResponse(status="healthy" if healthy else "unhealthy", checks=checks)
