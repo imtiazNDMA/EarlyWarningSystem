@@ -14,9 +14,15 @@ from sqlalchemy.ext.asyncio import AsyncEngine, AsyncSession
 from ews.core.db import create_session_factory
 from ews.core.logging import RunIdFilter, bound_run_id
 from ews.core.settings import Settings
-from ews.cycles.events import RunEventLog, SessionFactory, stream_events
+from ews.cycles.events import (
+    RunEventLog,
+    SessionFactory,
+    events_after,
+    stream_events,
+)
 from ews.cycles.models import Run, RunEvent
 from ews.cycles.service import run_cycle
+from ews.sources.errors import SourceError
 from ews.sources.models import SourceSnapshot
 from ews.sources.open_meteo import OpenMeteoForecastClient
 from ews.sources.open_meteo_air_quality import OpenMeteoAirQualityClient
@@ -237,7 +243,9 @@ class TestLiveStream:
         await db_session.commit()
         recorder = RunEventLog(open_session).for_run(run.id)
         await recorder.emit("run_started", trigger="manual")
-        stream = stream_events(open_session, run.id, after_seq=0, poll_seconds=0.01)
+        stream = stream_events(
+            open_session, run.id, after_seq=0, poll_seconds=0.01, max_seconds=60
+        )
 
         first = await anext(stream)
         idle = await anext(stream)
@@ -254,6 +262,68 @@ class TestLiveStream:
         assert [event.type for event in last] == ["run_finished"]
         with pytest.raises(StopAsyncIteration):
             await anext(stream)
+
+    async def test_gives_up_on_a_run_that_never_finishes(
+        self, db_session: AsyncSession, open_session: SessionFactory
+    ) -> None:
+        run = Run(
+            trigger="manual", status="running", started_at=dt.datetime.now(dt.UTC)
+        )
+        db_session.add(run)
+        await db_session.commit()
+
+        batches = [
+            batch
+            async for batch in stream_events(
+                open_session, run.id, after_seq=0, poll_seconds=0.01, max_seconds=0.05
+            )
+        ]
+
+        assert batches
+        assert all(len(batch) == 0 for batch in batches)
+
+
+class TestStepFailures:
+    """Test cases for what the public log says about a failed step"""
+
+    async def events_of_failed_step(
+        self, db_session: AsyncSession, open_session: SessionFactory, error: Exception
+    ) -> list[RunEvent]:
+        run = Run(
+            trigger="manual", status="running", started_at=dt.datetime.now(dt.UTC)
+        )
+        db_session.add(run)
+        await db_session.commit()
+        recorder = RunEventLog(open_session).for_run(run.id)
+
+        with pytest.raises(type(error)):
+            async with recorder.step("fetch_forecasts"):
+                raise error
+
+        return list(await events_after(db_session, run.id, 0))
+
+    async def test_a_source_failure_is_recorded_with_its_message(
+        self, db_session: AsyncSession, open_session: SessionFactory
+    ) -> None:
+        _, failed = await self.events_of_failed_step(
+            db_session, open_session, SourceError("open-meteo-forecast", "HTTP 503")
+        )
+
+        assert failed.payload == {
+            "step": "fetch_forecasts",
+            "error": "open-meteo-forecast: HTTP 503",
+        }
+
+    async def test_any_other_failure_is_recorded_by_type_only(
+        self, db_session: AsyncSession, open_session: SessionFactory
+    ) -> None:
+        _, failed = await self.events_of_failed_step(
+            db_session,
+            open_session,
+            RuntimeError("password authentication failed for user ews"),
+        )
+
+        assert failed.payload == {"step": "fetch_forecasts", "error": "RuntimeError"}
 
 
 class TestEventsOutliveARollback:

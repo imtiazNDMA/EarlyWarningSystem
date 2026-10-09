@@ -39,6 +39,8 @@ class Settings(BaseSettings):
     forecast_batch_size: int = 50
     # How often an open event stream looks for new events of an active run
     run_events_poll_seconds: float = 0.5
+    # An event stream is closed after this long, however the run is doing
+    run_events_max_stream_seconds: float = 15 * 60
 
 
 @lru_cache

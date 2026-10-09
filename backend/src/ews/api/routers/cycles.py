@@ -159,10 +159,16 @@ async def run_detail(run: Annotated[Run, Depends(_known_run)]) -> RunOut:
 
 
 async def _server_sent(
-    open_session: SessionFactory, run_id: int, after_seq: int, poll_seconds: float
+    open_session: SessionFactory,
+    run_id: int,
+    after_seq: int,
+    poll_seconds: float,
+    max_seconds: float,
 ) -> AsyncIterator[str]:
     """Format a run's events as Server-Sent Events, closing with an ``end`` event."""
-    async for batch in stream_events(open_session, run_id, after_seq, poll_seconds):
+    async for batch in stream_events(
+        open_session, run_id, after_seq, poll_seconds, max_seconds
+    ):
         if not batch:
             # A comment: ignored by clients, but shows the connection is alive
             yield ": waiting\n\n"
@@ -202,6 +208,7 @@ async def run_events(
             run.id,
             last_event_id or 0,
             settings.run_events_poll_seconds,
+            settings.run_events_max_stream_seconds,
         ),
         # Stops nginx holding events back to fill a buffer
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},

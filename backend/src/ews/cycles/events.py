@@ -2,6 +2,7 @@
 
 import asyncio
 import datetime as dt
+import time
 from collections.abc import AsyncIterator, Callable, Sequence
 from contextlib import asynccontextmanager
 from typing import Any, Literal
@@ -10,6 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ews.cycles.models import Run, RunEvent
+from ews.sources.errors import SourceError
 
 # Opens a session of its own, so an event is committed apart from the run's work
 SessionFactory = Callable[[], AsyncSession]
@@ -59,14 +61,19 @@ class RunRecorder:
         """Log the start of a step and how it ended.
 
         Yields a dict; whatever the block puts in it is recorded when the step
-        finishes. A failure is logged and re-raised.
+        finishes. A failure is logged and re-raised. The log is public, so only
+        a source's own account of its failure is recorded in full; any other
+        error is recorded by type, since its message may describe internals.
         """
         await self.emit("step_started", step=name)
         outcome: dict[str, Any] = {}
         try:
             yield outcome
-        except Exception as error:
+        except SourceError as error:
             await self.emit("step_failed", step=name, error=str(error))
+            raise
+        except Exception as error:
+            await self.emit("step_failed", step=name, error=type(error).__name__)
             raise
         await self.emit("step_finished", step=name, **outcome)
 
@@ -94,14 +101,20 @@ async def events_after(
 
 
 async def stream_events(
-    open_session: SessionFactory, run_id: int, after_seq: int, poll_seconds: float
+    open_session: SessionFactory,
+    run_id: int,
+    after_seq: int,
+    poll_seconds: float,
+    max_seconds: float,
 ) -> AsyncIterator[Sequence[RunEvent]]:
     """Yield a run's events in batches until the run has finished.
 
     A finished run is replayed in one batch. An active run yields a batch per
     poll, empty when nothing happened, so the caller can keep the connection
-    alive.
+    alive. The stream also ends after ``max_seconds``, so a run that never
+    finishes cannot hold a reader, and its polling, open for ever.
     """
+    deadline = time.monotonic() + max_seconds
     while True:
         async with open_session() as session:
             # Status first: a run writes its last event before it is marked
@@ -111,6 +124,6 @@ async def stream_events(
         yield events
         if events:
             after_seq = events[-1].seq
-        if status != "running":
+        if status != "running" or time.monotonic() >= deadline:
             return
         await asyncio.sleep(poll_seconds)
