@@ -21,6 +21,13 @@ The metrics treat a district/hazard pair as a hazard detection. Severity accurac
 calculated over correctly detected district/hazard pairs, so detecting the right hazard
 at the wrong level increases recall but not severity accuracy.
 
+Two scenarios span both sources. `compound-heat-and-smog` has hazards that add to each
+other. `conflicting-rain-and-smog` has sources that seem to disagree: heavy rain and
+severe PM2.5 on the same day. Its expected outcome is both hazards, because each source
+is authoritative for its own hazard and the air-quality forecast already allows for
+rain. The rules baseline gets both right by construction; they are there to catch an
+analyst that wrongly dismisses one.
+
 Groundedness is the share of alert texts that pass the verifier gating publication:
 every number and date in the evidence, and no other hazard or severity named. The
 hold rate is the share that would be held. For the rules-only system these describe

@@ -124,7 +124,7 @@ scenarios:
       - id: lahore
         province: Punjab
         source_payloads:
-          open-meteo-air-quality:
+          open-meteo-air-quality: &severe_smog
             hourly_units: {time: iso8601, pm2_5: "μg/m³"}
             hourly:
               time:
@@ -200,3 +200,37 @@ scenarios:
         expected:
           - {hazard: heatwave, severity: severe}
           - {hazard: heavy_rain, severity: severe}
+
+  # Two sources, two hazards that add to each other: heat worsens the harm
+  # of polluted air, so both warnings are wanted
+  - id: compound-heat-and-smog
+    districts:
+      - id: multan
+        province: Punjab
+        source_payloads:
+          open-meteo-forecast:
+            daily:
+              <<: *calm_daily
+              temperature_2m_max: [46.5]
+          open-meteo-air-quality: *severe_smog
+        expected:
+          - {hazard: heatwave, severity: severe}
+          - {hazard: poor_air_quality, severity: severe}
+
+  # Two sources that seem to disagree: heavy rain usually clears the air, yet
+  # PM2.5 is forecast severe on the same day. Each source is authoritative for
+  # its own hazard and the air-quality forecast already allows for rain, so
+  # both stand; dismissing either one is an error
+  - id: conflicting-rain-and-smog
+    districts:
+      - id: lahore
+        province: Punjab
+        source_payloads:
+          open-meteo-forecast:
+            daily:
+              <<: *calm_daily
+              precipitation_sum: [130]
+          open-meteo-air-quality: *severe_smog
+        expected:
+          - {hazard: heavy_rain, severity: severe}
+          - {hazard: poor_air_quality, severity: severe}

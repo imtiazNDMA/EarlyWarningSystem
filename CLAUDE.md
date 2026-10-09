@@ -76,6 +76,10 @@ npm run generate:api
   `HazardAssessment` through a tool call. Alerts follow the assessment. If the model is
   unavailable, errors, or runs out of steps or time, the rule-based alert stands. Tests
   script the model with the `model` fixture, which has no model loaded by default.
+- Analyst tools are read-only and one per source: `get_forecast` is weather only and
+  `get_air_quality` is PM2.5. Every tool result reaches the model inside
+  `<tool_result>` tags with `<` escaped, so text from a source cannot pass as an
+  instruction; changing the prompt means bumping `PROMPT_VERSION`.
 - `ews.drafting` words the alerts the analyst assessed. `verifier.verify` is pure and is
   the only gate before publication: every number and date must be in the evidence, and
   no other hazard or severity may be named. A draft that still fails after the allowed

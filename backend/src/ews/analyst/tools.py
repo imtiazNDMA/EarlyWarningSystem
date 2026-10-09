@@ -14,14 +14,22 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from ews.alerts.models import Alert
 from ews.alerts.service import Screened
 from ews.districts.models import District
+from ews.sources.open_meteo_air_quality import PM25_UNIT, DailyAirQuality
+from ews.sources.open_meteo_air_quality import SOURCE as AIR_QUALITY_SOURCE
 
 EARTH_RADIUS_KM = 6371.0
 
 
 class GetForecast(BaseModel):
-    """Daily forecast values for this district from every source read this run."""
+    """Daily weather forecast for this district: rain, temperature, wind and snow."""
 
     days: int = Field(default=7, ge=1, le=16, description="Days to return, from today")
+
+
+class GetAirQuality(BaseModel):
+    """Daily PM2.5 air-quality forecast for this district, and any signal it raised."""
+
+    days: int = Field(default=5, ge=1, le=7, description="Days to return, from today")
 
 
 class GetNeighbouringSignals(BaseModel):
@@ -72,6 +80,11 @@ def _distance_km(a: District, b: District) -> float:
     return 2 * EARTH_RADIUS_KM * math.asin(math.sqrt(chord))
 
 
+def _is_air_quality(screened: Screened) -> bool:
+    """Whether a screening is of the air-quality source's days."""
+    return any(isinstance(day, DailyAirQuality) for day in screened.days)
+
+
 class Toolbox:
     """The tools for one district, reading this run's screenings and the database.
 
@@ -94,6 +107,7 @@ class Toolbox:
             str, tuple[type[BaseModel], Callable[[Any], Awaitable[object]]]
         ] = {
             "get_forecast": (GetForecast, self._forecast),
+            "get_air_quality": (GetAirQuality, self._air_quality),
             "get_neighbouring_signals": (GetNeighbouringSignals, self._neighbours),
             "get_alert_history": (GetAlertHistory, self._alert_history),
             "get_district_profile": (GetDistrictProfile, self._profile),
@@ -115,7 +129,9 @@ class Toolbox:
         except ValidationError as error:
             problems = error.errors(include_url=False, include_input=False)
             return ToolResult(False, f"Invalid arguments: {json.dumps(problems)}")
-        return ToolResult(True, json.dumps(await handler(parsed), default=str))
+        return ToolResult(
+            True, json.dumps(await handler(parsed), default=str, ensure_ascii=False)
+        )
 
     async def _forecast(self, arguments: GetForecast) -> object:
         return [
@@ -128,7 +144,52 @@ class Toolbox:
             }
             for screened in self._screenings
             if screened.district_id == self._district.id
+            and not _is_air_quality(screened)
         ]
+
+    async def _air_quality(self, arguments: GetAirQuality) -> object:
+        screened = next(
+            (
+                screened
+                for screened in self._screenings
+                if screened.district_id == self._district.id
+                and _is_air_quality(screened)
+            ),
+            None,
+        )
+        result: dict[str, object] = {
+            "source": AIR_QUALITY_SOURCE,
+            "measure": "daily mean PM2.5",
+            "unit": PM25_UNIT,
+            "snapshot_id": screened.snapshot_id if screened else None,
+            "days": [
+                day.model_dump(mode="json") for day in screened.days[: arguments.days]
+            ]
+            if screened
+            else [],
+            "signals": [
+                signal.model_dump(
+                    mode="json",
+                    include={
+                        "hazard",
+                        "level",
+                        "onset",
+                        "expires",
+                        "peak_value",
+                        "threshold",
+                    },
+                )
+                for signal in screened.signals
+            ]
+            if screened
+            else [],
+        }
+        if screened is None:
+            # The source can fail without failing the run
+            result["note"] = (
+                "No air-quality data was read for this district in this run."
+            )
+        return result
 
     async def _neighbours(self, arguments: GetNeighbouringSignals) -> object:
         nearest = sorted(
