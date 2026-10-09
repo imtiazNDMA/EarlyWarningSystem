@@ -60,6 +60,10 @@ npm run generate:api
   in lifespan context; tests override the session dependency.
 - Tests create an isolated PostgreSQL database, apply every migration and roll back
   each test. They never contact live external services.
+- `ews.llm.gateway.LLMGateway` owns all model access. Callers pass a Pydantic type to
+  `complete()` and get a validated object plus the `LLMCall` record of what served it.
+  Provider defaults live in `PROVIDER_DEFAULTS`; `EWS_LLM_PROVIDER` selects LM Studio
+  or Groq. Tests script the provider with `httpx.MockTransport` and never call a model.
 - Source clients return typed records and raise `SourceError`. Raw payloads are saved
   as `source_snapshots` before use so alerts can cite immutable evidence.
 - Monitoring cycles are transactional. Failed source ingestion rolls back snapshots,
@@ -93,7 +97,8 @@ npm run generate:api
 Compose reads `.env` at the repository root. Important values are
 `EWS_ADMIN_TOKEN`, `EWS_DB_PORT`, `EWS_API_PORT` and `EWS_WEB_PORT`. Backend settings
 also include `EWS_DATABASE_URL`, `EWS_LOG_LEVEL`, source timeout, forecast horizon,
-freshness window and batch size; see `backend/src/ews/core/settings.py`.
+freshness window, batch size and the `EWS_LLM_*` model settings; see
+`backend/src/ews/core/settings.py`.
 
 ## Agent skills
 

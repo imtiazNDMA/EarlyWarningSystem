@@ -8,6 +8,7 @@ from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ews.core.settings import Settings
+from ews.llm.gateway import LLMGateway
 from ews.sources.open_meteo import OpenMeteoForecastClient
 from ews.sources.open_meteo_air_quality import OpenMeteoAirQualityClient
 
@@ -36,6 +37,12 @@ def get_air_quality_client(request: Request) -> OpenMeteoAirQualityClient:
     return client
 
 
+def get_llm_gateway(request: Request) -> LLMGateway:
+    """Return the LLM gateway opened at application start-up."""
+    gateway: LLMGateway = request.app.state.llm_gateway
+    return gateway
+
+
 SettingsDep = Annotated[Settings, Depends(get_app_settings)]
 
 
@@ -62,3 +69,4 @@ ForecastClientDep = Annotated[OpenMeteoForecastClient, Depends(get_forecast_clie
 AirQualityClientDep = Annotated[
     OpenMeteoAirQualityClient, Depends(get_air_quality_client)
 ]
+LLMGatewayDep = Annotated[LLMGateway, Depends(get_llm_gateway)]
