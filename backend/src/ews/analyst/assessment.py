@@ -47,6 +47,22 @@ def decision_of(signal: Signal, assessment: HazardAssessment) -> Decision:
     return "upgrade" if change > 0 else "downgrade"
 
 
+def upgrade_problem(signal: Signal, assessment: HazardAssessment) -> str | None:
+    """Why an assessment may not raise the severity, if it does.
+
+    Screening already gives a signal the highest level its values reach, so a
+    higher one cannot rest on those values. With a real model, allowing it for
+    compound events turned pairs of marginal signals into severe alerts, so the
+    thresholds are a ceiling: the analyst may lower a severity but not raise it.
+    """
+    if decision_of(signal, assessment) != "upgrade":
+        return None
+    return (
+        "severity may not be raised above the screening level, which is already "
+        f"the highest the forecast values reach. Submit {signal.level} or lower."
+    )
+
+
 def assessed_signal(signal: Signal, assessment: HazardAssessment) -> Signal | None:
     """The signal as the analyst judged it, or None when it was dismissed.
 

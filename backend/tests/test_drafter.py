@@ -176,11 +176,11 @@ class TestHeldAlerts:
         await drafted_run(client, upstream, model, draft_turn())
         model.drafts = [INVENTED]
 
-        await analysed_run(client, upstream, model, submit(severity="extreme"))
+        await analysed_run(client, upstream, model, submit(severity="moderate"))
 
         held, current = await lahore_alerts(client)
         assert (current["status"], current["severity"]) == ("active", "severe")
-        assert (held["status"], held["severity"]) == ("held", "extreme")
+        assert (held["status"], held["severity"]) == ("held", "moderate")
         assert held["supersedes_id"] is None
         detail = (await client.get(f"/api/alerts/{current['id']}")).json()
         assert detail["superseded_by_id"] is None
