@@ -2,14 +2,22 @@
 
 import datetime as dt
 from collections import Counter
-from collections.abc import Sequence
-from dataclasses import dataclass
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field
 from typing import Any
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from ews.alerts.lifecycle import Action, ActiveAlert, certainty, decide, urgency
+from ews.alerts.lifecycle import (
+    Action,
+    ActiveAlert,
+    Certainty,
+    Urgency,
+    certainty,
+    decide,
+    urgency,
+)
 from ews.alerts.models import Alert
 from ews.alerts.text import write_alert_text
 from ews.districts.models import District
@@ -32,6 +40,9 @@ class Screened:
     signals: Sequence[Signal]
     # Hazards successfully assessed by this source, including those with no signal
     assessed_hazards: frozenset[str]
+    # Hazard -> urgency and certainty as an analyst judged them; a hazard not
+    # listed here gets both from lead time alone
+    judgements: Mapping[str, tuple[Urgency, Certainty]] = field(default_factory=dict)
 
 
 def _evidence(signal: Signal, screened: Screened) -> list[dict[str, Any]]:
@@ -109,14 +120,18 @@ async def apply_lifecycle(
 
             if signal and action in (Action.ISSUE, Action.SUPERSEDE):
                 text = write_alert_text(signal, names[screened.district_id])
+                judged_urgency, judged_certainty = screened.judgements.get(
+                    hazard,
+                    (urgency(signal.onset, today), certainty(signal.onset, today)),
+                )
                 session.add(
                     Alert(
                         district_id=screened.district_id,
                         run_id=run_id,
                         hazard=hazard,
                         severity=signal.level,
-                        urgency=urgency(signal.onset, today),
-                        certainty=certainty(signal.onset, today),
+                        urgency=judged_urgency,
+                        certainty=judged_certainty,
                         onset=signal.onset,
                         expires=signal.expires,
                         headline_en=text.headline,

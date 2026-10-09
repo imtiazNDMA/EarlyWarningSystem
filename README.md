@@ -67,6 +67,9 @@ All settings are optional for local development.
 | `EWS_LLM_TEMPERATURE` | Sampling temperature | `0.2` |
 | `EWS_LLM_TIMEOUT_SECONDS` | Budget for one model request, including rate-limit waits | `120` |
 | `EWS_LLM_MAX_CONCURRENCY` | Model requests in flight at once | `1` for LM Studio, `2` for Groq |
+| `EWS_ANALYST_MAX_SIGNALS` | Signals the analyst judges per cycle, most severe first; `0` turns it off | `10` |
+| `EWS_ANALYST_MAX_STEPS` | Model turns allowed for one signal | `6` |
+| `EWS_ANALYST_TIME_BUDGET_SECONDS` | Time allowed for one signal's analysis | `120` |
 
 Under Docker Compose, LM Studio running on the host is reached with
 `EWS_LLM_BASE_URL=http://host.docker.internal:1234/v1`. `GET /api/health` reports

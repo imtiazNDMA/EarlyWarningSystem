@@ -13,13 +13,42 @@ export type TimelineRow =
       durationMs: number | null
     }
   | { kind: 'signal'; key: string; districtId: string; hazard: string; level: Level }
+  | {
+      kind: 'analysis'
+      key: string
+      districtId: string
+      hazard: string
+      state: 'running' | 'done' | 'failed'
+      /** The severity the analyst settled on; the screening level until then. */
+      level: Level
+      decision: Decision | null
+      /** The analyst's reasoning, or why the analysis ended without one. */
+      detail: string | null
+    }
+  | { kind: 'tool'; key: string; tool: string; ok: boolean | null }
   | { kind: 'note'; key: string; text: string; failed: boolean }
+
+export type Decision = 'confirm' | 'upgrade' | 'downgrade' | 'dismiss'
+
+export const DECISION_LABELS: Record<Decision, string> = {
+  confirm: 'Confirmed',
+  upgrade: 'Upgraded',
+  downgrade: 'Downgraded',
+  dismiss: 'Dismissed',
+}
+
+const FAILURE_REASONS: Record<string, string> = {
+  step_limit: 'Stopped at the step limit; the rule-based alert stands',
+  time_budget: 'Ran out of time; the rule-based alert stands',
+  model_error: 'The model failed; the rule-based alert stands',
+}
 
 const STEP_LABELS: Record<string, string> = {
   fetch_forecasts: 'Fetch forecasts',
   screen_weather: 'Screen weather',
   fetch_air_quality: 'Fetch air quality',
   screen_air_quality: 'Screen air quality',
+  analyse_signals: 'Analyse signals',
   apply_alert_lifecycle: 'Update alerts',
 }
 
@@ -47,7 +76,10 @@ function stepOutcome(payload: RunEvent['payload']): string | null {
           .map(([action, total]) => `${total} ${action}`)
           .join(', ') || 'no changes'
       : null
-  return count(payload.snapshots, 'snapshot') ?? count(payload.signals, 'signal') ?? actions
+  const analysed = typeof payload.analysed === 'number' ? `${payload.analysed} analysed` : null
+  return (
+    count(payload.snapshots, 'snapshot') ?? count(payload.signals, 'signal') ?? analysed ?? actions
+  )
 }
 
 /**
@@ -57,6 +89,9 @@ function stepOutcome(payload: RunEvent['payload']): string | null {
 export function buildTimeline(events: RunEvent[]): TimelineRow[] {
   const rows: TimelineRow[] = []
   const started = new Map<string, { index: number; at: number }>()
+  // Where the open analysis and tool rows are, so later events can finish them
+  const analyses = new Map<string, number>()
+  const tools = new Map<string, number>()
 
   for (const event of events) {
     const { payload } = event
@@ -87,6 +122,51 @@ export function buildTimeline(events: RunEvent[]): TimelineRow[] {
         districtId: String(payload.district_id),
         hazard: String(payload.hazard),
         level: payload.level as Level,
+      })
+    } else if (event.type === 'analysis_started') {
+      analyses.set(`${payload.district_id}/${payload.hazard}`, rows.length)
+      rows.push({
+        kind: 'analysis',
+        key,
+        districtId: String(payload.district_id),
+        hazard: String(payload.hazard),
+        state: 'running',
+        level: payload.level as Level,
+        decision: null,
+        detail: null,
+      })
+    } else if (event.type === 'assessment' || event.type === 'analysis_failed') {
+      const index = analyses.get(`${payload.district_id}/${payload.hazard}`)
+      const open = index === undefined ? undefined : rows[index]
+      if (index === undefined || open?.kind !== 'analysis') continue
+      rows[index] =
+        event.type === 'assessment'
+          ? {
+              ...open,
+              state: 'done',
+              level: payload.severity as Level,
+              decision: payload.decision as Decision,
+              detail: String(payload.reasoning),
+            }
+          : {
+              ...open,
+              state: 'failed',
+              detail: FAILURE_REASONS[String(payload.reason)] ?? String(payload.reason),
+            }
+    } else if (event.type === 'tool_called') {
+      tools.set(String(payload.tool), rows.length)
+      rows.push({ kind: 'tool', key, tool: String(payload.tool), ok: null })
+    } else if (event.type === 'tool_result') {
+      const index = tools.get(String(payload.tool))
+      const open = index === undefined ? undefined : rows[index]
+      if (index === undefined || open?.kind !== 'tool') continue
+      rows[index] = { ...open, ok: payload.ok === true }
+    } else if (event.type === 'analysis_skipped') {
+      rows.push({
+        kind: 'note',
+        key,
+        text: `Analysis skipped for ${count(payload.signals, 'signal') ?? 'some signals'}: ${String(payload.reason)}`,
+        failed: false,
       })
     } else if (event.type === 'error') {
       rows.push({ kind: 'note', key, text: String(payload.message), failed: true })

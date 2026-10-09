@@ -1,16 +1,25 @@
 """Run a monitoring cycle and read the signals of the latest one."""
 
 import asyncio
+import dataclasses
 import datetime as dt
 import logging
 from collections.abc import Sequence
+from typing import TypedDict, cast
 
 import httpx
+from langgraph.checkpoint.base import BaseCheckpointSaver
+from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.graph import END, START, StateGraph
+from langgraph.graph.state import CompiledStateGraph
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ews.air_quality.service import ingest_all_air_quality
 from ews.alerts.service import Screened, apply_lifecycle
+from ews.analyst.agent import analyse
+from ews.analyst.assessment import HazardAssessment, assessed_signal
+from ews.analyst.tools import Toolbox
 from ews.core.db import create_engine, create_session_factory
 from ews.core.logging import bound_run_id, configure_logging
 from ews.core.settings import Settings, get_settings
@@ -18,7 +27,8 @@ from ews.cycles.events import RunEventLog, RunRecorder
 from ews.cycles.models import HazardSignal, Run
 from ews.districts.models import District
 from ews.forecasts.service import ingest_all_forecasts
-from ews.screening.rules import DailyValue, HazardRule, screen
+from ews.llm.gateway import LLMGateway
+from ews.screening.rules import LEVELS, DailyValue, HazardRule, Signal, screen
 from ews.screening.thresholds import load_rules
 from ews.sources.errors import SourceError
 from ews.sources.models import SourceSnapshot
@@ -40,6 +50,19 @@ SIGNAL_METRIC_FIELDS = {
 }
 
 
+class CycleState(TypedDict, total=False):
+    """How far a run has got; what the graph checkpoints after each node.
+
+    The data a run works on (snapshots, screenings) stays out of the state: it
+    lives in the run's database transaction, which a checkpoint cannot restore.
+    """
+
+    district_count: int
+    signal_count: int
+    analysed: int
+    alert_actions: dict[str, int]
+
+
 async def run_cycle(
     session: AsyncSession,
     client: OpenMeteoForecastClient,
@@ -48,8 +71,10 @@ async def run_cycle(
     trigger: str,
     events: RunEventLog,
     rules: Sequence[HazardRule] | None = None,
+    gateway: LLMGateway | None = None,
+    checkpointer: BaseCheckpointSaver[str] | None = None,
 ) -> Run:
-    """Fetch forecasts for every district, screen them and store the signals.
+    """Fetch forecasts for every district, screen them and bring alerts up to date.
 
     The run is recorded whatever happens. If a source fails, nothing fetched
     during the run is kept and the run is marked failed with the reason, so the
@@ -64,6 +89,10 @@ async def run_cycle(
         trigger: What started the run, such as ``manual``
         events: Log the run records its steps in
         rules: Hazard rules; defaults to the packaged thresholds
+        gateway: Model access for the analyst; without it alerts follow
+            screening alone
+        checkpointer: Where the graph saves its progress; defaults to memory
+            that lasts as long as the run
 
     Returns:
         The finished run, succeeded or failed
@@ -73,18 +102,24 @@ async def run_cycle(
     await session.commit()
     run_id = run.id
     recorder = events.for_run(run_id)
+    cycle = _Cycle(
+        session,
+        client,
+        air_quality_client,
+        gateway,
+        settings,
+        run_id,
+        rules or load_rules(),
+        recorder,
+    )
 
     with bound_run_id(run_id):
         await recorder.emit("run_started", trigger=trigger)
         try:
-            district_count, signal_count = await _ingest_and_screen(
-                session,
-                client,
-                air_quality_client,
-                settings,
-                run_id,
-                rules or load_rules(),
-                recorder,
+            graph = cycle.graph(checkpointer or InMemorySaver())
+            state = cast(
+                CycleState,
+                await graph.ainvoke({}, {"configurable": {"thread_id": str(run_id)}}),
             )
         except SourceError as error:
             await session.rollback()
@@ -97,147 +132,278 @@ async def run_cycle(
             recorder,
             run_id,
             "succeeded",
-            district_count=district_count,
-            signal_count=signal_count,
+            district_count=state["district_count"],
+            signal_count=state["signal_count"],
         )
 
 
-async def _ingest_and_screen(
-    session: AsyncSession,
-    client: OpenMeteoForecastClient,
-    air_quality_client: OpenMeteoAirQualityClient,
-    settings: Settings,
-    run_id: int,
-    rules: Sequence[HazardRule],
-    recorder: RunRecorder,
-) -> tuple[int, int]:
-    """Store a forecast per district and a signal per threshold reached."""
-    weather_rules = [rule for rule in rules if rule.metric != "pm2_5_mean_ug_m3"]
-    air_quality_rules = [rule for rule in rules if rule.metric == "pm2_5_mean_ug_m3"]
-    rows = await session.execute(select(District.id, District.province))
-    provinces = {district_id: province for district_id, province in rows}
-    screenings: list[Screened] = []
+class _Cycle:
+    """One run's work, as the nodes of the monitoring graph.
 
-    async with recorder.step("fetch_forecasts") as outcome:
-        snapshots = await ingest_all_forecasts(
-            session, client, settings.forecast_batch_size, settings.forecast_days
-        )
-        outcome["snapshots"] = len(snapshots)
-        await recorder.emit(
-            "source_fetched", source=FORECAST_SOURCE, snapshots=len(snapshots)
-        )
+    Ingest, screening and the alert lifecycle are plain code; only the analyst
+    uses the model.
+    """
 
-    async with recorder.step("screen_weather") as outcome:
-        for snapshot in snapshots:
-            screenings.append(
-                await _screen_snapshot(
-                    session,
-                    recorder,
-                    run_id,
-                    snapshot,
-                    parse_daily(snapshot.payload),
-                    provinces[snapshot.district_id],
-                    weather_rules,
+    def __init__(
+        self,
+        session: AsyncSession,
+        client: OpenMeteoForecastClient,
+        air_quality_client: OpenMeteoAirQualityClient,
+        gateway: LLMGateway | None,
+        settings: Settings,
+        run_id: int,
+        rules: Sequence[HazardRule],
+        recorder: RunRecorder,
+    ) -> None:
+        self._session = session
+        self._client = client
+        self._air_quality_client = air_quality_client
+        self._gateway = gateway
+        self._settings = settings
+        self._run_id = run_id
+        self._rules = rules
+        self._recorder = recorder
+        self._snapshots: list[SourceSnapshot] = []
+        self._air_snapshots: list[SourceSnapshot] = []
+        self._districts: dict[str, District] = {}
+        self._screenings: list[Screened] = []
+
+    def graph(
+        self, checkpointer: BaseCheckpointSaver[str]
+    ) -> CompiledStateGraph[CycleState, None, CycleState, CycleState]:
+        """Ingest, screen, analyse what was flagged, then apply the lifecycle."""
+        builder = StateGraph(CycleState)
+        builder.add_node("ingest", self._ingest)
+        builder.add_node("screen", self._screen)
+        builder.add_node("analyse", self._analyse)
+        builder.add_node("apply_lifecycle", self._apply_lifecycle)
+        builder.add_edge(START, "ingest")
+        builder.add_edge("ingest", "screen")
+        builder.add_conditional_edges(
+            "screen", self._after_screening, ["analyse", "apply_lifecycle"]
+        )
+        builder.add_edge("analyse", "apply_lifecycle")
+        builder.add_edge("apply_lifecycle", END)
+        return builder.compile(checkpointer=checkpointer)
+
+    def _after_screening(self, state: CycleState) -> str:
+        """Only a run with signals, a model and room to analyse visits the analyst."""
+        wanted = (
+            state["signal_count"] > 0
+            and self._gateway is not None
+            and self._settings.analyst_max_signals > 0
+        )
+        return "analyse" if wanted else "apply_lifecycle"
+
+    async def _ingest(self, state: CycleState) -> CycleState:  # noqa: ARG002
+        """Store a snapshot per district from each source."""
+        settings = self._settings
+        async with self._recorder.step("fetch_forecasts") as outcome:
+            self._snapshots = await ingest_all_forecasts(
+                self._session,
+                self._client,
+                settings.forecast_batch_size,
+                settings.forecast_days,
+            )
+            outcome["snapshots"] = len(self._snapshots)
+            await self._recorder.emit(
+                "source_fetched", source=FORECAST_SOURCE, snapshots=len(self._snapshots)
+            )
+
+        try:
+            async with self._recorder.step("fetch_air_quality") as outcome:
+                self._air_snapshots = await self._ingest_air_quality()
+                outcome["snapshots"] = len(self._air_snapshots)
+                await self._recorder.emit(
+                    "source_fetched",
+                    source=AIR_QUALITY_SOURCE,
+                    snapshots=len(self._air_snapshots),
                 )
-            )
-        outcome["signals"] = sum(len(screened.signals) for screened in screenings)
+        except SourceError as error:
+            logger.warning("Run continues without air quality: %s", error)
+        return {"district_count": len(self._snapshots)}
 
-    try:
-        async with recorder.step("fetch_air_quality") as outcome:
-            air_snapshots = await _ingest_air_quality(
-                session, air_quality_client, settings
+    async def _ingest_air_quality(self) -> list[SourceSnapshot]:
+        """Store an air-quality snapshot per district, or none of them on a failure."""
+        savepoint = await self._session.begin_nested()
+        try:
+            snapshots = await ingest_all_air_quality(
+                self._session,
+                self._air_quality_client,
+                self._settings.forecast_batch_size,
+                self._settings.air_quality_forecast_days,
             )
-            outcome["snapshots"] = len(air_snapshots)
-            await recorder.emit(
-                "source_fetched",
-                source=AIR_QUALITY_SOURCE,
-                snapshots=len(air_snapshots),
-            )
-    except SourceError as error:
-        logger.warning("Run continues without air quality: %s", error)
-        air_snapshots = []
+        except SourceError:
+            await savepoint.rollback()
+            raise
+        await savepoint.commit()
+        return snapshots
 
-    if air_snapshots:
-        async with recorder.step("screen_air_quality") as outcome:
-            weather_signals = sum(len(screened.signals) for screened in screenings)
-            for snapshot in air_snapshots:
-                screenings.append(
-                    await _screen_snapshot(
-                        session,
-                        recorder,
-                        run_id,
+    async def _screen(self, state: CycleState) -> CycleState:  # noqa: ARG002
+        """Store a signal per threshold a district's values reached."""
+        districts = await self._session.scalars(select(District))
+        self._districts = {district.id: district for district in districts}
+        air_metric = "pm2_5_mean_ug_m3"
+        weather_rules = [rule for rule in self._rules if rule.metric != air_metric]
+        air_quality_rules = [rule for rule in self._rules if rule.metric == air_metric]
+
+        async with self._recorder.step("screen_weather") as outcome:
+            for snapshot in self._snapshots:
+                await self._screen_snapshot(
+                    snapshot, parse_daily(snapshot.payload), weather_rules
+                )
+            weather_signals = self._signal_count()
+            outcome["signals"] = weather_signals
+
+        if self._air_snapshots:
+            async with self._recorder.step("screen_air_quality") as outcome:
+                for snapshot in self._air_snapshots:
+                    await self._screen_snapshot(
                         snapshot,
                         parse_air_quality_daily(snapshot.payload),
-                        provinces[snapshot.district_id],
                         air_quality_rules,
                     )
+                outcome["signals"] = self._signal_count() - weather_signals
+        return {"signal_count": self._signal_count()}
+
+    def _signal_count(self) -> int:
+        return sum(len(screened.signals) for screened in self._screenings)
+
+    async def _screen_snapshot(
+        self,
+        snapshot: SourceSnapshot,
+        days: Sequence[DailyValue],
+        rules: Sequence[HazardRule],
+    ) -> None:
+        """Screen one district's snapshot and store what it raised."""
+        province = self._districts[snapshot.district_id].province
+        signals = screen(days, province, rules)
+        for signal in signals:
+            self._session.add(
+                HazardSignal(
+                    run_id=self._run_id,
+                    district_id=snapshot.district_id,
+                    snapshot_id=snapshot.id,
+                    hazard=signal.hazard,
+                    level=signal.level,
+                    onset=signal.onset,
+                    expires=signal.expires,
+                    metrics=signal.model_dump(
+                        mode="json", include=SIGNAL_METRIC_FIELDS
+                    ),
                 )
-            signal_count = sum(len(screened.signals) for screened in screenings)
-            outcome["signals"] = signal_count - weather_signals
-
-    async with recorder.step("apply_alert_lifecycle") as outcome:
-        actions = await apply_lifecycle(session, run_id, screenings)
-        outcome["actions"] = dict(actions)
-    logger.info("Alert actions: %s", dict(actions))
-    return len(snapshots), sum(len(screened.signals) for screened in screenings)
-
-
-async def _ingest_air_quality(
-    session: AsyncSession, client: OpenMeteoAirQualityClient, settings: Settings
-) -> list[SourceSnapshot]:
-    """Store an air-quality snapshot per district, or none of them on a failure."""
-    savepoint = await session.begin_nested()
-    try:
-        snapshots = await ingest_all_air_quality(
-            session,
-            client,
-            settings.forecast_batch_size,
-            settings.air_quality_forecast_days,
-        )
-    except SourceError:
-        await savepoint.rollback()
-        raise
-    await savepoint.commit()
-    return snapshots
-
-
-async def _screen_snapshot(
-    session: AsyncSession,
-    recorder: RunRecorder,
-    run_id: int,
-    snapshot: SourceSnapshot,
-    days: Sequence[DailyValue],
-    province: str,
-    rules: Sequence[HazardRule],
-) -> Screened:
-    """Screen one district's snapshot and store a signal per threshold reached."""
-    signals = screen(days, province, rules)
-    for signal in signals:
-        session.add(
-            HazardSignal(
-                run_id=run_id,
+            )
+            await self._recorder.emit(
+                "signal_raised",
                 district_id=snapshot.district_id,
-                snapshot_id=snapshot.id,
                 hazard=signal.hazard,
                 level=signal.level,
-                onset=signal.onset,
-                expires=signal.expires,
-                metrics=signal.model_dump(mode="json", include=SIGNAL_METRIC_FIELDS),
+                snapshot_id=snapshot.id,
+            )
+        self._screenings.append(
+            Screened(
+                snapshot.district_id,
+                snapshot.id,
+                days,
+                signals,
+                frozenset(rule.hazard for rule in rules),
             )
         )
-        await recorder.emit(
-            "signal_raised",
-            district_id=snapshot.district_id,
-            hazard=signal.hazard,
-            level=signal.level,
-            snapshot_id=snapshot.id,
+
+    async def _analyse(self, state: CycleState) -> CycleState:  # noqa: ARG002
+        """Have the analyst judge the most severe signals; alerts follow its view."""
+        gateway = self._gateway
+        if gateway is None:
+            return {"analysed": 0}
+        settings = self._settings
+        # Most severe first, then a stable order
+        flagged = sorted(
+            (
+                (index, signal)
+                for index, screened in enumerate(self._screenings)
+                for signal in screened.signals
+            ),
+            key=lambda item: (
+                -LEVELS.index(item[1].level),
+                self._screenings[item[0]].district_id,
+                item[1].hazard,
+            ),
         )
-    return Screened(
-        snapshot.district_id,
-        snapshot.id,
-        days,
-        signals,
-        frozenset(rule.hazard for rule in rules),
+        chosen = flagged[: settings.analyst_max_signals]
+        analysed = 0
+
+        async with self._recorder.step("analyse_signals") as outcome:
+            available = await gateway.availability(
+                settings.health_check_timeout_seconds
+            )
+            if not available.available:
+                logger.warning("Analysis skipped: %s", available.message)
+                await self._recorder.emit(
+                    "analysis_skipped", reason="model unavailable", signals=len(flagged)
+                )
+                chosen = []
+            elif len(flagged) > len(chosen):
+                await self._recorder.emit(
+                    "analysis_skipped",
+                    reason="over the per-run limit",
+                    signals=len(flagged) - len(chosen),
+                )
+
+            for index, signal in chosen:
+                screened = self._screenings[index]
+                analysis = await analyse(
+                    gateway,
+                    Toolbox(
+                        self._session,
+                        self._districts,
+                        self._screenings,
+                        screened.district_id,
+                    ),
+                    self._districts[screened.district_id],
+                    signal,
+                    (screened.days[0].date, screened.days[-1].date),
+                    self._recorder,
+                    max_steps=settings.analyst_max_steps,
+                    time_budget_seconds=settings.analyst_time_budget_seconds,
+                )
+                if analysis.assessment is not None:
+                    self._screenings[index] = _judged(
+                        screened, signal, analysis.assessment
+                    )
+                    analysed += 1
+            outcome["analysed"] = analysed
+        return {"analysed": analysed}
+
+    async def _apply_lifecycle(self, state: CycleState) -> CycleState:  # noqa: ARG002
+        """Issue, keep, replace or end alerts to match the screenings."""
+        async with self._recorder.step("apply_alert_lifecycle") as outcome:
+            actions = await apply_lifecycle(
+                self._session, self._run_id, self._screenings
+            )
+            outcome["actions"] = dict(actions)
+        logger.info("Alert actions: %s", dict(actions))
+        return {"alert_actions": {str(action): n for action, n in actions.items()}}
+
+
+def _judged(
+    screened: Screened, signal: Signal, assessment: HazardAssessment
+) -> Screened:
+    """A screening with one of its signals replaced by the analyst's view of it.
+
+    A dismissed signal is dropped; its hazard stays assessed, so an alert that
+    was active for it is ended.
+    """
+    judged = assessed_signal(signal, assessment)
+    others = [other for other in screened.signals if other.hazard != signal.hazard]
+    if judged is None:
+        return dataclasses.replace(screened, signals=others)
+    return dataclasses.replace(
+        screened,
+        signals=[*others, judged],
+        judgements={
+            **screened.judgements,
+            signal.hazard: (assessment.urgency, assessment.certainty),
+        },
     )
 
 
@@ -320,6 +486,7 @@ async def _run_against_configured_database() -> None:
                 settings,
                 trigger="command",
                 events=RunEventLog(open_session),
+                gateway=LLMGateway.from_settings(settings, http),
             )
     finally:
         await engine.dispose()

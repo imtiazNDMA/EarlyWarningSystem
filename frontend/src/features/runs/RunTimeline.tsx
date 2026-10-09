@@ -1,7 +1,7 @@
 import type { RunEvent } from '../../api/client'
 import { LEVEL_COLOURS, LEVEL_LABELS, hazardLabel } from '../signals/signals'
 import type { StreamState } from './queries'
-import { buildTimeline, formatDuration, type TimelineRow } from './runs'
+import { DECISION_LABELS, buildTimeline, formatDuration, type TimelineRow } from './runs'
 
 const STATE_MARKS = { running: '…', done: '✓', failed: '✕' } as const
 const STATE_NAMES = { running: 'In progress', done: 'Done', failed: 'Failed' } as const
@@ -16,6 +16,39 @@ function Row({ row, districtNames }: { row: TimelineRow; districtNames: Map<stri
         <span className="text-ink">
           {hazardLabel(row.hazard)} · {districtNames.get(row.districtId) ?? row.districtId}
         </span>
+      </li>
+    )
+  }
+
+  if (row.kind === 'analysis') {
+    return (
+      <li className="ml-5 border-l-[3px] pl-2 text-xs" style={{ borderColor: LEVEL_COLOURS[row.level] }}>
+        <p className="text-ink">
+          <span className="font-semibold">
+            {row.state === 'running' && 'Analysing'}
+            {row.state === 'failed' && 'Not analysed'}
+            {row.decision && DECISION_LABELS[row.decision]}
+          </span>{' '}
+          {hazardLabel(row.hazard)} · {districtNames.get(row.districtId) ?? row.districtId}
+          {row.decision && row.decision !== 'dismiss' && (
+            <>
+              {' · '}
+              <span className="type-label" style={{ color: LEVEL_COLOURS[row.level] }}>
+                {LEVEL_LABELS[row.level]}
+              </span>
+            </>
+          )}
+        </p>
+        {row.detail && <p className="mt-0.5 break-words text-ink/70">{row.detail}</p>}
+      </li>
+    )
+  }
+
+  if (row.kind === 'tool') {
+    return (
+      <li className="ml-8 font-mono text-[0.6875rem] text-ink/60">
+        {row.tool}
+        {row.ok === false && <span className="ml-1.5 font-semibold text-ink">failed</span>}
       </li>
     )
   }

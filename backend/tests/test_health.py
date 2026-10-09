@@ -10,7 +10,7 @@ from sqlalchemy.pool import NullPool
 
 from ews.api.dependencies import get_llm_gateway, get_session
 from ews.core.db import create_engine
-from tests.conftest import llm_gateway_answering
+from tests.conftest import Model, llm_gateway_answering
 
 # Nothing listens on port 1, so connections are refused immediately
 UNREACHABLE_DATABASE_URL = "postgresql+asyncpg://ews:ews@127.0.0.1:1/ews"
@@ -20,8 +20,10 @@ class TestHealth:
     """Test cases for GET /api/health"""
 
     async def test_reports_healthy_when_database_is_reachable(
-        self, client: AsyncClient
+        self, client: AsyncClient, model: Model
     ) -> None:
+        model.loaded = True
+
         response = await client.get("/api/health")
 
         assert response.status_code == 200

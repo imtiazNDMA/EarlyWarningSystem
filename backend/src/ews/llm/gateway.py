@@ -4,7 +4,7 @@ import asyncio
 import json
 import logging
 import time
-from collections.abc import Awaitable, Callable, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Literal, Self, TypedDict
 
@@ -92,6 +92,26 @@ class Completion[T: BaseModel]:
     """A validated result and the record of the call that produced it."""
 
     output: T
+    call: LLMCall
+
+
+@dataclass(frozen=True)
+class ToolCall:
+    """One tool the model asked to run."""
+
+    id: str
+    name: str
+    # None when the model's arguments were not a JSON object
+    arguments: dict[str, Any] | None
+
+
+@dataclass(frozen=True)
+class ToolTurn:
+    """The model's reply in a tool-calling conversation."""
+
+    # The assistant message, to append to the conversation as it stands
+    message: dict[str, Any]
+    tool_calls: list[ToolCall]
     call: LLMCall
 
 
@@ -207,21 +227,59 @@ class LLMGateway:
                 ]
                 continue
 
-            call = LLMCall(
-                provider=self._provider,
-                model=usage.model or self._model or "unknown",
-                prompt_version=prompt_version,
-                prompt_tokens=usage.prompt_tokens,
-                completion_tokens=usage.completion_tokens,
-                latency_ms=round((time.monotonic() - started) * 1000),
-                requests=usage.requests,
-            )
-            logger.info("LLM call served: %s", call.model_dump_json())
+            call = self._record(usage, started, prompt_version)
             return Completion(output=output, call=call)
 
         raise LLMOutputError(
             self._provider,
             f"output did not match {output_type.__name__} after one repair: {problems}",
+        )
+
+    async def call_tools(
+        self,
+        messages: Sequence[Mapping[str, Any]],
+        tools: Sequence[Mapping[str, Any]],
+        *,
+        prompt_version: str,
+    ) -> ToolTurn:
+        """Send a tool-calling conversation and return the model's next turn.
+
+        Structured output is not requested here: providers do not combine it
+        with tools, so a caller that wants a typed result offers a tool whose
+        arguments are that result.
+
+        Args:
+            messages: The conversation so far, in chat-completions form
+            tools: Tool definitions, in chat-completions form
+            prompt_version: Version of the prompt in use, kept on the call record
+
+        Returns:
+            The assistant message and the tool calls it contains, if any
+
+        Raises:
+            LLMRateLimitError: If a rate limit outlasts the timeout
+            LLMError: On a network failure, an error status or a bad response
+        """
+        started = time.monotonic()
+        usage = _Usage()
+        response = await self._post(messages, None, usage, tools)
+        message = self._message(response, usage)
+        try:
+            tool_calls = [_tool_call(call) for call in message.get("tool_calls") or []]
+        except (KeyError, TypeError, AttributeError) as error:
+            raise LLMError(self._provider, "unusable tool call") from error
+        # Only what the conversation needs: providers add fields of their own,
+        # such as reasoning, that they do not all accept back
+        assistant: dict[str, Any] = {
+            "role": "assistant",
+            "content": message.get("content") or "",
+        }
+        if message.get("tool_calls"):
+            assistant["tool_calls"] = message["tool_calls"]
+        return ToolTurn(
+            message=assistant,
+            tool_calls=tool_calls,
+            call=self._record(usage, started, prompt_version),
         )
 
     async def availability(self, timeout_seconds: float) -> ModelAvailability:
@@ -310,9 +368,10 @@ class LLMGateway:
 
     async def _post(
         self,
-        conversation: Sequence[Message],
+        conversation: Sequence[Mapping[str, Any]],
         response_format: dict[str, Any] | None,
         usage: _Usage,
+        tools: Sequence[Mapping[str, Any]] | None = None,
     ) -> httpx.Response:
         """Send one request, waiting out rate limits within the timeout."""
         body: dict[str, Any] = {
@@ -323,6 +382,8 @@ class LLMGateway:
             body["model"] = self._model
         if response_format:
             body["response_format"] = response_format
+        if tools:
+            body["tools"] = tools
 
         waited = 0.0
         async with self._slots:
@@ -357,6 +418,10 @@ class LLMGateway:
 
     def _reply(self, response: httpx.Response, usage: _Usage) -> str:
         """Read the reply text and add the request's token counts to the totals."""
+        return str(self._message(response, usage).get("content") or "")
+
+    def _message(self, response: httpx.Response, usage: _Usage) -> dict[str, Any]:
+        """Read the assistant message and add the request's tokens to the totals."""
         if response.status_code != httpx.codes.OK:
             reason = _error_body(response).get("message") or response.text[:200]
             raise LLMError(
@@ -365,14 +430,30 @@ class LLMGateway:
             )
         try:
             body = response.json()
-            content = body["choices"][0]["message"]["content"]
+            message = body["choices"][0]["message"]
+            if not isinstance(message, dict):
+                raise TypeError("message is not an object")
             tokens = body.get("usage") or {}
             usage.prompt_tokens += int(tokens.get("prompt_tokens") or 0)
             usage.completion_tokens += int(tokens.get("completion_tokens") or 0)
         except (ValueError, KeyError, IndexError, TypeError, AttributeError) as error:
             raise LLMError(self._provider, "unusable response") from error
         usage.model = body.get("model") or usage.model
-        return str(content or "")
+        return message
+
+    def _record(self, usage: _Usage, started: float, prompt_version: str) -> LLMCall:
+        """Build and log the record of a finished call."""
+        call = LLMCall(
+            provider=self._provider,
+            model=usage.model or self._model or "unknown",
+            prompt_version=prompt_version,
+            prompt_tokens=usage.prompt_tokens,
+            completion_tokens=usage.completion_tokens,
+            latency_ms=round((time.monotonic() - started) * 1000),
+            requests=usage.requests,
+        )
+        logger.info("LLM call served: %s", call.model_dump_json())
+        return call
 
     def _headers(self) -> dict[str, str]:
         return {"Authorization": f"Bearer {self._api_key}"} if self._api_key else {}
@@ -380,6 +461,20 @@ class LLMGateway:
     def _redact(self, text: str) -> str:
         """Remove the API key from text bound for a log or an error."""
         return text.replace(self._api_key, "[redacted]") if self._api_key else text
+
+
+def _tool_call(raw: Mapping[str, Any]) -> ToolCall:
+    """Read one tool call from an assistant message."""
+    function = raw["function"]
+    try:
+        arguments = json.loads(function.get("arguments") or "{}")
+    except ValueError:
+        arguments = None
+    return ToolCall(
+        id=str(raw["id"]),
+        name=str(function["name"]),
+        arguments=arguments if isinstance(arguments, dict) else None,
+    )
 
 
 def _error_body(response: httpx.Response) -> dict[str, Any]:

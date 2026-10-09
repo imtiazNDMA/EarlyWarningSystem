@@ -131,19 +131,22 @@ class TestRunEvents:
             ("step_started", "fetch_forecasts"),
             ("source_fetched", "open-meteo-forecast"),
             ("step_finished", "fetch_forecasts"),
-            ("step_started", "screen_weather"),
-            ("signal_raised", None),
-            ("step_finished", "screen_weather"),
             ("step_started", "fetch_air_quality"),
             ("source_fetched", "open-meteo-air-quality"),
             ("step_finished", "fetch_air_quality"),
+            ("step_started", "screen_weather"),
+            ("signal_raised", None),
+            ("step_finished", "screen_weather"),
             ("step_started", "screen_air_quality"),
             ("step_finished", "screen_air_quality"),
+            ("step_started", "analyse_signals"),
+            ("analysis_skipped", None),
+            ("step_finished", "analyse_signals"),
             ("step_started", "apply_alert_lifecycle"),
             ("step_finished", "apply_alert_lifecycle"),
             ("run_finished", None),
         ]
-        assert [event["seq"] for event in events] == list(range(1, 16))
+        assert [event["seq"] for event in events] == list(range(1, 19))
 
     async def test_events_carry_what_happened(
         self, client: AsyncClient, upstream: Upstream

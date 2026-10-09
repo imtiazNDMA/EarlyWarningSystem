@@ -2,6 +2,7 @@
 
 import asyncio
 import copy
+import itertools
 import json
 import os
 import uuid
@@ -62,9 +63,64 @@ CALM_AIR_QUALITY["hourly"]["pm2_5"] = [0.0 for _ in CALM_AIR_QUALITY["hourly"]["
 # LM Studio's model listing with one model loaded
 LOADED_MODELS = {"data": [{"id": "qwen-test", "type": "llm", "state": "loaded"}]}
 
+_call_ids = itertools.count(1)
+
+
+def tool_call(name: str, **arguments: Any) -> dict[str, Any]:
+    """One tool call as a model writes it in an assistant message."""
+    return {
+        "id": f"call_{next(_call_ids)}",
+        "type": "function",
+        "function": {"name": name, "arguments": json.dumps(arguments)},
+    }
+
+
+def model_turn(*tool_calls: dict[str, Any], content: str = "") -> dict[str, Any]:
+    """A chat-completions response in which the model calls the given tools."""
+    message: dict[str, Any] = {"role": "assistant", "content": content}
+    if tool_calls:
+        message["tool_calls"] = list(tool_calls)
+    return {
+        "model": "qwen-test",
+        "choices": [{"message": message}],
+        "usage": {"prompt_tokens": 100, "completion_tokens": 20},
+    }
+
+
+ModelTurn = dict[str, Any] | httpx.Response
+
+
+class Model:
+    """Stand-in for the language model: scripted turns, and a record of requests.
+
+    No model is loaded until a test says so, so cycles run without the analyst
+    unless a test is about it.
+    """
+
+    def __init__(self) -> None:
+        self.loaded = False
+        # Played in order; the last one repeats
+        self.turns: list[ModelTurn] = []
+        # Seconds to wait before answering a chat request
+        self.delay = 0.0
+        self.requests: list[dict[str, Any]] = []
+
+    async def handle(self, request: httpx.Request) -> httpx.Response:
+        if request.method == "GET":
+            return httpx.Response(
+                200, json=LOADED_MODELS if self.loaded else {"data": []}
+            )
+        self.requests.append(json.loads(request.content))
+        if self.delay:
+            await asyncio.sleep(self.delay)
+        turn = self.turns.pop(0) if len(self.turns) > 1 else self.turns[0]
+        return (
+            turn if isinstance(turn, httpx.Response) else httpx.Response(200, json=turn)
+        )
+
 
 def llm_gateway_answering(
-    handler: Callable[[httpx.Request], httpx.Response],
+    handler: Callable[[httpx.Request], Any],
 ) -> LLMGateway:
     """A default-configured gateway whose HTTP calls are answered by the handler."""
     http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
@@ -190,8 +246,17 @@ def open_session(db_session: AsyncSession) -> SessionFactory:
 
 
 @pytest.fixture
+def model() -> Model:
+    """The stand-in language model the application's gateway talks to."""
+    return Model()
+
+
+@pytest.fixture
 def app(
-    database_url: str, db_session: AsyncSession, open_session: SessionFactory
+    database_url: str,
+    db_session: AsyncSession,
+    open_session: SessionFactory,
+    model: Model,
 ) -> FastAPI:
     """Application wired to the test's rolled-back session."""
     settings = Settings(
@@ -207,9 +272,8 @@ def app(
 
     app.dependency_overrides[get_session] = override_session
     app.dependency_overrides[get_session_factory] = lambda: open_session
-    app.dependency_overrides[get_llm_gateway] = lambda: llm_gateway_answering(
-        lambda _request: httpx.Response(200, json=LOADED_MODELS)
-    )
+    gateway = llm_gateway_answering(model.handle)
+    app.dependency_overrides[get_llm_gateway] = lambda: gateway
     return app
 
 
