@@ -1,0 +1,17 @@
+{
+  "system": "rules-only",
+  "scenario_set": "rules-baseline-v1",
+  "scenarios_sha256": "0b304579212051333201685713f5e02ca48c7b7bee441812dc40dff27d70ddc3",
+  "rules_sha256": "eb40f0dc1eae91d6f048ab3705f78f642883616b51f724dc18601d439adb7049",
+  "scenario_count": 12,
+  "district_count": 12,
+  "expected_hazards": 10,
+  "predicted_hazards": 10,
+  "true_positives": 10,
+  "false_positives": 0,
+  "false_negatives": 0,
+  "correct_severities": 10,
+  "hazard_precision": 1.0,
+  "hazard_recall": 1.0,
+  "severity_accuracy": 1.0
+}

@@ -1,0 +1,202 @@
+version: rules-baseline-v1
+
+templates:
+  calm_daily: &calm_daily
+    time: ["2026-10-08"]
+    temperature_2m_max: [30]
+    temperature_2m_min: [20]
+    precipitation_sum: [0]
+    precipitation_probability_max: [0]
+    wind_speed_10m_max: [10]
+    wind_gusts_10m_max: [20]
+    weather_code: [0]
+    snowfall_sum: [0]
+    uv_index_max: [5]
+  calm_forecast: &calm_forecast
+    daily: *calm_daily
+
+scenarios:
+  - id: calm-day
+    districts:
+      - id: lahore
+        province: Punjab
+        source_payloads:
+          open-meteo-forecast: *calm_forecast
+        expected: []
+
+  - id: rain-just-below-threshold
+    districts:
+      - id: lahore
+        province: Punjab
+        source_payloads:
+          open-meteo-forecast:
+            daily:
+              <<: *calm_daily
+              precipitation_sum: [49.9]
+        expected: []
+
+  - id: rain-moderate-boundary
+    districts:
+      - id: lahore
+        province: Punjab
+        source_payloads:
+          open-meteo-forecast:
+            daily:
+              <<: *calm_daily
+              precipitation_sum: [67]
+        expected:
+          - {hazard: heavy_rain, severity: moderate}
+
+  - id: rain-severe-boundary
+    districts:
+      - id: lahore
+        province: Punjab
+        source_payloads:
+          open-meteo-forecast:
+            daily:
+              <<: *calm_daily
+              precipitation_sum: [120]
+        expected:
+          - {hazard: heavy_rain, severity: severe}
+
+  - id: rain-extreme-boundary
+    districts:
+      - id: lahore
+        province: Punjab
+        source_payloads:
+          open-meteo-forecast:
+            daily:
+              <<: *calm_daily
+              precipitation_sum: [180]
+        expected:
+          - {hazard: heavy_rain, severity: extreme}
+
+  - id: plains-heat-severe
+    districts:
+      - id: jacobabad
+        province: Sindh
+        source_payloads:
+          open-meteo-forecast:
+            daily:
+              <<: *calm_daily
+              temperature_2m_max: [46.5]
+        expected:
+          - {hazard: heatwave, severity: severe}
+
+  - id: mountain-heat-regional-threshold
+    districts:
+      - id: gilgit
+        province: Gilgit Baltistan
+        source_payloads:
+          open-meteo-forecast:
+            daily:
+              <<: *calm_daily
+              temperature_2m_max: [38]
+        expected:
+          - {hazard: heatwave, severity: severe}
+
+  - id: extreme-wind-boundary
+    districts:
+      - id: karachi-central
+        province: Sindh
+        source_payloads:
+          open-meteo-forecast:
+            daily:
+              <<: *calm_daily
+              wind_gusts_10m_max: [112]
+        expected:
+          - {hazard: strong_wind, severity: extreme}
+
+  - id: moderate-snow-boundary
+    districts:
+      - id: skardu
+        province: Gilgit Baltistan
+        source_payloads:
+          open-meteo-forecast:
+            daily:
+              <<: *calm_daily
+              snowfall_sum: [16]
+        expected:
+          - {hazard: heavy_snow, severity: moderate}
+
+  - id: severe-air-quality-boundary
+    districts:
+      - id: lahore
+        province: Punjab
+        source_payloads:
+          open-meteo-air-quality:
+            hourly_units: {time: iso8601, pm2_5: "μg/m³"}
+            hourly:
+              time:
+                - "2026-10-08T00:00"
+                - "2026-10-08T01:00"
+                - "2026-10-08T02:00"
+                - "2026-10-08T03:00"
+                - "2026-10-08T04:00"
+                - "2026-10-08T05:00"
+                - "2026-10-08T06:00"
+                - "2026-10-08T07:00"
+                - "2026-10-08T08:00"
+                - "2026-10-08T09:00"
+                - "2026-10-08T10:00"
+                - "2026-10-08T11:00"
+                - "2026-10-08T12:00"
+                - "2026-10-08T13:00"
+                - "2026-10-08T14:00"
+                - "2026-10-08T15:00"
+                - "2026-10-08T16:00"
+                - "2026-10-08T17:00"
+                - "2026-10-08T18:00"
+                - "2026-10-08T19:00"
+                - "2026-10-08T20:00"
+                - "2026-10-08T21:00"
+                - "2026-10-08T22:00"
+                - "2026-10-08T23:00"
+              pm2_5:
+                - 175
+                - 175
+                - 175
+                - 175
+                - 175
+                - 175
+                - 175
+                - 175
+                - 175
+                - 175
+                - 175
+                - 175
+                - 175
+                - 175
+                - 175
+                - 175
+                - 175
+                - 175
+                - 175
+                - 175
+                - 175
+                - 175
+                - 175
+                - 175
+        expected:
+          - {hazard: poor_air_quality, severity: severe}
+
+  - id: missing-source-is-calm
+    districts:
+      - id: lahore
+        province: Punjab
+        source_payloads: {}
+        expected: []
+
+  - id: compound-rain-and-heat
+    districts:
+      - id: jacobabad
+        province: Sindh
+        source_payloads:
+          open-meteo-forecast:
+            daily:
+              <<: *calm_daily
+              temperature_2m_max: [47]
+              precipitation_sum: [130]
+        expected:
+          - {hazard: heatwave, severity: severe}
+          - {hazard: heavy_rain, severity: severe}
