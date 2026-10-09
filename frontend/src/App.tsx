@@ -1,13 +1,19 @@
 import { useCallback, useMemo, useState } from 'react'
 
-import type { District } from './api/client'
+import type { Alert, District } from './api/client'
 import { AirQualityLegend } from './features/air-quality/AirQualityLegend'
 import { AirQualityView } from './features/air-quality/AirQualityView'
 import { useAirQuality } from './features/air-quality/queries'
 import { AlertFeed } from './features/alerts/AlertFeed'
 import { AlertLegend } from './features/alerts/AlertLegend'
 import { AlertList } from './features/alerts/AlertList'
-import { alertsByDistrict, highestAlertLevel, summariseAlerts } from './features/alerts/alerts'
+import {
+  airQualityAlerts,
+  alertsByDistrict,
+  highestAlertLevel,
+  summariseAlerts,
+  weatherAlerts,
+} from './features/alerts/alerts'
 import { useActiveAlerts, useAlertHistory } from './features/alerts/queries'
 import { DistrictMap, type MapFocus } from './features/districts/DistrictMap'
 import { DistrictPanel } from './features/districts/DistrictPanel'
@@ -16,6 +22,27 @@ import { useDistrictBoundaries, useDistricts } from './features/districts/querie
 import { ForecastSection } from './features/forecast/ForecastSection'
 import { RunsPanel } from './features/runs/RunsPanel'
 import type { Level } from './features/signals/signals'
+
+/** The highest alert level and a tooltip line per map feature, for alerts grouped by district. */
+function mapMarks(districts: District[], alerts: Map<string, Alert[]>) {
+  const levels = new Map<string, Level>()
+  const summaries = new Map<string, string>()
+  for (const district of districts) {
+    const group = alerts.get(district.id)
+    if (!group || district.feature_id === null) continue
+    const level = highestAlertLevel(group)
+    const summary = summariseAlerts(group)
+    if (level) levels.set(district.feature_id, level)
+    if (summary) summaries.set(district.feature_id, summary)
+  }
+  return { levels, summaries }
+}
+
+function alertCount(alerts: Map<string, Alert[]>): number {
+  let count = 0
+  for (const group of alerts.values()) count += group.length
+  return count
+}
 
 export default function App() {
   const boundaries = useDistrictBoundaries()
@@ -46,19 +73,17 @@ export default function App() {
     () => alertsByDistrict(activeAlerts.data ?? []),
     [activeAlerts.data],
   )
-  const { levels, summaries } = useMemo(() => {
-    const levels = new Map<string, Level>()
-    const summaries = new Map<string, string>()
-    for (const district of districts.data ?? []) {
-      const alerts = byDistrict.get(district.id)
-      if (!alerts || district.feature_id === null) continue
-      const level = highestAlertLevel(alerts)
-      const summary = summariseAlerts(alerts)
-      if (level) levels.set(district.feature_id, level)
-      if (summary) summaries.set(district.feature_id, summary)
-    }
-    return { levels, summaries }
-  }, [byDistrict, districts.data])
+  // Each map layer marks its own kind of alert: weather as fill, air quality as outline
+  const weather = useMemo(
+    () => alertsByDistrict(weatherAlerts(activeAlerts.data ?? [])),
+    [activeAlerts.data],
+  )
+  const air = useMemo(
+    () => alertsByDistrict(airQualityAlerts(activeAlerts.data ?? [])),
+    [activeAlerts.data],
+  )
+  const weatherMarks = useMemo(() => mapMarks(districts.data ?? [], weather), [districts.data, weather])
+  const airMarks = useMemo(() => mapMarks(districts.data ?? [], air), [districts.data, air])
   const airQualityByDistrict = useMemo(
     () => new Map((airQuality.data ?? []).map((value) => [value.district_id, value])),
     [airQuality.data],
@@ -96,8 +121,9 @@ export default function App() {
           selectedFeatureId={selectedFeatureId}
           focus={focus}
           onSelect={selectFeature}
-          levels={levels}
-          summaries={summaries}
+          levels={weatherMarks.levels}
+          airLevels={airMarks.levels}
+          summaries={mapLayer === 'alerts' ? weatherMarks.summaries : airMarks.summaries}
           layer={mapLayer}
           pm25={pm25ByFeature}
         />
@@ -119,7 +145,7 @@ export default function App() {
               onClick={() => setMapLayer(value)}
               className={`flex-1 rounded-[2px] px-2 py-1 text-xs font-semibold ${mapLayer === value ? 'bg-ink text-panel' : 'text-ink hover:bg-wash'}`}
             >
-              {value === 'alerts' ? 'Alerts' : 'PM2.5'}
+              {value === 'alerts' ? 'Weather alerts' : 'Air quality'}
             </button>
           ))}
         </div>
@@ -131,9 +157,11 @@ export default function App() {
           />
         )}
         {mapLayer === 'alerts' && activeAlerts.data && (
-          <AlertLegend alertCount={activeAlerts.data.length} districtCount={byDistrict.size} />
+          <AlertLegend alertCount={alertCount(weather)} districtCount={weather.size} />
         )}
-        {mapLayer === 'pm2_5' && <AirQualityLegend />}
+        {mapLayer === 'pm2_5' && (
+          <AirQualityLegend alertCount={alertCount(air)} districtCount={air.size} />
+        )}
         {mapLayer === 'pm2_5' && airQuality.isError && (
           <div className="mt-3 border-t border-line/30 pt-3" role="alert">
             <p className="text-sm text-ink/70">Air-quality data could not be loaded.</p>
@@ -164,7 +192,12 @@ export default function App() {
 
       {alertHistory.data && districts.data && (
         <div className="absolute bottom-9 left-3 z-10 hidden w-80 md:block">
-          <AlertFeed alerts={alertHistory.data} districts={districts.data} onSelect={selectFromList} />
+          <AlertFeed
+            title={mapLayer === 'alerts' ? 'Weather alert history' : 'Air-quality alert history'}
+            alerts={(mapLayer === 'alerts' ? weatherAlerts : airQualityAlerts)(alertHistory.data)}
+            districts={districts.data}
+            onSelect={selectFromList}
+          />
         </div>
       )}
 

@@ -3,9 +3,17 @@ import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 
 import type { Alert, District } from '../../api/client'
+import { AirQualityLegend } from '../air-quality/AirQualityLegend'
 import { AlertFeed } from './AlertFeed'
+import { AlertLegend } from './AlertLegend'
 import { AlertList } from './AlertList'
-import { alertsByDistrict, highestAlertLevel, summariseAlerts } from './alerts'
+import {
+  airQualityAlerts,
+  alertsByDistrict,
+  highestAlertLevel,
+  summariseAlerts,
+  weatherAlerts,
+} from './alerts'
 
 function alert(overrides: Partial<Alert> = {}): Alert {
   return {
@@ -76,6 +84,54 @@ describe('alert map helpers', () => {
         alert({ id: 3, hazard: 'heatwave', severity: 'moderate' }),
       ]),
     ).toBe('Severe: heavy rain, strong wind')
+  })
+})
+
+describe('weather and air-quality alerts', () => {
+  const mixed = [
+    alert({ id: 1, hazard: 'heavy_rain' }),
+    alert({ id: 2, hazard: 'poor_air_quality' }),
+    alert({ id: 3, hazard: 'heatwave' }),
+  ]
+
+  it('keeps air quality out of the weather alerts', () => {
+    expect(weatherAlerts(mixed).map((item) => item.id)).toEqual([1, 3])
+    expect(airQualityAlerts(mixed).map((item) => item.id)).toEqual([2])
+  })
+
+  it('counts only weather alerts in the weather legend', () => {
+    render(<AlertLegend alertCount={2} districtCount={1} />)
+
+    expect(screen.getByText('Highest active weather alert')).toBeInTheDocument()
+    expect(screen.getByText('2 active weather alerts across 1 district.')).toBeInTheDocument()
+  })
+
+  it('explains the outline and counts air-quality alerts in the air-quality legend', () => {
+    render(<AirQualityLegend alertCount={1} districtCount={1} />)
+
+    expect(screen.getByText('Outline: active air-quality alert')).toBeInTheDocument()
+    expect(screen.getByText('1 active air-quality alert across 1 district.')).toBeInTheDocument()
+  })
+
+  it('names the kind of alert the feed is showing', () => {
+    render(
+      <AlertFeed
+        title="Weather alert history"
+        alerts={weatherAlerts(mixed)}
+        districts={[lahore]}
+        onSelect={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByRole('heading', { name: 'Weather alert history' })).toBeInTheDocument()
+    expect(screen.getByText('Heavy rain · Lahore')).toBeInTheDocument()
+    expect(screen.queryByText(/Poor air quality/)).not.toBeInTheDocument()
+  })
+
+  it('says so when no air-quality alert is active', () => {
+    render(<AirQualityLegend alertCount={0} districtCount={0} />)
+
+    expect(screen.getByText('No active air-quality alerts.')).toBeInTheDocument()
   })
 })
 
