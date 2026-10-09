@@ -209,8 +209,10 @@ def test_recorded_rules_baseline() -> None:
         )
     )
 
-    assert report.scenario_count == 12
-    assert report.expected_hazards == 10
+    # Twelve single-source scenarios, then one compound and one conflicting
+    # scenario that each expect a weather and an air-quality hazard together
+    assert report.scenario_count == 14
+    assert report.expected_hazards == 14
     assert report.hazard_precision == 1.0
     assert report.hazard_recall == 1.0
     assert report.severity_accuracy == 1.0
