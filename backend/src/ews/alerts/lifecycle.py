@@ -28,6 +28,8 @@ class Action(StrEnum):
     SUPERSEDE = "supersede"
     CANCEL = "cancel"
     EXPIRE = "expire"
+    # Not a lifecycle decision: recorded when an alert's wording fails its checks
+    HOLD = "hold"
 
 
 @dataclass(frozen=True)

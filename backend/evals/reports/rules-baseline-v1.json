@@ -13,5 +13,8 @@
   "correct_severities": 10,
   "hazard_precision": 1.0,
   "hazard_recall": 1.0,
-  "severity_accuracy": 1.0
+  "severity_accuracy": 1.0,
+  "texts_checked": 10,
+  "groundedness": 1.0,
+  "hold_rate": 0.0
 }

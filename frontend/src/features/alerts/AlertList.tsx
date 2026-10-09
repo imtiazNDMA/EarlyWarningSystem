@@ -86,6 +86,16 @@ export function AlertCard({ alert, compact = false, onOpenRun }: CardProps) {
       <h4 className="mt-1 text-sm font-semibold leading-snug text-ink">
         {compact ? `${hazardLabel(alert.hazard)} · ${alert.district_name}` : alert.headline_en}
       </h4>
+      {alert.status === 'held' && (
+        <div className="mt-1.5 text-xs text-ink/75">
+          <p className="font-semibold text-ink">Held: not published</p>
+          <ul className="mt-0.5 list-disc pl-4">
+            {(alert.held_reasons ?? []).map((reason) => (
+              <li key={reason}>{reason}</li>
+            ))}
+          </ul>
+        </div>
+      )}
       {!compact && (
         <>
           <p className="mt-1.5 text-xs leading-relaxed text-ink/75">{alert.body_en}</p>

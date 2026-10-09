@@ -54,8 +54,10 @@ class Alert(Base):
     # Values that justify the alert, each pointing at a source snapshot:
     # snapshot_id, metric, unit, date, value, threshold
     evidence: Mapped[list[dict[str, Any]]] = mapped_column(JSONB)
-    # active, superseded, cancelled or expired
+    # active, superseded, cancelled, expired or held
     status: Mapped[str] = mapped_column(String(20))
+    # Why a held alert was not published; null for every other status
+    held_reasons: Mapped[list[str] | None] = mapped_column(JSONB)
     issued_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True))
     ended_at: Mapped[dt.datetime | None] = mapped_column(DateTime(timezone=True))
     supersedes_id: Mapped[int | None] = mapped_column(ForeignKey("alerts.id"))

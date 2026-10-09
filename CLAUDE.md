@@ -70,11 +70,18 @@ npm run generate:api
   signals and alert lifecycle changes while preserving the failed run record.
 - A cycle is a LangGraph graph built per run in `ews.cycles.service`: ingest, screen,
   analyse, apply lifecycle. Graph state holds only progress counts; working data stays
-  on the run's `_Cycle` object because it lives in the run's transaction.
+  on the run's `_Cycle` object because it lives in the run's transaction. A `draft`
+  node runs between analyse and apply when the analyst upheld a signal.
 - `ews.analyst` judges the most severe signals with a bounded tool loop and submits a
   `HazardAssessment` through a tool call. Alerts follow the assessment. If the model is
   unavailable, errors, or runs out of steps or time, the rule-based alert stands. Tests
   script the model with the `model` fixture, which has no model loaded by default.
+- `ews.drafting` words the alerts the analyst assessed. `verifier.verify` is pure and is
+  the only gate before publication: every number and date must be in the evidence, and
+  no other hazard or severity may be named. A draft that still fails after the allowed
+  revisions is stored with status `held` and never becomes active; a model failure
+  falls back to rule wording. The lifecycle is split into `plan_lifecycle` and
+  `apply_plan` so only alerts that will be written are drafted.
 - Each run keeps an ordered event log in `run_events`. `RunRecorder` commits every
   event through a session of its own, so the log outlives a rolled-back run and is
   readable while the run is in progress; `GET /api/runs/{id}/events` streams it as
@@ -84,7 +91,8 @@ npm run generate:api
 - Screening and lifecycle decisions are pure logic. Thresholds are loaded from
   `ews/screening/data/thresholds.yaml`.
 - Alerts are append-only. Lifecycle changes end old records and create replacements;
-  historical records are never overwritten or deleted.
+  historical records are never overwritten or deleted. A held alert replaces nothing
+  and leaves the current one active.
 - District source inputs live in `backend/data/source/`. Run
   `uv run python -m ews.districts.build` after changing them; generated registry files
   and the mismatch report must remain current.

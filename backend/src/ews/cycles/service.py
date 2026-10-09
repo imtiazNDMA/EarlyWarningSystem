@@ -16,7 +16,14 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ews.air_quality.service import ingest_all_air_quality
-from ews.alerts.service import Screened, apply_lifecycle
+from ews.alerts.service import (
+    Authored,
+    Planned,
+    Screened,
+    apply_plan,
+    evidence_for,
+    plan_lifecycle,
+)
 from ews.analyst.agent import analyse
 from ews.analyst.assessment import HazardAssessment, assessed_signal
 from ews.analyst.tools import Toolbox
@@ -26,6 +33,8 @@ from ews.core.settings import Settings, get_settings
 from ews.cycles.events import RunEventLog, RunRecorder
 from ews.cycles.models import HazardSignal, Run
 from ews.districts.models import District
+from ews.drafting.drafter import draft_alert
+from ews.drafting.verifier import Facts
 from ews.forecasts.service import ingest_all_forecasts
 from ews.llm.gateway import LLMGateway
 from ews.screening.rules import LEVELS, DailyValue, HazardRule, Signal, screen
@@ -60,6 +69,7 @@ class CycleState(TypedDict, total=False):
     district_count: int
     signal_count: int
     analysed: int
+    drafted: int
     alert_actions: dict[str, int]
 
 
@@ -167,6 +177,10 @@ class _Cycle:
         self._air_snapshots: list[SourceSnapshot] = []
         self._districts: dict[str, District] = {}
         self._screenings: list[Screened] = []
+        # By district and hazard: what the analyst concluded, and model wording
+        self._assessments: dict[tuple[str, str], HazardAssessment] = {}
+        self._authored: dict[tuple[str, str], Authored] = {}
+        self._plan: list[Planned] | None = None
 
     def graph(
         self, checkpointer: BaseCheckpointSaver[str]
@@ -176,13 +190,17 @@ class _Cycle:
         builder.add_node("ingest", self._ingest)
         builder.add_node("screen", self._screen)
         builder.add_node("analyse", self._analyse)
+        builder.add_node("draft", self._draft)
         builder.add_node("apply_lifecycle", self._apply_lifecycle)
         builder.add_edge(START, "ingest")
         builder.add_edge("ingest", "screen")
         builder.add_conditional_edges(
             "screen", self._after_screening, ["analyse", "apply_lifecycle"]
         )
-        builder.add_edge("analyse", "apply_lifecycle")
+        builder.add_conditional_edges(
+            "analyse", self._after_analysis, ["draft", "apply_lifecycle"]
+        )
+        builder.add_edge("draft", "apply_lifecycle")
         builder.add_edge("apply_lifecycle", END)
         return builder.compile(checkpointer=checkpointer)
 
@@ -194,6 +212,11 @@ class _Cycle:
             and self._settings.analyst_max_signals > 0
         )
         return "analyse" if wanted else "apply_lifecycle"
+
+    def _after_analysis(self, state: CycleState) -> str:  # noqa: ARG002
+        """Only signals the analyst upheld have wording for the model to write."""
+        upheld = any(a.supported for a in self._assessments.values())
+        return "draft" if upheld else "apply_lifecycle"
 
     async def _ingest(self, state: CycleState) -> CycleState:  # noqa: ARG002
         """Store a snapshot per district from each source."""
@@ -370,15 +393,62 @@ class _Cycle:
                     self._screenings[index] = _judged(
                         screened, signal, analysis.assessment
                     )
+                    self._assessments[(screened.district_id, signal.hazard)] = (
+                        analysis.assessment
+                    )
                     analysed += 1
             outcome["analysed"] = analysed
         return {"analysed": analysed}
 
+    async def _planned(self) -> list[Planned]:
+        """The lifecycle's decisions for this run, made once."""
+        if self._plan is None:
+            self._plan = await plan_lifecycle(self._session, self._screenings)
+        return self._plan
+
+    async def _draft(self, state: CycleState) -> CycleState:  # noqa: ARG002
+        """Have the model word the new alerts the analyst assessed, and verify them."""
+        gateway = self._gateway
+        if gateway is None:
+            return {"drafted": 0}
+        drafted = held = 0
+        async with self._recorder.step("draft_alerts") as outcome:
+            for planned in await self._planned():
+                assessment = self._assessments.get(planned.key)
+                signal = planned.signal
+                if assessment is None or signal is None or not planned.needs_text:
+                    continue
+                district = self._districts[planned.screened.district_id]
+                wording = await draft_alert(
+                    gateway,
+                    self._recorder,
+                    {"district_id": district.id, "hazard": planned.hazard},
+                    district.name_en,
+                    district.province,
+                    Facts(
+                        hazard=planned.hazard,
+                        severity=signal.level,
+                        onset=signal.onset,
+                        expires=signal.expires,
+                        evidence=evidence_for(signal, planned.screened),
+                    ),
+                    assessment.urgency,
+                    assessment.certainty,
+                    max_revisions=self._settings.drafter_max_revisions,
+                )
+                if wording is not None:
+                    self._authored[planned.key] = wording
+                    drafted += 1
+                    held += wording.held_reasons is not None
+            outcome["drafted"] = drafted
+            outcome["held"] = held
+        return {"drafted": drafted}
+
     async def _apply_lifecycle(self, state: CycleState) -> CycleState:  # noqa: ARG002
         """Issue, keep, replace or end alerts to match the screenings."""
         async with self._recorder.step("apply_alert_lifecycle") as outcome:
-            actions = await apply_lifecycle(
-                self._session, self._run_id, self._screenings
+            actions = await apply_plan(
+                self._session, self._run_id, await self._planned(), self._authored
             )
             outcome["actions"] = dict(actions)
         logger.info("Alert actions: %s", dict(actions))

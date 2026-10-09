@@ -37,6 +37,7 @@ function alert(overrides: Partial<Alert> = {}): Alert {
       },
     ],
     status: 'active',
+    held_reasons: null,
     issued_at: '2026-10-08T09:00:00Z',
     ended_at: null,
     supersedes_id: null,
@@ -93,6 +94,23 @@ describe('AlertList', () => {
     render(<AlertList alerts={[]} />)
 
     expect(screen.getByText('No active alerts for this district.')).toBeInTheDocument()
+  })
+})
+
+describe('held alerts', () => {
+  it('shows in the feed that an alert was held and why', () => {
+    render(
+      <AlertFeed
+        alerts={[
+          alert({ status: 'held', held_reasons: ['The number 300 is not in the evidence.'] }),
+        ]}
+        districts={[lahore]}
+        onSelect={vi.fn()}
+      />,
+    )
+
+    expect(screen.getByText('Held: not published')).toBeInTheDocument()
+    expect(screen.getByText('The number 300 is not in the evidence.')).toBeInTheDocument()
   })
 })
 

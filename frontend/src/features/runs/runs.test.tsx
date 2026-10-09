@@ -143,6 +143,36 @@ describe('buildTimeline', () => {
     ])
   })
 
+  it('reports each verification verdict and a held alert', () => {
+    const subject = { district_id: 'lahore', hazard: 'heavy_rain' }
+    const problems = ['The number 300 is not in the evidence.']
+    const rows = buildTimeline([
+      event('draft_checked', { ...subject, attempt: 1, passed: false, problems }),
+      event('draft_checked', { ...subject, attempt: 2, passed: true, problems: [] }),
+      event('alert_held', { ...subject, reasons: problems }),
+      event('draft_failed', { ...subject, reason: 'model_error' }),
+    ])
+
+    expect(rows).toMatchObject([
+      {
+        kind: 'note',
+        text: 'Draft 1 for heavy rain in lahore rejected: The number 300 is not in the evidence.',
+        failed: false,
+      },
+      { kind: 'note', text: 'Draft 2 for heavy rain in lahore verified', failed: false },
+      {
+        kind: 'note',
+        text: 'Alert for heavy rain in lahore held, not published: The number 300 is not in the evidence.',
+        failed: true,
+      },
+      {
+        kind: 'note',
+        text: 'No draft for heavy rain in lahore; rule-based wording used',
+        failed: false,
+      },
+    ])
+  })
+
   it('marks the error and the ending of a failed run', () => {
     const rows = buildTimeline([
       event('error', { message: 'open-meteo-forecast: HTTP 503' }),
@@ -158,7 +188,7 @@ describe('buildTimeline', () => {
 
 describe('run formatting', () => {
   it('names unknown steps from their identifier', () => {
-    expect(stepLabel('draft_alerts')).toBe('Draft alerts')
+    expect(stepLabel('summarise_provinces')).toBe('Summarise provinces')
   })
 
   it('formats durations at the scale they happen', () => {
@@ -272,6 +302,7 @@ describe('alert link to its run', () => {
       generated_by: 'rules',
       evidence: [],
       status: 'active',
+      held_reasons: null,
       issued_at: '2026-10-08T09:00:00Z',
       ended_at: null,
       supersedes_id: null,
