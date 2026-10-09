@@ -316,6 +316,8 @@ export interface components {
             headline_en: string;
             /** Headline Ur */
             headline_ur: string | null;
+            /** Held Reasons */
+            held_reasons: string[] | null;
             /** Id */
             id: number;
             /** Instructions En */
@@ -345,7 +347,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "active" | "superseded" | "cancelled" | "expired";
+            status: "active" | "superseded" | "cancelled" | "expired" | "held";
             /** Superseded By Id */
             superseded_by_id: number | null;
             /** Supersedes Id */
@@ -391,6 +393,8 @@ export interface components {
             headline_en: string;
             /** Headline Ur */
             headline_ur: string | null;
+            /** Held Reasons */
+            held_reasons: string[] | null;
             /** Id */
             id: number;
             /** Instructions En */
@@ -420,7 +424,7 @@ export interface components {
              * Status
              * @enum {string}
              */
-            status: "active" | "superseded" | "cancelled" | "expired";
+            status: "active" | "superseded" | "cancelled" | "expired" | "held";
             /** Supersedes Id */
             supersedes_id: number | null;
             /**
@@ -625,7 +629,7 @@ export interface components {
              * Type
              * @enum {string}
              */
-            type: "run_started" | "step_started" | "step_finished" | "step_failed" | "source_fetched" | "signal_raised" | "analysis_started" | "tool_called" | "tool_result" | "assessment" | "analysis_failed" | "analysis_skipped" | "error" | "run_finished";
+            type: "run_started" | "step_started" | "step_finished" | "step_failed" | "source_fetched" | "signal_raised" | "analysis_started" | "tool_called" | "tool_result" | "assessment" | "analysis_failed" | "analysis_skipped" | "draft_checked" | "draft_failed" | "alert_held" | "error" | "run_finished";
         };
         /**
          * RunOut
@@ -742,7 +746,7 @@ export interface operations {
     alerts_api_alerts_get: {
         parameters: {
             query?: {
-                status?: ("active" | "superseded" | "cancelled" | "expired") | null;
+                status?: ("active" | "superseded" | "cancelled" | "expired" | "held") | null;
                 /** @description Case-insensitive */
                 province?: string | null;
                 hazard?: string | null;

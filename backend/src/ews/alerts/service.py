@@ -19,7 +19,7 @@ from ews.alerts.lifecycle import (
     urgency,
 )
 from ews.alerts.models import Alert
-from ews.alerts.text import write_alert_text
+from ews.alerts.text import AlertText, write_alert_text
 from ews.districts.models import District
 from ews.screening.rules import DailyValue, Signal
 
@@ -45,7 +45,7 @@ class Screened:
     judgements: Mapping[str, tuple[Urgency, Certainty]] = field(default_factory=dict)
 
 
-def _evidence(signal: Signal, screened: Screened) -> list[dict[str, Any]]:
+def evidence_for(signal: Signal, screened: Screened) -> list[dict[str, Any]]:
     """The forecast values behind a signal, each tied to its snapshot."""
     values = {day.date: getattr(day, signal.metric) for day in screened.days}
     return [
@@ -61,32 +61,56 @@ def _evidence(signal: Signal, screened: Screened) -> list[dict[str, Any]]:
     ]
 
 
-async def apply_lifecycle(
-    session: AsyncSession, run_id: int, screenings: Sequence[Screened]
-) -> Counter[Action]:
-    """Bring alerts into line with a run's screening results.
+@dataclass(frozen=True)
+class Planned:
+    """What the lifecycle decided for one district and hazard, before it is done."""
+
+    screened: Screened
+    hazard: str
+    action: Action
+    existing: Alert | None
+    signal: Signal | None
+    # First day of the forecast the decision was made against
+    today: dt.date
+
+    @property
+    def key(self) -> tuple[str, str]:
+        return self.screened.district_id, self.hazard
+
+    @property
+    def needs_text(self) -> bool:
+        """Whether carrying this out writes a new alert."""
+        return self.signal is not None and self.action in (
+            Action.ISSUE,
+            Action.SUPERSEDE,
+        )
+
+
+@dataclass(frozen=True)
+class Authored:
+    """An alert's wording, who wrote it, and why it is held back if it is."""
+
+    text: AlertText
+    # "rules" for templates, "model" for the drafter
+    generated_by: str
+    # Checks the wording failed; a held alert is stored but never active
+    held_reasons: list[str] | None = None
+
+
+async def plan_lifecycle(
+    session: AsyncSession, screenings: Sequence[Screened]
+) -> list[Planned]:
+    """Decide, without changing anything, what each screening means for alerts.
 
     For each district and hazard: issue an alert for a new signal, leave a
     matching alert alone, supersede one whose severity or window changed, and
     cancel or expire one whose signal has gone.
-
-    Args:
-        session: Session to write with; the caller commits
-        run_id: The run the screenings belong to
-        screenings: One entry per district screened in the run
-
-    Returns:
-        How many times each action was taken
     """
-    name_rows = await session.execute(select(District.id, District.name_en))
-    names = {district_id: name for district_id, name in name_rows}
     active_alerts = (
         await session.scalars(select(Alert).where(Alert.status == "active"))
     ).all()
     active_by_key = {(a.district_id, a.hazard): a for a in active_alerts}
-
-    now = dt.datetime.now(dt.UTC)
-    taken: Counter[Action] = Counter()
+    plan: list[Planned] = []
 
     for screened in screenings:
         if not screened.days:
@@ -112,40 +136,90 @@ async def apply_lifecycle(
                 signal,
                 today,
             )
-            taken[action] += 1
+            plan.append(Planned(screened, hazard, action, existing, signal, today))
+    return plan
 
-            if existing and action in ENDED_STATUS:
-                existing.status = ENDED_STATUS[action]
-                existing.ended_at = now
 
-            if signal and action in (Action.ISSUE, Action.SUPERSEDE):
-                text = write_alert_text(signal, names[screened.district_id])
-                judged_urgency, judged_certainty = screened.judgements.get(
-                    hazard,
-                    (urgency(signal.onset, today), certainty(signal.onset, today)),
-                )
-                session.add(
-                    Alert(
-                        district_id=screened.district_id,
-                        run_id=run_id,
-                        hazard=hazard,
-                        severity=signal.level,
-                        urgency=judged_urgency,
-                        certainty=judged_certainty,
-                        onset=signal.onset,
-                        expires=signal.expires,
-                        headline_en=text.headline,
-                        body_en=text.body,
-                        instructions_en=text.instructions,
-                        generated_by="rules",
-                        evidence=_evidence(signal, screened),
-                        status="active",
-                        issued_at=now,
-                        supersedes_id=existing.id if existing else None,
-                    )
-                )
+async def apply_plan(
+    session: AsyncSession,
+    run_id: int,
+    plan: Sequence[Planned],
+    authored: Mapping[tuple[str, str], Authored] | None = None,
+) -> Counter[Action]:
+    """Carry out a lifecycle plan.
+
+    Args:
+        session: Session to write with; the caller commits
+        run_id: The run the plan belongs to
+        plan: Decisions from ``plan_lifecycle``
+        authored: Wording by district and hazard for the alerts being written;
+            an alert with none gets rule-based wording. Wording that is held
+            is stored as a held alert, and the alert it would have replaced
+            stays active.
+
+    Returns:
+        How many times each action was taken
+    """
+    name_rows = await session.execute(select(District.id, District.name_en))
+    names = {district_id: name for district_id, name in name_rows}
+    now = dt.datetime.now(dt.UTC)
+    taken: Counter[Action] = Counter()
+
+    for planned in plan:
+        signal, existing = planned.signal, planned.existing
+        wording = (authored or {}).get(planned.key) if planned.needs_text else None
+        held = wording is not None and wording.held_reasons is not None
+        taken[Action.HOLD if held else planned.action] += 1
+
+        if existing and planned.action in ENDED_STATUS and not held:
+            existing.status = ENDED_STATUS[planned.action]
+            existing.ended_at = now
+
+        if signal is None or not planned.needs_text:
+            continue
+        screened = planned.screened
+        if wording is None:
+            wording = Authored(
+                write_alert_text(signal, names[screened.district_id]), "rules"
+            )
+        judged_urgency, judged_certainty = screened.judgements.get(
+            planned.hazard,
+            (
+                urgency(signal.onset, planned.today),
+                certainty(signal.onset, planned.today),
+            ),
+        )
+        session.add(
+            Alert(
+                district_id=screened.district_id,
+                run_id=run_id,
+                hazard=planned.hazard,
+                severity=signal.level,
+                urgency=judged_urgency,
+                certainty=judged_certainty,
+                onset=signal.onset,
+                expires=signal.expires,
+                headline_en=wording.text.headline,
+                body_en=wording.text.body,
+                instructions_en=wording.text.instructions,
+                generated_by=wording.generated_by,
+                evidence=evidence_for(signal, screened),
+                status="held" if held else "active",
+                held_reasons=wording.held_reasons,
+                issued_at=now,
+                # A held alert replaces nothing
+                supersedes_id=existing.id if existing and not held else None,
+            )
+        )
     await session.flush()
     return taken
+
+
+async def apply_lifecycle(
+    session: AsyncSession, run_id: int, screenings: Sequence[Screened]
+) -> Counter[Action]:
+    """Bring alerts into line with a run's screenings, with rule-based wording."""
+    return await apply_plan(session, run_id, await plan_lifecycle(session, screenings))
 
 
 async def list_alerts(

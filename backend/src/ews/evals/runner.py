@@ -10,6 +10,9 @@ from typing import Any, Self
 import yaml
 from pydantic import BaseModel, model_validator
 
+from ews.alerts.service import Screened, evidence_for
+from ews.alerts.text import write_alert_text
+from ews.drafting.verifier import AlertDraft, Facts, verify
 from ews.screening.rules import DailyValue, HazardRule, Level, Signal, screen
 from ews.screening.thresholds import load_rules
 from ews.sources.open_meteo import DailyForecast
@@ -90,6 +93,12 @@ class EvalReport(BaseModel):
     hazard_precision: float | None
     hazard_recall: float | None
     severity_accuracy: float | None
+    # Alert wording put through the verifier that gates publication: the share
+    # with every number and date in the evidence, and the share that would be
+    # held. Rule-based wording is never revised, so one is the other's complement
+    texts_checked: int
+    groundedness: float | None
+    hold_rate: float | None
 
 
 def _rules_for(fields: set[str], rules: Sequence[HazardRule]) -> list[HazardRule]:
@@ -101,7 +110,7 @@ def _screen_source(
     payload: dict[str, Any],
     province: str,
     rules: Sequence[HazardRule],
-) -> list[Signal]:
+) -> tuple[Sequence[DailyValue], list[Signal]]:
     days: Sequence[DailyValue]
     if source == "open-meteo-forecast":
         days = parse_forecast(payload)
@@ -111,7 +120,23 @@ def _screen_source(
         source_rules = _rules_for(set(DailyAirQuality.model_fields), rules)
     else:
         raise ValueError(f"Unsupported scenario source: {source}")
-    return screen(days, province, source_rules)
+    return days, screen(days, province, source_rules)
+
+
+def _wording_verifies(
+    district_id: str, days: Sequence[DailyValue], signal: Signal
+) -> bool:
+    """Whether the rule-based alert text for a signal passes the verifier."""
+    screened = Screened(district_id, 0, days, [signal], frozenset())
+    text = write_alert_text(signal, district_id)
+    facts = Facts(
+        hazard=signal.hazard,
+        severity=signal.level,
+        onset=signal.onset,
+        expires=signal.expires,
+        evidence=evidence_for(signal, screened),
+    )
+    return not verify(AlertDraft(**vars(text)), facts)
 
 
 def evaluate(path: Path) -> EvalReport:
@@ -125,6 +150,8 @@ def evaluate(path: Path) -> EvalReport:
     expected: dict[tuple[str, str, str], Level] = {}
     predicted: dict[tuple[str, str, str], Level] = {}
     district_count = 0
+    texts_checked = 0
+    texts_verified = 0
 
     for scenario in scenario_set.scenarios:
         for district in scenario.districts:
@@ -132,8 +159,13 @@ def evaluate(path: Path) -> EvalReport:
             for outcome in district.expected:
                 expected[(scenario.id, district.id, outcome.hazard)] = outcome.severity
             for source, payload in district.source_payloads.items():
-                for signal in _screen_source(source, payload, district.province, rules):
+                days, signals = _screen_source(
+                    source, payload, district.province, rules
+                )
+                for signal in signals:
                     predicted[(scenario.id, district.id, signal.hazard)] = signal.level
+                    texts_checked += 1
+                    texts_verified += _wording_verifies(district.id, days, signal)
 
     expected_keys = set(expected)
     predicted_keys = set(predicted)
@@ -163,6 +195,9 @@ def evaluate(path: Path) -> EvalReport:
         severity_accuracy=(
             correct_severities / true_positives if true_positives else None
         ),
+        texts_checked=texts_checked,
+        groundedness=texts_verified / texts_checked if texts_checked else None,
+        hold_rate=1 - texts_verified / texts_checked if texts_checked else None,
     )
 
 

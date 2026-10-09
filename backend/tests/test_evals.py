@@ -86,6 +86,9 @@ scenarios:
     assert report.hazard_precision == 0.5
     assert report.hazard_recall == 0.5
     assert report.severity_accuracy == 0.0
+    assert report.texts_checked == 2
+    assert report.groundedness == 1.0
+    assert report.hold_rate == 0.0
 
 
 def test_evaluate_rejects_duplicate_scenario_ids(tmp_path: Path) -> None:
@@ -122,6 +125,8 @@ scenarios:
     assert report.hazard_precision is None
     assert report.hazard_recall is None
     assert report.severity_accuracy is None
+    assert report.groundedness is None
+    assert report.hold_rate is None
 
 
 @pytest.mark.eval

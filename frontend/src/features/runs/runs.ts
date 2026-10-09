@@ -49,6 +49,7 @@ const STEP_LABELS: Record<string, string> = {
   fetch_air_quality: 'Fetch air quality',
   screen_air_quality: 'Screen air quality',
   analyse_signals: 'Analyse signals',
+  draft_alerts: 'Draft and verify alerts',
   apply_alert_lifecycle: 'Update alerts',
 }
 
@@ -77,9 +78,18 @@ function stepOutcome(payload: RunEvent['payload']): string | null {
           .join(', ') || 'no changes'
       : null
   const analysed = typeof payload.analysed === 'number' ? `${payload.analysed} analysed` : null
+  const drafted =
+    typeof payload.drafted === 'number'
+      ? `${payload.drafted} drafted, ${Number(payload.held ?? 0)} held`
+      : null
   return (
-    count(payload.snapshots, 'snapshot') ?? count(payload.signals, 'signal') ?? analysed ?? actions
+    count(payload.snapshots, 'snapshot') ?? count(payload.signals, 'signal') ?? analysed ?? drafted ?? actions
   )
+}
+
+/** The hazard and district an event concerns, in words. */
+function subject(payload: RunEvent['payload']): string {
+  return `${String(payload.hazard).replaceAll('_', ' ')} in ${String(payload.district_id)}`
 }
 
 /**
@@ -166,6 +176,29 @@ export function buildTimeline(events: RunEvent[]): TimelineRow[] {
         kind: 'note',
         key,
         text: `Analysis skipped for ${count(payload.signals, 'signal') ?? 'some signals'}: ${String(payload.reason)}`,
+        failed: false,
+      })
+    } else if (event.type === 'draft_checked') {
+      const problems = Array.isArray(payload.problems) ? payload.problems.join(' ') : ''
+      rows.push({
+        kind: 'note',
+        key,
+        text: `Draft ${Number(payload.attempt)} for ${subject(payload)} ${payload.passed === true ? 'verified' : `rejected: ${problems}`}`,
+        failed: false,
+      })
+    } else if (event.type === 'alert_held') {
+      const reasons = Array.isArray(payload.reasons) ? payload.reasons.join(' ') : ''
+      rows.push({
+        kind: 'note',
+        key,
+        text: `Alert for ${subject(payload)} held, not published: ${reasons}`,
+        failed: true,
+      })
+    } else if (event.type === 'draft_failed') {
+      rows.push({
+        kind: 'note',
+        key,
+        text: `No draft for ${subject(payload)}; rule-based wording used`,
         failed: false,
       })
     } else if (event.type === 'error') {

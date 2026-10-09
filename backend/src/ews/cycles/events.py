@@ -29,6 +29,9 @@ EventType = Literal[
     "assessment",
     "analysis_failed",
     "analysis_skipped",
+    "draft_checked",
+    "draft_failed",
+    "alert_held",
     "error",
     "run_finished",
 ]

@@ -60,6 +60,8 @@ class Settings(BaseSettings):
     # Model turns allowed for one signal, and the time they may take in all
     analyst_max_steps: int = Field(default=6, ge=1)
     analyst_time_budget_seconds: float = Field(default=120.0, gt=0)
+    # Times the drafter may rewrite an alert that failed verification
+    drafter_max_revisions: int = Field(default=2, ge=0)
 
     @model_validator(mode="after")
     def groq_needs_a_key(self) -> Self:

@@ -15,7 +15,7 @@ from ews.screening.rules import Level
 
 router = APIRouter(prefix="/alerts", tags=["alerts"])
 
-AlertStatus = Literal["active", "superseded", "cancelled", "expired"]
+AlertStatus = Literal["active", "superseded", "cancelled", "expired", "held"]
 
 
 class EvidenceOut(BaseModel):
@@ -52,6 +52,8 @@ class AlertOut(BaseModel):
     generated_by: str
     evidence: list[EvidenceOut]
     status: AlertStatus
+    # Checks the wording failed, when the alert was held instead of published
+    held_reasons: list[str] | None
     issued_at: dt.datetime
     ended_at: dt.datetime | None
     supersedes_id: int | None
@@ -80,6 +82,7 @@ class AlertOut(BaseModel):
             "generated_by": alert.generated_by,
             "evidence": alert.evidence,
             "status": alert.status,
+            "held_reasons": alert.held_reasons,
             "issued_at": alert.issued_at,
             "ended_at": alert.ended_at,
             "supersedes_id": alert.supersedes_id,

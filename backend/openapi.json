@@ -120,6 +120,20 @@
             ],
             "title": "Headline Ur"
           },
+          "held_reasons": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Held Reasons"
+          },
           "id": {
             "title": "Id",
             "type": "integer"
@@ -171,7 +185,8 @@
               "active",
               "superseded",
               "cancelled",
-              "expired"
+              "expired",
+              "held"
             ],
             "title": "Status",
             "type": "string"
@@ -228,6 +243,7 @@
           "generated_by",
           "evidence",
           "status",
+          "held_reasons",
           "issued_at",
           "ended_at",
           "supersedes_id",
@@ -318,6 +334,20 @@
             ],
             "title": "Headline Ur"
           },
+          "held_reasons": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Held Reasons"
+          },
           "id": {
             "title": "Id",
             "type": "integer"
@@ -369,7 +399,8 @@
               "active",
               "superseded",
               "cancelled",
-              "expired"
+              "expired",
+              "held"
             ],
             "title": "Status",
             "type": "string"
@@ -415,6 +446,7 @@
           "generated_by",
           "evidence",
           "status",
+          "held_reasons",
           "issued_at",
           "ended_at",
           "supersedes_id",
@@ -887,6 +919,9 @@
               "assessment",
               "analysis_failed",
               "analysis_skipped",
+              "draft_checked",
+              "draft_failed",
+              "alert_held",
               "error",
               "run_finished"
             ],
@@ -1144,7 +1179,8 @@
                     "active",
                     "superseded",
                     "cancelled",
-                    "expired"
+                    "expired",
+                    "held"
                   ],
                   "type": "string"
                 },

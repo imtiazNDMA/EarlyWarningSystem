@@ -87,6 +87,16 @@ def model_turn(*tool_calls: dict[str, Any], content: str = "") -> dict[str, Any]
     }
 
 
+def draft_turn(
+    headline: str = "Severe heavy rain alert for Lahore",
+    body: str = "Rainfall is forecast to peak at 120 mm on 9 October.",
+    instructions: str = "Avoid low-lying areas and stream crossings.",
+) -> dict[str, Any]:
+    """A chat-completions response in which the model returns an alert draft."""
+    draft = {"headline": headline, "body": body, "instructions": instructions}
+    return model_turn(content=json.dumps(draft))
+
+
 ModelTurn = dict[str, Any] | httpx.Response
 
 
@@ -99,21 +109,34 @@ class Model:
 
     def __init__(self) -> None:
         self.loaded = False
-        # Played in order; the last one repeats
+        # The analyst's turns, played in order; the last one repeats
         self.turns: list[ModelTurn] = []
+        # The drafter's replies, played the same way. With none scripted the
+        # model fails those requests, so alerts keep their rule-based wording
+        self.drafts: list[ModelTurn] = []
         # Seconds to wait before answering a chat request
         self.delay = 0.0
         self.requests: list[dict[str, Any]] = []
+        self.draft_requests: list[dict[str, Any]] = []
 
     async def handle(self, request: httpx.Request) -> httpx.Response:
         if request.method == "GET":
             return httpx.Response(
                 200, json=LOADED_MODELS if self.loaded else {"data": []}
             )
-        self.requests.append(json.loads(request.content))
+        body = json.loads(request.content)
+        # Only the analyst's requests offer tools
+        if "tools" in body:
+            self.requests.append(body)
+            script = self.turns
+        else:
+            self.draft_requests.append(body)
+            script = self.drafts
         if self.delay:
             await asyncio.sleep(self.delay)
-        turn = self.turns.pop(0) if len(self.turns) > 1 else self.turns[0]
+        if not script:
+            return httpx.Response(503, json={"error": {"message": "no script"}})
+        turn = script.pop(0) if len(script) > 1 else script[0]
         return (
             turn if isinstance(turn, httpx.Response) else httpx.Response(200, json=turn)
         )
