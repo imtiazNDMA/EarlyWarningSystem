@@ -55,6 +55,12 @@ class Settings(BaseSettings):
     llm_timeout_seconds: float = Field(default=120.0, gt=0)
     llm_max_concurrency: int | None = Field(default=None, ge=1)
 
+    # Analyst agent. Signals beyond the limit keep their rule-based alert
+    analyst_max_signals: int = Field(default=10, ge=0)
+    # Model turns allowed for one signal, and the time they may take in all
+    analyst_max_steps: int = Field(default=6, ge=1)
+    analyst_time_budget_seconds: float = Field(default=120.0, gt=0)
+
     @model_validator(mode="after")
     def groq_needs_a_key(self) -> Self:
         key = self.llm_api_key.get_secret_value() if self.llm_api_key else ""

@@ -625,7 +625,7 @@ export interface components {
              * Type
              * @enum {string}
              */
-            type: "run_started" | "step_started" | "step_finished" | "step_failed" | "source_fetched" | "signal_raised" | "error" | "run_finished";
+            type: "run_started" | "step_started" | "step_finished" | "step_failed" | "source_fetched" | "signal_raised" | "analysis_started" | "tool_called" | "tool_result" | "assessment" | "analysis_failed" | "analysis_skipped" | "error" | "run_finished";
         };
         /**
          * RunOut

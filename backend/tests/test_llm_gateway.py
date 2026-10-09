@@ -511,3 +511,102 @@ class TestAvailability:
 
         assert not availability.available
         assert availability.message == "lm_studio: timed out"
+
+
+class TestToolCalls:
+    """Test cases for LLMGateway.call_tools"""
+
+    TOOLS = (
+        {
+            "type": "function",
+            "function": {"name": "get_forecast", "parameters": {"type": "object"}},
+        },
+    )
+
+    @staticmethod
+    def turn(*tool_calls: dict[str, Any], **extra: Any) -> httpx.Response:
+        message = {"role": "assistant", "content": None, **extra}
+        if tool_calls:
+            message["tool_calls"] = list(tool_calls)
+        return httpx.Response(
+            200,
+            json={
+                "model": "served-model",
+                "choices": [{"message": message}],
+                "usage": {"prompt_tokens": 40, "completion_tokens": 9},
+            },
+        )
+
+    @staticmethod
+    def wants(name: str, arguments: str) -> dict[str, Any]:
+        return {
+            "id": "call_1",
+            "type": "function",
+            "function": {"name": name, "arguments": arguments},
+        }
+
+    async def test_sends_the_tools_without_a_response_format(self) -> None:
+        provider = Provider(self.turn(self.wants("get_forecast", '{"days": 3}')))
+        gateway = gateway_for(provider)
+
+        await gateway.call_tools(ASK, self.TOOLS, prompt_version="v1")
+
+        body = provider.body(0)
+        assert body["tools"] == list(self.TOOLS)
+        assert body["messages"] == ASK
+        assert "response_format" not in body
+
+    async def test_returns_the_tool_calls_with_parsed_arguments(self) -> None:
+        provider = Provider(self.turn(self.wants("get_forecast", '{"days": 3}')))
+        gateway = gateway_for(provider)
+
+        turn = await gateway.call_tools(ASK, self.TOOLS, prompt_version="analyst-v1")
+
+        (call,) = turn.tool_calls
+        assert (call.id, call.name, call.arguments) == (
+            "call_1",
+            "get_forecast",
+            {"days": 3},
+        )
+        assert turn.call.prompt_version == "analyst-v1"
+        assert turn.call.prompt_tokens == 40
+        assert turn.call.model == "served-model"
+
+    async def test_arguments_that_are_not_a_json_object_come_back_as_none(
+        self,
+    ) -> None:
+        provider = Provider(self.turn(self.wants("get_forecast", "{days: 3")))
+        gateway = gateway_for(provider)
+
+        turn = await gateway.call_tools(ASK, self.TOOLS, prompt_version="v1")
+
+        assert turn.tool_calls[0].arguments is None
+
+    async def test_the_message_to_send_back_keeps_only_standard_fields(self) -> None:
+        wanted = self.wants("get_forecast", "{}")
+        provider = Provider(self.turn(wanted, reasoning="thinking out loud"))
+        gateway = gateway_for(provider)
+
+        turn = await gateway.call_tools(ASK, self.TOOLS, prompt_version="v1")
+
+        assert turn.message == {
+            "role": "assistant",
+            "content": "",
+            "tool_calls": [wanted],
+        }
+
+    async def test_a_reply_without_tool_calls_has_none(self) -> None:
+        provider = Provider(completion("I would rather talk."))
+        gateway = gateway_for(provider)
+
+        turn = await gateway.call_tools(ASK, self.TOOLS, prompt_version="v1")
+
+        assert turn.tool_calls == []
+        assert turn.message == {"role": "assistant", "content": "I would rather talk."}
+
+    async def test_a_malformed_tool_call_raises(self) -> None:
+        provider = Provider(self.turn({"id": "call_1", "type": "function"}))
+        gateway = gateway_for(provider)
+
+        with pytest.raises(LLMError, match="unusable tool call"):
+            await gateway.call_tools(ASK, self.TOOLS, prompt_version="v1")

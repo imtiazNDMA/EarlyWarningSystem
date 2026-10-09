@@ -23,6 +23,12 @@ EventType = Literal[
     "step_failed",
     "source_fetched",
     "signal_raised",
+    "analysis_started",
+    "tool_called",
+    "tool_result",
+    "assessment",
+    "analysis_failed",
+    "analysis_skipped",
     "error",
     "run_finished",
 ]

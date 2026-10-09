@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict
 from ews.api.dependencies import (
     AirQualityClientDep,
     ForecastClientDep,
+    LLMGatewayDep,
     RunEventLogDep,
     SessionDep,
     SessionFactoryDep,
@@ -118,6 +119,7 @@ async def trigger_run(
     client: ForecastClientDep,
     air_quality_client: AirQualityClientDep,
     events: RunEventLogDep,
+    gateway: LLMGatewayDep,
 ) -> RunOut:
     """Run a monitoring cycle now and return how it ended.
 
@@ -125,7 +127,13 @@ async def trigger_run(
     either way; check ``status`` and ``error``.
     """
     run = await run_cycle(
-        session, client, air_quality_client, settings, trigger="manual", events=events
+        session,
+        client,
+        air_quality_client,
+        settings,
+        trigger="manual",
+        events=events,
+        gateway=gateway,
     )
     return RunOut.model_validate(run)
 

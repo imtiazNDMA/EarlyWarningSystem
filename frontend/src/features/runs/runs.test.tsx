@@ -94,6 +94,55 @@ describe('buildTimeline', () => {
     expect(rows[2]).toMatchObject({ text: 'Succeeded: 155 districts, 1 signal', failed: false })
   })
 
+  it('follows an analysis from its tool calls to the assessment', () => {
+    const subject = { district_id: 'lahore', hazard: 'heavy_rain' }
+    const rows = buildTimeline([
+      event('analysis_started', { ...subject, level: 'severe' }),
+      event('tool_called', { ...subject, tool: 'get_forecast', arguments: { days: 2 } }),
+      event('tool_result', { ...subject, tool: 'get_forecast', ok: true, result: '[]' }),
+      event('tool_called', { ...subject, tool: 'get_river_level', arguments: {} }),
+      event('tool_result', { ...subject, tool: 'get_river_level', ok: false, result: 'Unknown tool' }),
+      event('assessment', {
+        ...subject,
+        decision: 'upgrade',
+        severity: 'extreme',
+        reasoning: 'Rain falls on saturated ground.',
+      }),
+    ])
+
+    expect(rows).toMatchObject([
+      {
+        kind: 'analysis',
+        state: 'done',
+        decision: 'upgrade',
+        level: 'extreme',
+        detail: 'Rain falls on saturated ground.',
+      },
+      { kind: 'tool', tool: 'get_forecast', ok: true },
+      { kind: 'tool', tool: 'get_river_level', ok: false },
+    ])
+  })
+
+  it('says why an analysis ended without an assessment, and what was skipped', () => {
+    const subject = { district_id: 'lahore', hazard: 'heavy_rain' }
+    const rows = buildTimeline([
+      event('analysis_skipped', { reason: 'over the per-run limit', signals: 2 }),
+      event('analysis_started', { ...subject, level: 'severe' }),
+      event('analysis_failed', { ...subject, reason: 'step_limit' }),
+    ])
+
+    expect(rows).toMatchObject([
+      { kind: 'note', text: 'Analysis skipped for 2 signals: over the per-run limit' },
+      {
+        kind: 'analysis',
+        state: 'failed',
+        decision: null,
+        level: 'severe',
+        detail: 'Stopped at the step limit; the rule-based alert stands',
+      },
+    ])
+  })
+
   it('marks the error and the ending of a failed run', () => {
     const rows = buildTimeline([
       event('error', { message: 'open-meteo-forecast: HTTP 503' }),
@@ -142,6 +191,31 @@ describe('RunTimeline', () => {
     expect(within(timeline).getByText('In progress')).toBeInTheDocument()
     expect(within(timeline).getByText('Heavy rain · Lahore')).toBeInTheDocument()
     expect(screen.getByRole('status')).toHaveTextContent('Live')
+  })
+
+  it('shows what the analyst decided and why', () => {
+    const subject = { district_id: 'lahore', hazard: 'heavy_rain' }
+    render(
+      <RunTimeline
+        state="ended"
+        districtNames={new Map([['lahore', 'Lahore']])}
+        events={[
+          event('analysis_started', { ...subject, level: 'severe' }),
+          event('tool_called', { ...subject, tool: 'get_forecast', arguments: {} }),
+          event('assessment', {
+            ...subject,
+            decision: 'downgrade',
+            severity: 'moderate',
+            reasoning: 'The peak is brief and neighbours are dry.',
+          }),
+        ]}
+      />,
+    )
+
+    expect(screen.getByText('Downgraded')).toBeInTheDocument()
+    expect(screen.getByText('Moderate')).toBeInTheDocument()
+    expect(screen.getByText('The peak is brief and neighbours are dry.')).toBeInTheDocument()
+    expect(screen.getByText('get_forecast')).toBeInTheDocument()
   })
 
   it('says so when a finished run recorded nothing', () => {

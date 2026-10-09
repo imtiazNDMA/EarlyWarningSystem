@@ -68,6 +68,13 @@ npm run generate:api
   as `source_snapshots` before use so alerts can cite immutable evidence.
 - Monitoring cycles are transactional. Failed source ingestion rolls back snapshots,
   signals and alert lifecycle changes while preserving the failed run record.
+- A cycle is a LangGraph graph built per run in `ews.cycles.service`: ingest, screen,
+  analyse, apply lifecycle. Graph state holds only progress counts; working data stays
+  on the run's `_Cycle` object because it lives in the run's transaction.
+- `ews.analyst` judges the most severe signals with a bounded tool loop and submits a
+  `HazardAssessment` through a tool call. Alerts follow the assessment. If the model is
+  unavailable, errors, or runs out of steps or time, the rule-based alert stands. Tests
+  script the model with the `model` fixture, which has no model loaded by default.
 - Each run keeps an ordered event log in `run_events`. `RunRecorder` commits every
   event through a session of its own, so the log outlives a rolled-back run and is
   readable while the run is in progress; `GET /api/runs/{id}/events` streams it as
