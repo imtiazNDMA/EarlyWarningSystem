@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     forecast_max_age_seconds: int = 3 * 60 * 60
     # Districts per request when fetching forecasts for all of them
     forecast_batch_size: int = 50
+    # How often an open event stream looks for new events of an active run
+    run_events_poll_seconds: float = 0.5
 
 
 @lru_cache

@@ -64,6 +64,12 @@ npm run generate:api
   as `source_snapshots` before use so alerts can cite immutable evidence.
 - Monitoring cycles are transactional. Failed source ingestion rolls back snapshots,
   signals and alert lifecycle changes while preserving the failed run record.
+- Each run keeps an ordered event log in `run_events`. `RunRecorder` commits every
+  event through a session of its own, so the log outlives a rolled-back run and is
+  readable while the run is in progress; `GET /api/runs/{id}/events` streams it as
+  Server-Sent Events. Under the test fixtures those sessions share the test's
+  connection, so a rollback there also undoes events; only
+  `TestEventsOutliveARollback` uses real commits, and it deletes its own rows.
 - Screening and lifecycle decisions are pure logic. Thresholds are loaded from
   `ews/screening/data/thresholds.yaml`.
 - Alerts are append-only. Lifecycle changes end old records and create replacements;
