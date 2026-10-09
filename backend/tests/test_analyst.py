@@ -170,19 +170,54 @@ class TestAssessment:
         assert assessment["reasoning"].startswith("Two days above 50 mm")
         assert assessment["provider"] == "lm_studio"
         assert assessment["model"] == "qwen-test"
-        assert assessment["prompt_version"] == "analyst-v2"
+        assert assessment["prompt_version"] == "analyst-v3"
 
-    async def test_an_upgrade_raises_the_alerts_severity(
+    async def test_raising_the_severity_is_sent_back(
         self, client: AsyncClient, upstream: Upstream, model: Model
     ) -> None:
+        finished = await analysed_run(
+            client, upstream, model, submit(severity="extreme"), submit()
+        )
+
+        complaint = model.requests[1]["messages"][-1]["content"]
+        assert complaint == (
+            "Invalid assessment: severity may not be raised above the screening "
+            "level, which is already the highest the forecast values reach. "
+            "Submit severe or lower."
+        )
+        (alert,) = await lahore_alerts(client)
+        (assessment,) = await events_named(client, finished["id"], "assessment")
+        assert alert["severity"] == "severe"
+        assert assessment["decision"] == "confirm"
+
+    async def test_another_hazard_in_the_district_does_not_allow_it(
+        self, app: FastAPI, client: AsyncClient, upstream: Upstream, model: Model
+    ) -> None:
+        app.state.settings.analyst_max_signals = 1
+        assert upstream.air_quality is not None
+        upstream.air_quality.payload_for = polluted_lahore
+
+        await analysed_run(
+            client, upstream, model, submit(severity="extreme"), submit()
+        )
+
+        assert "may not be raised" in model.requests[1]["messages"][-1]["content"]
+        (alert,) = await lahore_alerts(client, hazard="heavy_rain")
+        assert alert["severity"] == "severe"
+
+    async def test_a_model_that_insists_on_an_upgrade_leaves_the_rule_based_alert(
+        self, app: FastAPI, client: AsyncClient, upstream: Upstream, model: Model
+    ) -> None:
+        app.state.settings.analyst_max_steps = 3
+
         finished = await analysed_run(
             client, upstream, model, submit(severity="extreme")
         )
 
+        (failed,) = await events_named(client, finished["id"], "analysis_failed")
+        assert failed["reason"] == "step_limit"
         (alert,) = await lahore_alerts(client)
-        (assessment,) = await events_named(client, finished["id"], "assessment")
-        assert alert["severity"] == "extreme"
-        assert assessment["decision"] == "upgrade"
+        assert alert["severity"] == "severe"
 
     async def test_a_downgrade_lowers_it_and_narrows_the_window(
         self, client: AsyncClient, upstream: Upstream, model: Model
