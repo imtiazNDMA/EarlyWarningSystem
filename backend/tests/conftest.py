@@ -97,6 +97,16 @@ def draft_turn(
     return model_turn(content=json.dumps(draft))
 
 
+def urdu_turn(
+    headline: str = "لاہور کے لیے شدید بارش کا انتباہ",
+    body: str = "9 اکتوبر کو بارش 120 ملی میٹر تک پہنچنے کی پیش گوئی ہے۔",
+    instructions: str = "نشیبی علاقوں اور ندی نالوں سے دور رہیں۔",
+) -> dict[str, Any]:
+    """A chat-completions response giving the Urdu of ``draft_turn``'s alert."""
+    urdu = {"headline": headline, "body": body, "instructions": instructions}
+    return model_turn(content=json.dumps(urdu, ensure_ascii=False))
+
+
 ModelTurn = dict[str, Any] | httpx.Response
 
 
@@ -114,10 +124,14 @@ class Model:
         # The drafter's replies, played the same way. With none scripted the
         # model fails those requests, so alerts keep their rule-based wording
         self.drafts: list[ModelTurn] = []
+        # The Urdu writer's replies, played the same way. With none scripted
+        # the model fails those requests, so alerts are published in English
+        self.urdu: list[ModelTurn] = []
         # Seconds to wait before answering a chat request
         self.delay = 0.0
         self.requests: list[dict[str, Any]] = []
         self.draft_requests: list[dict[str, Any]] = []
+        self.urdu_requests: list[dict[str, Any]] = []
 
     async def handle(self, request: httpx.Request) -> httpx.Response:
         if request.method == "GET":
@@ -129,6 +143,13 @@ class Model:
         if "tools" in body:
             self.requests.append(body)
             script = self.turns
+        # Only the Urdu writer's instructions mention the language
+        elif any(
+            message["role"] == "system" and "Urdu" in message["content"]
+            for message in body["messages"]
+        ):
+            self.urdu_requests.append(body)
+            script = self.urdu
         else:
             self.draft_requests.append(body)
             script = self.drafts

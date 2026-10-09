@@ -50,6 +50,7 @@ const STEP_LABELS: Record<string, string> = {
   screen_air_quality: 'Screen air quality',
   analyse_signals: 'Analyse signals',
   draft_alerts: 'Draft and verify alerts',
+  write_urdu: 'Write Urdu',
   apply_alert_lifecycle: 'Update alerts',
 }
 
@@ -82,8 +83,17 @@ function stepOutcome(payload: RunEvent['payload']): string | null {
     typeof payload.drafted === 'number'
       ? `${payload.drafted} drafted, ${Number(payload.held ?? 0)} held`
       : null
+  const urdu =
+    typeof payload.written === 'number'
+      ? `${payload.written} in Urdu, ${Number(payload.english_only ?? 0)} in English only`
+      : null
   return (
-    count(payload.snapshots, 'snapshot') ?? count(payload.signals, 'signal') ?? analysed ?? drafted ?? actions
+    count(payload.snapshots, 'snapshot') ??
+    count(payload.signals, 'signal') ??
+    analysed ??
+    drafted ??
+    urdu ??
+    actions
   )
 }
 
@@ -199,6 +209,28 @@ export function buildTimeline(events: RunEvent[]): TimelineRow[] {
         kind: 'note',
         key,
         text: `No draft for ${subject(payload)}; rule-based wording used`,
+        failed: false,
+      })
+    } else if (event.type === 'urdu_checked') {
+      const problems = Array.isArray(payload.problems) ? payload.problems.join(' ') : ''
+      rows.push({
+        kind: 'note',
+        key,
+        text: `Urdu ${Number(payload.attempt)} for ${subject(payload)} ${payload.passed === true ? 'verified' : `rejected: ${problems}`}`,
+        failed: false,
+      })
+    } else if (event.type === 'urdu_failed') {
+      rows.push({
+        kind: 'note',
+        key,
+        text: `No Urdu for ${subject(payload)}; published in English only`,
+        failed: false,
+      })
+    } else if (event.type === 'urdu_skipped') {
+      rows.push({
+        kind: 'note',
+        key,
+        text: `Urdu skipped for ${count(payload.alerts, 'alert') ?? 'some alerts'}: ${String(payload.reason)}`,
         failed: false,
       })
     } else if (event.type === 'error') {

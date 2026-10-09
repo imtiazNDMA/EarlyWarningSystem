@@ -14,6 +14,7 @@
 
   --font-sans: 'Archivo Variable', ui-sans-serif, system-ui, sans-serif;
   --font-mono: 'IBM Plex Mono', ui-monospace, monospace;
+  --font-urdu: 'Noto Nastaliq Urdu Variable', 'Noto Nastaliq Urdu', serif;
 }
 
 @layer base {
@@ -49,6 +50,12 @@
     font-weight: 600;
     letter-spacing: 0.09em;
     text-transform: uppercase;
+  }
+
+  /* Nastaliq slopes down through each word, so Urdu needs much taller lines */
+  .type-urdu {
+    font-family: var(--font-urdu);
+    line-height: 2.3;
   }
 
   /* A panel that sits over the map, like the legend plate on a chart */

@@ -32,6 +32,9 @@ EventType = Literal[
     "draft_checked",
     "draft_failed",
     "alert_held",
+    "urdu_checked",
+    "urdu_failed",
+    "urdu_skipped",
     "error",
     "run_finished",
 ]

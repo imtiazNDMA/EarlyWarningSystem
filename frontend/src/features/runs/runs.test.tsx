@@ -143,6 +143,35 @@ describe('buildTimeline', () => {
     ])
   })
 
+  it('reports the Urdu step and each alert left in English', () => {
+    const subject = { district_id: 'lahore', hazard: 'heavy_rain' }
+    const problems = ['The Urdu does not name the hazard.']
+    const rows = buildTimeline([
+      event('step_started', { step: 'write_urdu' }),
+      event('urdu_checked', { ...subject, attempt: 1, passed: false, problems }),
+      event('urdu_checked', { ...subject, attempt: 2, passed: true, problems: [] }),
+      event('urdu_failed', { ...subject, reason: 'checks_failed', problems }),
+      event('urdu_skipped', { reason: 'model unavailable', alerts: 2 }),
+      event('step_finished', { step: 'write_urdu', written: 1, english_only: 1 }),
+    ])
+
+    expect(rows).toMatchObject([
+      { kind: 'step', label: 'Write Urdu', state: 'done', detail: '1 in Urdu, 1 in English only' },
+      {
+        kind: 'note',
+        text: 'Urdu 1 for heavy rain in lahore rejected: The Urdu does not name the hazard.',
+        failed: false,
+      },
+      { kind: 'note', text: 'Urdu 2 for heavy rain in lahore verified', failed: false },
+      {
+        kind: 'note',
+        text: 'No Urdu for heavy rain in lahore; published in English only',
+        failed: false,
+      },
+      { kind: 'note', text: 'Urdu skipped for 2 alerts: model unavailable', failed: false },
+    ])
+  })
+
   it('reports each verification verdict and a held alert', () => {
     const subject = { district_id: 'lahore', hazard: 'heavy_rain' }
     const problems = ['The number 300 is not in the evidence.']

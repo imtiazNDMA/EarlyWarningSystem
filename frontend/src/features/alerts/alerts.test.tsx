@@ -97,6 +97,39 @@ describe('AlertList', () => {
   })
 })
 
+describe('Urdu alerts', () => {
+  const urdu = {
+    headline_ur: 'لاہور کے لیے شدید بارش کا انتباہ',
+    body_ur: '9 اکتوبر کو بارش 120 ملی میٹر تک پہنچنے کی پیش گوئی ہے۔',
+    instructions_ur: 'نشیبی علاقوں سے دور رہیں۔',
+  }
+
+  it('switches an alert between English and Urdu set right to left', async () => {
+    render(<AlertList alerts={[alert(urdu)]} />)
+
+    await userEvent.click(screen.getByRole('button', { name: 'اردو' }))
+
+    const heading = screen.getByRole('heading', { name: urdu.headline_ur })
+    const text = heading.closest('[lang="ur"]')
+    expect(text).toHaveAttribute('dir', 'rtl')
+    expect(text).toHaveTextContent(urdu.body_ur)
+    expect(text).toHaveTextContent(urdu.instructions_ur)
+    expect(screen.queryByText('Severe heavy rain alert for Lahore')).not.toBeInTheDocument()
+    // Figures stay as they are in either language
+    expect(screen.getByText('120 mm')).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'English' }))
+
+    expect(screen.getByRole('heading', { name: 'Severe heavy rain alert for Lahore' })).toBeInTheDocument()
+  })
+
+  it('offers no Urdu for an alert published in English alone', () => {
+    render(<AlertList alerts={[alert()]} />)
+
+    expect(screen.queryByRole('button', { name: 'اردو' })).not.toBeInTheDocument()
+  })
+})
+
 describe('held alerts', () => {
   it('shows in the feed that an alert was held and why', () => {
     render(

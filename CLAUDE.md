@@ -82,6 +82,12 @@ npm run generate:api
   revisions is stored with status `held` and never becomes active; a model failure
   falls back to rule wording. The lifecycle is split into `plan_lifecycle` and
   `apply_plan` so only alerts that will be written are drafted.
+- `ews.drafting.urdu` puts every alert about to be published into Urdu, rule-worded
+  ones included, in a `write_urdu` node after `draft`. `verifier.verify_urdu` is pure
+  and checks the Urdu against the English, not the evidence: the same dates and
+  numbers, the hazard and severity in the terms of `ews.drafting.glossary`, no
+  transliterated weather word and no Latin-script word. Urdu that fails, or a model
+  that is unavailable, never holds an alert: it is published in English alone.
 - Each run keeps an ordered event log in `run_events`. `RunRecorder` commits every
   event through a session of its own, so the log outlives a rolled-back run and is
   readable while the run is in progress; `GET /api/runs/{id}/events` streams it as
