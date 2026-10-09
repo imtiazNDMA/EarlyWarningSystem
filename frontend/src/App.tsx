@@ -14,6 +14,7 @@ import { DistrictPanel } from './features/districts/DistrictPanel'
 import { DistrictPicker } from './features/districts/DistrictPicker'
 import { useDistrictBoundaries, useDistricts } from './features/districts/queries'
 import { ForecastSection } from './features/forecast/ForecastSection'
+import { RunsPanel } from './features/runs/RunsPanel'
 import type { Level } from './features/signals/signals'
 
 export default function App() {
@@ -26,6 +27,9 @@ export default function App() {
   const [selectedFeatureId, setSelectedFeatureId] = useState<string | null>(null)
   const [mapLayer, setMapLayer] = useState<'alerts' | 'pm2_5'>('alerts')
   const [focus, setFocus] = useState<MapFocus | null>(null)
+  // The runs panel shares the district panel's place; null follows the newest run
+  const [runsOpen, setRunsOpen] = useState(false)
+  const [selectedRunId, setSelectedRunId] = useState<number | null>(null)
 
   const selectedBoundary = useMemo(
     () =>
@@ -68,9 +72,20 @@ export default function App() {
     return values
   }, [airQualityByDistrict, districts.data])
 
-  const selectFromList = useCallback((district: District) => {
-    setSelectedFeatureId(district.feature_id)
-    setFocus({ lon: district.lon, lat: district.lat })
+  const selectFeature = useCallback((featureId: string | null) => {
+    setSelectedFeatureId(featureId)
+    if (featureId !== null) setRunsOpen(false)
+  }, [])
+  const selectFromList = useCallback(
+    (district: District) => {
+      selectFeature(district.feature_id)
+      setFocus({ lon: district.lon, lat: district.lat })
+    },
+    [selectFeature],
+  )
+  const openRun = useCallback((runId: number) => {
+    setSelectedRunId(runId)
+    setRunsOpen(true)
   }, [])
 
   return (
@@ -80,7 +95,7 @@ export default function App() {
           boundaries={boundaries.data}
           selectedFeatureId={selectedFeatureId}
           focus={focus}
-          onSelect={setSelectedFeatureId}
+          onSelect={selectFeature}
           levels={levels}
           summaries={summaries}
           layer={mapLayer}
@@ -131,6 +146,14 @@ export default function App() {
             </button>
           </div>
         )}
+        <button
+          type="button"
+          aria-pressed={runsOpen}
+          onClick={() => setRunsOpen((open) => !open)}
+          className="mt-3 w-full rounded-sm border border-line/40 px-2 py-1 text-xs font-semibold text-ink hover:bg-wash"
+        >
+          Monitoring runs
+        </button>
         {districts.isError && (
           <p className="mt-3 text-sm text-ink/70">
             The district list could not be loaded. You can still select districts on
@@ -185,7 +208,18 @@ export default function App() {
         </div>
       )}
 
-      {boundaries.data && (
+      {runsOpen && (
+        <div className="absolute inset-x-3 bottom-9 z-10 md:inset-x-auto md:bottom-auto md:right-3 md:top-3 md:w-80">
+          <RunsPanel
+            districts={districts.data ?? []}
+            selectedRunId={selectedRunId}
+            onSelect={setSelectedRunId}
+            onClose={() => setRunsOpen(false)}
+          />
+        </div>
+      )}
+
+      {boundaries.data && !runsOpen && (
         <div className="absolute inset-x-3 bottom-9 z-10 md:inset-x-auto md:bottom-auto md:right-3 md:top-3 md:w-80">
           <DistrictPanel
             boundary={selectedBoundary}
@@ -198,7 +232,10 @@ export default function App() {
                 {activeAlerts.data && (
                   <div className="mb-4 border-b border-line/30 pb-4">
                     <h3 className="type-label mb-3 text-ink/60">Active alerts</h3>
-                    <AlertList alerts={byDistrict.get(selectedDistrict.id) ?? []} />
+                    <AlertList
+                      alerts={byDistrict.get(selectedDistrict.id) ?? []}
+                      onOpenRun={openRun}
+                    />
                   </div>
                 )}
                 {/* Keyed so the hovered day resets when another district is chosen */}

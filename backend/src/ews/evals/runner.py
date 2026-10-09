@@ -143,7 +143,10 @@ def evaluate(path: Path) -> EvalReport:
 
     return EvalReport(
         scenario_set=scenario_set.version,
-        scenarios_sha256=hashlib.sha256(scenario_bytes).hexdigest(),
+        # Line endings differ between checkouts; the scenarios do not
+        scenarios_sha256=hashlib.sha256(
+            scenario_bytes.replace(b"\r\n", b"\n")
+        ).hexdigest(),
         rules_sha256=hashlib.sha256(serialized_rules).hexdigest(),
         scenario_count=len(scenario_set.scenarios),
         district_count=district_count,

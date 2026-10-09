@@ -8,6 +8,7 @@ from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from ews.core.settings import Settings
+from ews.cycles.events import RunEventLog, SessionFactory
 from ews.llm.gateway import LLMGateway
 from ews.sources.open_meteo import OpenMeteoForecastClient
 from ews.sources.open_meteo_air_quality import OpenMeteoAirQualityClient
@@ -23,6 +24,12 @@ async def get_session(request: Request) -> AsyncIterator[AsyncSession]:
     """Yield a database session for the duration of one request."""
     async with request.app.state.session_factory() as session:
         yield session
+
+
+def get_session_factory(request: Request) -> SessionFactory:
+    """Return the factory for sessions that are not tied to one request."""
+    factory: SessionFactory = request.app.state.session_factory
+    return factory
 
 
 def get_forecast_client(request: Request) -> OpenMeteoForecastClient:
@@ -66,6 +73,15 @@ def require_admin(
 
 SessionDep = Annotated[AsyncSession, Depends(get_session)]
 ForecastClientDep = Annotated[OpenMeteoForecastClient, Depends(get_forecast_client)]
+SessionFactoryDep = Annotated[SessionFactory, Depends(get_session_factory)]
+
+
+def get_run_event_log(open_session: SessionFactoryDep) -> RunEventLog:
+    """Return the log that monitoring cycles record their events in."""
+    return RunEventLog(open_session)
+
+
+RunEventLogDep = Annotated[RunEventLog, Depends(get_run_event_log)]
 AirQualityClientDep = Annotated[
     OpenMeteoAirQualityClient, Depends(get_air_quality_client)
 ]

@@ -25,9 +25,11 @@ from ews.api.dependencies import (
     get_forecast_client,
     get_llm_gateway,
     get_session,
+    get_session_factory,
 )
 from ews.core.db import create_engine
 from ews.core.settings import Settings
+from ews.cycles.events import SessionFactory
 from ews.districts.registry import sync_districts
 from ews.llm.gateway import LLMGateway
 from ews.sources.open_meteo import OpenMeteoForecastClient
@@ -169,10 +171,34 @@ async def db_session(engine: AsyncEngine) -> AsyncIterator[AsyncSession]:
 
 
 @pytest.fixture
-def app(database_url: str, db_session: AsyncSession) -> FastAPI:
+def open_session(db_session: AsyncSession) -> SessionFactory:
+    """Factory for further sessions on the test's connection.
+
+    What they write is rolled back with everything else. Unlike sessions on
+    their own connections, their commits are also undone when the test's main
+    session rolls back.
+    """
+
+    def open_session() -> AsyncSession:
+        return AsyncSession(
+            bind=db_session.bind,
+            expire_on_commit=False,
+            join_transaction_mode="create_savepoint",
+        )
+
+    return open_session
+
+
+@pytest.fixture
+def app(
+    database_url: str, db_session: AsyncSession, open_session: SessionFactory
+) -> FastAPI:
     """Application wired to the test's rolled-back session."""
     settings = Settings(
-        environment="test", database_url=database_url, admin_token=ADMIN_TOKEN
+        environment="test",
+        database_url=database_url,
+        admin_token=ADMIN_TOKEN,
+        run_events_poll_seconds=0.01,
     )
     app = create_app(settings)
 
@@ -180,6 +206,7 @@ def app(database_url: str, db_session: AsyncSession) -> FastAPI:
         yield db_session
 
     app.dependency_overrides[get_session] = override_session
+    app.dependency_overrides[get_session_factory] = lambda: open_session
     app.dependency_overrides[get_llm_gateway] = lambda: llm_gateway_answering(
         lambda _request: httpx.Response(200, json=LOADED_MODELS)
     )

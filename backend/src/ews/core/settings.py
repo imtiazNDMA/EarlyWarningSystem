@@ -38,6 +38,10 @@ class Settings(BaseSettings):
     forecast_max_age_seconds: int = 3 * 60 * 60
     # Districts per request when fetching forecasts for all of them
     forecast_batch_size: int = 50
+    # How often an open event stream looks for new events of an active run
+    run_events_poll_seconds: float = 0.5
+    # An event stream is closed after this long, however the run is doing
+    run_events_max_stream_seconds: float = 15 * 60
 
     # Language model. Unset values take the provider's default in ews.llm.gateway
     llm_provider: Literal["lm_studio", "groq"] = "lm_studio"
