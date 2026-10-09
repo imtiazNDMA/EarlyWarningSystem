@@ -5,16 +5,18 @@ type Props = {
   alerts: Alert[]
   districts: District[]
   onSelect: (district: District) => void
+  /** Names the kind of alert listed, when the feed is narrowed to one. */
+  title?: string
 }
 
 /** Chronological nationwide lifecycle feed; selecting one opens its district. */
-export function AlertFeed({ alerts, districts, onSelect }: Props) {
+export function AlertFeed({ alerts, districts, onSelect, title = 'Alert history' }: Props) {
   const districtById = new Map(districts.map((district) => [district.id, district]))
 
   return (
-    <section className="plate mt-2 max-h-[min(19rem,40dvh)] overflow-y-auto" aria-label="Alert history">
+    <section className="plate mt-2 max-h-[min(19rem,40dvh)] overflow-y-auto" aria-label={title}>
       <div className="flex items-baseline justify-between gap-3">
-        <h2 className="type-label text-ink/60">Alert history</h2>
+        <h2 className="type-label text-ink/60">{title}</h2>
         <span className="font-mono text-xs text-ink/55">{alerts.length}</span>
       </div>
       {alerts.length === 0 ? (

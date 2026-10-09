@@ -29,9 +29,11 @@ type Props = {
   /** Position to move to; change the object to move again. */
   focus: MapFocus | null
   onSelect: (featureId: string | null) => void
-  /** Highest active alert level per feature_id; features without one are absent. */
+  /** Highest active weather alert level per feature_id; features without one are absent. */
   levels: Map<string, Level>
-  /** One-line active-alert summary per feature_id, shown in the hover tooltip. */
+  /** Highest active air-quality alert level per feature_id, outlined on the PM2.5 layer. */
+  airLevels: Map<string, Level>
+  /** One-line summary per feature_id of the alerts the layer shows, for the hover tooltip. */
   summaries: Map<string, string>
   layer: 'alerts' | 'pm2_5'
   pm25: Map<string, number | null>
@@ -43,6 +45,7 @@ export function DistrictMap({
   focus,
   onSelect,
   levels,
+  airLevels,
   summaries,
   layer,
   pm25,
@@ -155,6 +158,39 @@ export function DistrictMap({
         },
         firstLabel,
       )
+      // On the PM2.5 layer the fill is the reading, so an alert is an outline
+      map.addLayer(
+        {
+          id: 'districts-air-alert-line',
+          type: 'line',
+          source: SOURCE,
+          paint: {
+            'line-color': [
+              'match',
+              ['coalesce', ['feature-state', 'air_level'], 'none'],
+              'moderate',
+              LEVEL_COLOURS.moderate,
+              'severe',
+              LEVEL_COLOURS.severe,
+              'extreme',
+              LEVEL_COLOURS.extreme,
+              INK,
+            ],
+            'line-width': ['interpolate', ['linear'], ['zoom'], 4, 2, 8, 4],
+            'line-opacity': [
+              'case',
+              [
+                'all',
+                ['==', ['feature-state', 'view'], 'pm2_5'],
+                ['!=', ['coalesce', ['feature-state', 'air_level'], 'none'], 'none'],
+              ],
+              1,
+              0,
+            ],
+          },
+        },
+        firstLabel,
+      )
       map.addLayer(
         {
           id: 'districts-selected-line',
@@ -223,9 +259,12 @@ export function DistrictMap({
     if (!map || !ready) return
     for (const feature of boundaries.features) {
       const id = feature.properties.feature_id
-      map.setFeatureState({ source: SOURCE, id }, { level: levels.get(id) ?? null })
+      map.setFeatureState(
+        { source: SOURCE, id },
+        { level: levels.get(id) ?? null, air_level: airLevels.get(id) ?? null },
+      )
     }
-  }, [levels, boundaries, ready])
+  }, [levels, airLevels, boundaries, ready])
 
   useEffect(() => {
     const map = mapRef.current
@@ -261,14 +300,15 @@ export function DistrictMap({
         >
           <p className="text-sm font-semibold leading-tight">{hover.properties.name_en}</p>
           <p className="type-label text-panel/70">{hover.properties.province}</p>
-          {layer === 'pm2_5' ? (
+          {layer === 'pm2_5' && (
             <p className="mt-1 text-xs">
               PM2.5: {pm25.get(hover.properties.feature_id)?.toFixed(1) ?? 'No data'}{' '}
               {pm25.get(hover.properties.feature_id) !== null &&
                 pm25.get(hover.properties.feature_id) !== undefined &&
                 'μg/m³'}
             </p>
-          ) : summaries.has(hover.properties.feature_id) && (
+          )}
+          {summaries.has(hover.properties.feature_id) && (
             <p className="mt-1 text-xs">{summaries.get(hover.properties.feature_id)}</p>
           )}
         </div>

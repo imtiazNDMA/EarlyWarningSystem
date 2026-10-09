@@ -1,6 +1,17 @@
 import type { Alert } from '../../api/client'
 import { LEVELS, type Level } from '../signals/signals'
 
+// The one hazard that is not weather; it has a map layer of its own
+const AIR_QUALITY_HAZARD = 'poor_air_quality'
+
+export function weatherAlerts(alerts: Alert[]): Alert[] {
+  return alerts.filter((alert) => alert.hazard !== AIR_QUALITY_HAZARD)
+}
+
+export function airQualityAlerts(alerts: Alert[]): Alert[] {
+  return alerts.filter((alert) => alert.hazard === AIR_QUALITY_HAZARD)
+}
+
 /** Active alerts grouped by district, most severe first within each district. */
 export function alertsByDistrict(alerts: Alert[]): Map<string, Alert[]> {
   const groups = new Map<string, Alert[]>()
