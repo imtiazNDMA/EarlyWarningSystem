@@ -1,8 +1,9 @@
 """Typed application settings, read from EWS_* environment variables."""
 
 from functools import lru_cache
-from typing import Literal
+from typing import Literal, Self
 
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -41,6 +42,27 @@ class Settings(BaseSettings):
     run_events_poll_seconds: float = 0.5
     # An event stream is closed after this long, however the run is doing
     run_events_max_stream_seconds: float = 15 * 60
+
+    # Language model. Unset values take the provider's default in ews.llm.gateway
+    llm_provider: Literal["lm_studio", "groq"] = "lm_studio"
+    llm_base_url: str | None = None
+    # LM Studio answers with whichever model is loaded when this is unset
+    llm_model: str | None = None
+    # Required for Groq; LM Studio ignores it
+    llm_api_key: SecretStr | None = None
+    llm_temperature: float = Field(default=0.2, ge=0)
+    # Budget for one model request, including waits on a rate limit
+    llm_timeout_seconds: float = Field(default=120.0, gt=0)
+    llm_max_concurrency: int | None = Field(default=None, ge=1)
+
+    @model_validator(mode="after")
+    def groq_needs_a_key(self) -> Self:
+        key = self.llm_api_key.get_secret_value() if self.llm_api_key else ""
+        if self.llm_provider == "groq" and not key:
+            raise ValueError(
+                "EWS_LLM_API_KEY is required when EWS_LLM_PROVIDER is groq"
+            )
+        return self
 
 
 @lru_cache

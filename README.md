@@ -60,6 +60,18 @@ All settings are optional for local development.
 | `EWS_AIR_QUALITY_FORECAST_DAYS` | Air-quality horizon, capped to complete CAMS days | `5` |
 | `EWS_FORECAST_MAX_AGE_SECONDS` | Stored-forecast freshness window | `10800` |
 | `EWS_FORECAST_BATCH_SIZE` | Districts fetched per Open-Meteo request | `50` |
+| `EWS_LLM_PROVIDER` | Language model provider: `lm_studio` or `groq` | `lm_studio` |
+| `EWS_LLM_BASE_URL` | Chat-completions base URL | `http://localhost:1234/v1` for LM Studio, `https://api.groq.com/openai/v1` for Groq |
+| `EWS_LLM_MODEL` | Model to call | whichever model LM Studio has loaded; `openai/gpt-oss-120b` on Groq |
+| `EWS_LLM_API_KEY` | Provider key; required for Groq, where the API refuses to start without it | unset |
+| `EWS_LLM_TEMPERATURE` | Sampling temperature | `0.2` |
+| `EWS_LLM_TIMEOUT_SECONDS` | Budget for one model request, including rate-limit waits | `120` |
+| `EWS_LLM_MAX_CONCURRENCY` | Model requests in flight at once | `1` for LM Studio, `2` for Groq |
+
+Under Docker Compose, LM Studio running on the host is reached with
+`EWS_LLM_BASE_URL=http://host.docker.internal:1234/v1`. `GET /api/health` reports
+whether the configured model is available; a missing model does not make the API
+unhealthy.
 
 Backend-only settings such as `EWS_DATABASE_URL` use development defaults and can
 be overridden when running the API outside Docker.

@@ -23,6 +23,7 @@ from ews.api.app import create_app
 from ews.api.dependencies import (
     get_air_quality_client,
     get_forecast_client,
+    get_llm_gateway,
     get_session,
     get_session_factory,
 )
@@ -30,6 +31,7 @@ from ews.core.db import create_engine
 from ews.core.settings import Settings
 from ews.cycles.events import SessionFactory
 from ews.districts.registry import sync_districts
+from ews.llm.gateway import LLMGateway
 from ews.sources.open_meteo import OpenMeteoForecastClient
 from ews.sources.open_meteo_air_quality import OpenMeteoAirQualityClient
 
@@ -55,6 +57,18 @@ RECORDED_AIR_QUALITY: dict[str, Any] = json.loads(
 )
 CALM_AIR_QUALITY = copy.deepcopy(RECORDED_AIR_QUALITY)
 CALM_AIR_QUALITY["hourly"]["pm2_5"] = [0.0 for _ in CALM_AIR_QUALITY["hourly"]["pm2_5"]]
+
+
+# LM Studio's model listing with one model loaded
+LOADED_MODELS = {"data": [{"id": "qwen-test", "type": "llm", "state": "loaded"}]}
+
+
+def llm_gateway_answering(
+    handler: Callable[[httpx.Request], httpx.Response],
+) -> LLMGateway:
+    """A default-configured gateway whose HTTP calls are answered by the handler."""
+    http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    return LLMGateway.from_settings(Settings(_env_file=None), http)
 
 
 class Upstream:
@@ -193,6 +207,9 @@ def app(
 
     app.dependency_overrides[get_session] = override_session
     app.dependency_overrides[get_session_factory] = lambda: open_session
+    app.dependency_overrides[get_llm_gateway] = lambda: llm_gateway_answering(
+        lambda _request: httpx.Response(200, json=LOADED_MODELS)
+    )
     return app
 
 
