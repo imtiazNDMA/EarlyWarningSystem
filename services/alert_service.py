@@ -1,9 +1,10 @@
 import json
 import logging
+import re
 
 import pandas as pd
 from langchain_core.messages import HumanMessage, SystemMessage
-from langchain_ollama import ChatOllama
+from langchain_openai import ChatOpenAI
 
 from config import Config
 from constants import WEATHER_CODE_DESCRIPTIONS
@@ -12,16 +13,40 @@ from utils.retry import retry_on_failure
 
 logger = logging.getLogger(__name__)
 
+# Reasoning/thinking blocks some models (Qwen3, DeepSeek-R1, ...) emit before the answer.
+_THINK_BLOCK_RE = re.compile(r"\s*<think>.*?</think>\s*", re.DOTALL)
+_UNCLOSED_THINK_RE = re.compile(r"^\s*<think>.*?(?=\{)", re.DOTALL)
+# Fenced code blocks: ```json ... ``` / ``` ... ```
+_FENCE_RE = re.compile(r"^\s*```(?:json)?\s*|\s*```\s*$")
+
 
 class AlertService:
     """Service for generating weather alerts using AI"""
 
     def __init__(self):
-        self.client = ChatOllama(
-            model=Config.OLLAMA_MODEL,
-            base_url=Config.OLLAMA_BASE_URL,
-            temperature=0.2,
+        self.client = ChatOpenAI(
+            model=Config.LLM_MODEL,
+            base_url=Config.LLM_BASE_URL,
+            api_key=Config.LLM_API_KEY,
+            temperature=Config.LLM_TEMPERATURE,
+            timeout=Config.LLM_TIMEOUT,
+            max_retries=Config.LLM_MAX_RETRIES,
         )
+        logger.debug(f"LLM client ready: model={Config.LLM_MODEL} base_url={Config.LLM_BASE_URL}")
+
+    @staticmethod
+    def clean_llm_response(text: str) -> str:
+        """Strip reasoning blocks and markdown fences from a raw LLM response.
+
+        Qwen3-class models may return thinking traces and the JSON may arrive
+        inside a ```json fence; both must be gone before json.loads sees it.
+        """
+        if not isinstance(text, str):
+            text = "".join(str(part) for part in text)
+        text = _THINK_BLOCK_RE.sub(" ", text)
+        text = _UNCLOSED_THINK_RE.sub("", text)
+        text = _FENCE_RE.sub("", text.strip())
+        return text.strip()
 
     def parse_district_alerts(self, llm_text: str) -> dict[str, dict]:
         """
@@ -39,13 +64,7 @@ class AlertService:
         try:
             # Clean up the response to ensure it's valid JSON
             # Sometimes LLMs add markdown code blocks
-            cleaned_text = llm_text.strip()
-            if cleaned_text.startswith("```json"):
-                cleaned_text = cleaned_text[7:]
-            if cleaned_text.endswith("```"):
-                cleaned_text = cleaned_text[:-3]
-
-            cleaned_text = cleaned_text.strip()
+            cleaned_text = self.clean_llm_response(llm_text)
 
             # Find the JSON object if there's extra text
             start_idx = cleaned_text.find("{")
@@ -84,10 +103,23 @@ class AlertService:
             return {}
 
     @retry_on_failure(max_attempts=3, delay=2.0, backoff=2.0)
-    def generate_alert(self, province: str, forecasts: dict[str, pd.DataFrame]) -> str:
+    def generate_alert(
+        self,
+        province: str,
+        forecasts: dict[str, pd.DataFrame],
+        forecast_days: int | None = None,
+    ) -> str:
         """
         Generate weather alerts for a province using AI in English and Urdu
+
+        Args:
+            province: Province name
+            forecasts: Mapping of district name -> daily forecast DataFrame
+            forecast_days: Number of days covered by the forecasts. Derived from
+                the longest DataFrame when omitted.
         """
+        if forecast_days is None:
+            forecast_days = max((len(df) for df in forecasts.values()), default=1)
         forecast_texts = []
         for district, df in forecasts.items():
             # Optimize dataframe for prompt
@@ -129,7 +161,7 @@ class AlertService:
             - You MUST treat each district independently and must not mix forecasts between districts.
 
             FORECAST TEXT:
-            {''.join(forecast_texts)}
+            {"".join(forecast_texts)}
 
             ABSOLUTE RULES (STRICT):
             1) NEVER write in question/answer format. NEVER ask questions. Use bulletin/advisory style only.
@@ -233,26 +265,25 @@ class AlertService:
             - District alerts summarize {forecast_days} days, not a single day.
             """
 
-
         try:
             messages = [
                 SystemMessage(
                     content=(
-                            "You are an expert meteorologist generating public advisories for Pakistan.\n"
-                            "STRICT OUTPUT: Return ONLY a single valid JSON object (start with '{' end with '}'). "
-                            "No markdown, no commentary, no extra text.\n"
-                            "JSON CONTRACT: Top-level keys must be exactly the district names provided in the input plus "
-                            "\"Region's Summary\". Each key maps to an object with exactly two string fields: "
-                            "\"english\" and \"urdu\". No extra fields.\n"
-                            "STYLE: No question/answer format. Use declarative advisory tone.\n"
-                            "URDU: Use Urdu script. Do not use Latin words in Urdu except numbers and °C. "
-                            "Use the provided glossary EXACTLY; do not transliterate weather terms.\n"
-                        )
+                        "You are an expert meteorologist generating public advisories for Pakistan.\n"
+                        "STRICT OUTPUT: Return ONLY a single valid JSON object (start with '{' end with '}'). "
+                        "No markdown, no commentary, no extra text.\n"
+                        "JSON CONTRACT: Top-level keys must be exactly the district names provided in the input plus "
+                        '"Region\'s Summary". Each key maps to an object with exactly two string fields: '
+                        '"english" and "urdu". No extra fields.\n'
+                        "STYLE: No question/answer format. Use declarative advisory tone.\n"
+                        "URDU: Use Urdu script. Do not use Latin words in Urdu except numbers and °C. "
+                        "Use the provided glossary EXACTLY; do not transliterate weather terms.\n"
+                    )
                 ),
                 HumanMessage(content=prompt),
             ]
             response = self.client.invoke(messages)
-            alert_text = response.content
+            alert_text = self.clean_llm_response(response.content)
 
             logger.info(f"Generated alerts for {province} ({len(forecasts)} districts)")
             return alert_text
@@ -261,9 +292,7 @@ class AlertService:
             logger.error(f"Error generating alerts for {province}: {e}")
             raise
 
-    def save_district_alerts(
-        self, alerts: dict[str, dict], forecast_days: int, province: str
-    ):
+    def save_district_alerts(self, alerts: dict[str, dict], forecast_days: int, province: str):
         """
         Save district-level alerts to SQLite database
 

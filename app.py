@@ -31,8 +31,7 @@ app.config["MAX_CONTENT_LENGTH"] = Config.MAX_CONTENT_LENGTH
 # Enable CORS with proper configuration
 if Config.CORS_ORIGINS == ["*"]:
     logger.warning(
-        "CORS is configured to allow all origins. "
-        "This is not recommended for production."
+        "CORS is configured to allow all origins. This is not recommended for production."
     )
     CORS(app)
 else:
@@ -48,4 +47,6 @@ app.register_blueprint(api_bp)
 logger.info("Application initialized with Blueprints")
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5001)
+    # Dev-only entrypoint: debug server on all interfaces for local/containers.
+    # Production runs under a WSGI server and never reaches this block.
+    app.run(debug=True, host="0.0.0.0", port=5001)  # noqa: S104, S201

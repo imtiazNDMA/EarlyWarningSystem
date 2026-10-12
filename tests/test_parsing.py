@@ -1,118 +1,115 @@
-import json
-import logging
+"""
+Tests for AlertService.parse_district_alerts — the REAL implementation.
 
-# Mock the logger
-logging.basicConfig(level=logging.DEBUG)
-logger = logging.getLogger(__name__)
+These tests import the production code path; they must never re-implement the
+function under test.
+"""
 
+import pytest
 
-def parse_district_alerts(llm_text: str) -> dict:
-    """
-    Parse district alerts from LLM response (expected to be JSON).
-    """
-    alerts = {}
-    logger.debug(f"Parsing LLM Response of length: {len(llm_text)}")
-
-    try:
-        # Clean up the response to ensure it's valid JSON
-        cleaned_text = llm_text.strip()
-        if cleaned_text.startswith("```json"):
-            cleaned_text = cleaned_text[7:]
-        if cleaned_text.endswith("```"):
-            cleaned_text = cleaned_text[:-3]
-
-        cleaned_text = cleaned_text.strip()
-
-        # Find the JSON object if there's extra text
-        start_idx = cleaned_text.find("{")
-        end_idx = cleaned_text.rfind("}")
-
-        if start_idx != -1 and end_idx != -1:
-            json_str = cleaned_text[start_idx : end_idx + 1]
-            data = json.loads(json_str)
-
-            # Normalize keys (district names)
-            for district, content in data.items():
-                if district == "Region's Summary":
-                    alerts["Region's Summary"] = content
-                    continue
-
-                if isinstance(content, dict):
-                    english = content.get("english", "")
-                    urdu = content.get("urdu", "")
-                    alerts[district] = {"english": english, "urdu": urdu}
-                elif isinstance(content, str):
-                    alerts[district] = {"english": content, "urdu": ""}
-
-        return alerts
-
-    except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse LLM JSON response: {e}")
-        return {}
-    except Exception as e:
-        logger.error(f"Error parsing alerts: {e}")
-        return {}
+from services.alert_service import AlertService
 
 
-# Test Cases
-def test_parsing():
-    # Case 1: Pure JSON
-    valid_json = """
-    {
-        "Lahore": {
-            "english": "Heavy rain expected.",
-            "urdu": "بھاری بارش متوقع ہے۔"
-        },
-        "Region's Summary": {
-            "english": "Overall rainy.",
-            "urdu": "مجموعی طور پر بارش۔"
+@pytest.fixture(scope="module")
+def alert_service() -> AlertService:
+    # AlertService.__init__ only constructs a ChatOpenAI client (no I/O).
+    return AlertService()
+
+
+class TestParseDistrictAlerts:
+    """Cases for AlertService.parse_district_alerts"""
+
+    def test_pure_json(self, alert_service):
+        """Plain JSON object parses into district -> {english, urdu}"""
+        text = """
+        {
+            "Lahore": {
+                "english": "Heavy rain expected.",
+                "urdu": "بھاری بارش متوقع ہے۔"
+            },
+            "Region's Summary": {
+                "english": "Overall rainy.",
+                "urdu": "مجموعی طور پر بارش۔"
+            }
         }
-    }
-    """
-    parsed = parse_district_alerts(valid_json)
-    print(
-        "Test 1 (Valid JSON):",
-        "PASSED"
-        if "Lahore" in parsed and parsed["Lahore"]["urdu"] == "بھاری بارش متوقع ہے۔"
-        else "FAILED",
-    )
+        """
+        parsed = alert_service.parse_district_alerts(text)
 
-    # Case 2: Markdown JSON
-    markdown_json = """
-    Here is the weather report:
-    ```json
-    {
-        "Islamabad": {
-            "english": "Sunny.",
-            "urdu": "دھوپ۔"
+        assert "Lahore" in parsed
+        assert parsed["Lahore"]["english"] == "Heavy rain expected."
+        assert parsed["Lahore"]["urdu"] == "بھاری بارش متوقع ہے۔"
+        assert "Region's Summary" in parsed
+        assert parsed["Region's Summary"]["urdu"] == "مجموعی طور پر بارش۔"
+
+    def test_markdown_fenced_json(self, alert_service):
+        """```json fences plus surrounding prose are stripped"""
+        text = """
+        Here is the weather report:
+        ```json
+        {
+            "Islamabad": {
+                "english": "Sunny.",
+                "urdu": "دھوپ۔"
+            }
         }
-    }
-    ```
-    Authentication complete.
-    """
-    parsed = parse_district_alerts(markdown_json)
-    print(
-        "Test 2 (Markdown JSON):",
-        "PASSED"
-        if "Islamabad" in parsed and parsed["Islamabad"]["urdu"] == "دھوپ۔"
-        else "FAILED",
+        ```
+        Authentication complete.
+        """
+        parsed = alert_service.parse_district_alerts(text)
+
+        assert parsed["Islamabad"]["english"] == "Sunny."
+        assert parsed["Islamabad"]["urdu"] == "دھوپ۔"
+
+    def test_legacy_string_value(self, alert_service):
+        """A bare string value is normalised to {english: str, urdu: ''}"""
+        text = """
+        {
+            "Rawalpindi": "Legacy string format."
+        }
+        """
+        parsed = alert_service.parse_district_alerts(text)
+
+        assert parsed["Rawalpindi"]["english"] == "Legacy string format."
+        assert parsed["Rawalpindi"]["urdu"] == ""
+
+    def test_missing_language_keys_default_to_empty(self, alert_service):
+        """A district object missing english/urdu gets empty strings"""
+        text = '{"Peshawar": {"english": "Windy."}}'
+        parsed = alert_service.parse_district_alerts(text)
+
+        assert parsed["Peshawar"]["english"] == "Windy."
+        assert parsed["Peshawar"]["urdu"] == ""
+
+    def test_prose_around_json_is_ignored(self, alert_service):
+        """Extra text before/after the object does not break extraction"""
+        text = (
+            'Sure! Here you go: {"Quetta": {"english": "Cold.", "urdu": "سرد۔"}} Hope that helps.'
+        )
+        parsed = alert_service.parse_district_alerts(text)
+
+        assert parsed["Quetta"]["english"] == "Cold."
+
+    @pytest.mark.parametrize(
+        "bad_text",
+        [
+            "",  # empty
+            "No JSON here at all.",  # no braces
+            '{"Multan": {"english": "Unclosed',  # truncated JSON
+            "{ not: valid json }",  # malformed
+        ],
     )
+    def test_invalid_input_returns_empty_dict(self, alert_service, bad_text):
+        """Any unparseable input degrades to an empty dict, never raises"""
+        assert alert_service.parse_district_alerts(bad_text) == {}
 
-    # Case 3: Mixed
-    mixed_json = """
-    {
-        "Rawalpindi": "Legacy string format."
-    }
-    """
-    parsed = parse_district_alerts(mixed_json)
-    print(
-        "Test 3 (Legacy String):",
-        "PASSED"
-        if "Rawalpindi" in parsed
-        and parsed["Rawalpindi"]["english"] == "Legacy string format."
-        else "FAILED",
-    )
+    def test_non_string_content_ignored(self, alert_service):
+        """Non-dict, non-str district values are skipped, not crashing"""
+        text = '{"Sialkot": 42, "Gujranwala": {"english": "ok", "urdu": "ٹھیک"}}'
+        parsed = alert_service.parse_district_alerts(text)
 
+        assert "Sialkot" not in parsed
+        assert parsed["Gujranwala"]["english"] == "ok"
 
-if __name__ == "__main__":
-    test_parsing()
+    def test_returns_empty_dict_on_none_like_input(self, alert_service):
+        """Whitespace-only input yields {}"""
+        assert alert_service.parse_district_alerts("   \n\t  ") == {}

@@ -1,13 +1,11 @@
 import json
 import logging
-import time
 
 from flask import Blueprint, jsonify, request
 
 from extensions import alert_service, weather_service
 from models import PROVINCES
 from services import database
-from utils.background import background_tasks
 from utils.formatting import create_weather_dataframe
 from utils.health_check import get_health_status
 from utils.validation import (
@@ -20,6 +18,28 @@ from utils.validation import (
 # Initialize Blueprint
 api_bp = Blueprint("api", __name__)
 logger = logging.getLogger(__name__)
+
+
+def _invalid_alert_response(alerts: dict[str, dict], expected_districts: list[str]):
+    """Return a gateway error when LM Studio omitted required alert data."""
+    missing = [district for district in expected_districts if district not in alerts]
+    if missing:
+        validation_error = f"The LLM response omitted alerts for: {', '.join(missing)}"
+    elif "Region's Summary" not in alerts:
+        validation_error = "The LLM response omitted Region's Summary"
+    else:
+        return None
+
+    logger.error("Invalid alert response from LLM: %s", validation_error)
+    return (
+        jsonify(
+            {
+                "status": "error",
+                "message": "LM Studio returned an incomplete alert response. Please retry.",
+            }
+        ),
+        502,
+    )
 
 
 @api_bp.route("/get_forecast/<province>/<district>/<int:days>")
@@ -89,8 +109,10 @@ def get_alert(province, district, days):
 
     data = alert_service.get_alert(province, district, days)
     if not data:
-        return jsonify({"district": district, "status": "no_data", "alert": "⚠️ No alert generated yet."})
-    
+        return jsonify(
+            {"district": district, "status": "no_data", "alert": "⚠️ No alert generated yet."}
+        )
+
     data["status"] = "success"
     return jsonify(data)
 
@@ -121,8 +143,7 @@ def get_all_alerts(days):
                     # Try to parse JSON if it looks like one
                     try:
                         if alert_text and (
-                            alert_text.strip().startswith("{")
-                            or alert_text.strip().startswith("[")
+                            alert_text.strip().startswith("{") or alert_text.strip().startswith("[")
                         ):
                             parsed_alert = json.loads(alert_text)
                             all_alerts[province][district] = parsed_alert
@@ -132,7 +153,7 @@ def get_all_alerts(days):
                                 "english": alert_text,
                                 "urdu": "",
                             }
-                    except:
+                    except (json.JSONDecodeError, TypeError):
                         # Fallback for plain text
                         all_alerts[province][district] = {
                             "english": alert_text,
@@ -185,9 +206,9 @@ def generate_forecast():
             d: PROVINCES[province][d] for d in districts if d in PROVINCES[province]
         }
 
-        weather_data = weather_service.get_bulk_weather_data(
-            province, districts_to_fetch, forecast_days, cache_time=0
-        )
+    weather_data = weather_service.get_bulk_weather_data(
+        province, districts_to_fetch, forecast_days, cache_time=0
+    )
 
     # Return success status
     return jsonify(
@@ -236,81 +257,68 @@ def generate_alerts():
                 d: PROVINCES[province][d] for d in districts if d in PROVINCES[province]
             }
 
-        # Define the background task function
-        def generate_alerts_task():
-            """Background task for generating alerts"""
-            weather_data = weather_service.get_bulk_weather_data(
-                province, districts_to_fetch, forecast_days, cache_time=0
+        weather_data = weather_service.get_bulk_weather_data(
+            province, districts_to_fetch, forecast_days, cache_time=0
+        )
+
+        if not weather_data:
+            logger.error("Failed to fetch weather data for alert generation")
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "message": "Failed to fetch weather data.",
+                    }
+                ),
+                502,
             )
 
-            if not weather_data:
-                logger.error("Failed to fetch weather data for alert generation")
-                return None
+        # Convert to DataFrames
+        forecasts = {}
+        for d, data in weather_data.items():
+            daily = data["daily"]
+            # Normalize data to ensure all values are lists for DataFrame creation
+            for key in daily:
+                if not isinstance(daily[key], list):
+                    daily[key] = [daily[key]]
 
-            # Convert to DataFrames
-            forecasts = {}
-            for d, data in weather_data.items():
-                daily = data["daily"]
-                # Normalize data to ensure all values are lists for DataFrame creation
-                normalized_daily = {}
-                for key in [
-                    "time",
-                    "temperature_2m_max",
-                    "temperature_2m_min",
-                    "precipitation_sum",
-                    "precipitation_probability_max",
-                    "windspeed_10m_max",
-                    "windgusts_10m_max",
-                    "weathercode",
-                    "snowfall_sum",
-                    "uv_index_max",
-                ]:
-                    value = daily.get(key)
-                    normalized_daily[key] = (
-                        value if isinstance(value, list) else [value]
-                    )
+            cache_key = f"alerts_{province}_{forecast_days}_{d}"
+            df = create_weather_dataframe(daily, cache_key)
+            forecasts[d] = df
 
-                cache_key = f"alerts_{province}_{forecast_days}_{d}"
-                df = create_weather_dataframe(normalized_daily, cache_key)
-                forecasts[d] = df
+        # Generate alerts using AlertService
+        alert_text = alert_service.generate_alert(province, forecasts, forecast_days)
+        alerts = alert_service.parse_district_alerts(alert_text)
 
-            # Generate alerts using AlertService
-            alert_text = alert_service.generate_alert(province, forecasts)
-            alerts = alert_service.parse_district_alerts(alert_text)
+        invalid_response = _invalid_alert_response(alerts, list(forecasts.keys()))
+        if invalid_response:
+            return invalid_response
 
-            # Purge old alerts before saving new ones to ensure fresh data
-            alert_service.purge_cache(province, list(forecasts.keys()), forecast_days)
+        # Purge old alerts before saving new ones to ensure fresh data
+        alert_service.purge_cache(province, list(forecasts.keys()), forecast_days)
 
-            # Save district-level alerts
-            alert_service.save_district_alerts(alerts, forecast_days, province)
+        # Save district-level alerts
+        alert_service.save_district_alerts(alerts, forecast_days, province)
 
-            return {
+        return jsonify(
+            {
                 "status": "success",
                 "message": f"Alerts generated for {province}",
                 "alert_text": alert_text,
                 "province": province,
             }
-
-        # Start background task
-        task_id = f"alerts_{province}_{forecast_days}_{time.time()}"
-        background_tasks.run_task(task_id, generate_alerts_task)
-
-        return jsonify(
-            {
-                "status": "processing",
-                "message": f"Alert generation started for {province}. This may take a few minutes.",
-                "task_id": task_id,
-                "province": province,
-            }
         )
 
-    except Exception as e:
-        logger.error(f"Error in generate_alerts: {e}", exc_info=True)
-        return jsonify(
-            {
-                "status": "error",
-                "message": "Failed to start alert generation. Please try again later.",
-            }
+    except Exception:
+        logger.error("Error in generate_alerts", exc_info=True)
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": "Failed to generate alerts. Please try again later.",
+                }
+            ),
+            503,
         )
 
 
@@ -356,8 +364,9 @@ def generate_forecast_and_alerts():
         )
 
         if not weather_data:
-            return jsonify(
-                {"status": "error", "message": "Failed to fetch weather data."}
+            return (
+                jsonify({"status": "error", "message": "Failed to fetch weather data."}),
+                502,
             )
 
         # Convert to DataFrames for alert generation
@@ -374,8 +383,12 @@ def generate_forecast_and_alerts():
             forecasts[d] = df
 
         # Generate alerts
-        alert_text = alert_service.generate_alert(province, forecasts)
+        alert_text = alert_service.generate_alert(province, forecasts, forecast_days)
         alerts = alert_service.parse_district_alerts(alert_text)
+
+        invalid_response = _invalid_alert_response(alerts, list(forecasts.keys()))
+        if invalid_response:
+            return invalid_response
 
         # Purge old alerts before saving new ones to ensure fresh data
         alert_service.purge_cache(province, list(forecasts.keys()), forecast_days)
@@ -386,14 +399,28 @@ def generate_forecast_and_alerts():
         return jsonify(
             {
                 "status": "success",
-                "message": f"Forecasts and alerts generated for {len(weather_data)} districts in {province}",
+                "message": (
+                    f"Forecasts and alerts generated for {len(weather_data)} districts "
+                    f"in {province}"
+                ),
                 "alert_text": alert_text,
                 "province": province,
             }
         )
 
-    except Exception as ex:
-        return jsonify({"status": "error", "ollama": "error", "message": str(ex)}), 503
+    except Exception:
+        # Do not leak internal error details (e.g. connection strings, tracebacks)
+        # to the client; log them with a request id instead.
+        logger.error("Error in generate_forecast_and_alerts", exc_info=True)
+        return (
+            jsonify(
+                {
+                    "status": "error",
+                    "message": ("Advisory generation failed. Check server logs for details."),
+                }
+            ),
+            503,
+        )
 
 
 @api_bp.route("/purge_cache", methods=["POST"])

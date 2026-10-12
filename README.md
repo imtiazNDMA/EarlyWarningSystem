@@ -7,7 +7,7 @@ A sophisticated, high-performance geospatial analytics dashboard for automated w
 ## Core Capabilities
 
 * **Geospatial Intelligence**: Interactive map with real-time district-level weather visualization and dynamic heat-map blinking effects.
-* **Local LLM Inference**: AI-powered alert generation using localized Large Language Models (Ollama) for high data privacy and reduced latency.
+* **Local LLM Inference**: AI-powered alert generation via a local OpenAI-compatible LLM server (LM Studio, `qwen/qwen3.8-27b`) for high data privacy and reduced latency.
 * **Multiple Weather Models**: Integration with global weather data providers via Open-Meteo for reliable forecasting.
 * **Bilingual Alerts**: Automatic generation of weather alerts in both **English and Urdu**, featuring native Right-to-Left (RTL) text rendering for Urdu.
 * **Intelligent Analytics**: Automated nowcasting and trend analysis for temperature, precipitation, and extreme weather events.
@@ -19,7 +19,7 @@ A sophisticated, high-performance geospatial analytics dashboard for automated w
 * **Backend**: Python / Flask (Layered Service-Oriented Architecture)
 * **Database**: SQLite (Asset Caching & Alert Persistence)
 * **Geospacial**: Folium / Leaflet / GeoPandas
-* **Inference**: Local LLM Deployment (Ollama / LangChain)
+* **Inference**: OpenAI-compatible LLM server (LM Studio) / LangChain
 * **Frontend**: Vanilla JS (Typed.js, Bootstrap 5, FontAwesome)
 
 ## System Architecture
@@ -44,7 +44,7 @@ graph TD
     
     subgraph "External Services"
         WeatherSvc <-->|API| OpenMeteo["Weather API"]
-        AlertSvc <-->|Inference| Ollama["Local LLM (Llama3.1)"]
+        AlertSvc <-->|Inference| LLM["LM Studio (qwen/qwen3.8-27b)"]
         MapSvc -->|Tiles| Mapbox["Mapbox API"]
     end
 ```
@@ -71,7 +71,7 @@ graph TD
 ### Prerequisites
 
 * Python 3.10+
-* [Ollama](https://ollama.ai/) (Running locally with `qwen3-coder:latest` model)
+* [LM Studio](https://lmstudio.ai/) serving `qwen/qwen3.8-27b` at `http://127.0.0.1:1234/v1` (any OpenAI-compatible server works)
 * Mapbox API Token
 
 ### Setup
@@ -110,8 +110,8 @@ graph TD
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `MAPBOX_TOKEN` | Required for premium Mapbox tiles | `N/A` |
-| `OLLAMA_BASE_URL` | Endpoint for local model inference | `http://localhost:11434` |
-| `OLLAMA_MODEL` | ID of the local model to be used | `qwen3-coder:latest` |
+| `LLM_BASE_URL` | OpenAI-compatible inference endpoint | `http://127.0.0.1:1234/v1` |
+| `LLM_MODEL` | ID of the model to be used | `qwen/qwen3.8-27b` |
 | `SECRET_KEY` | Session encryption key | `dev_secret` |
 | `CACHE_TIME` | Data persistence duration (seconds) | `43200` |
 | `API_TIMEOUT` | Timeout for external API calls (seconds) | `120` |

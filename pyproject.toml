@@ -3,14 +3,14 @@ name = "earlywarnings-changes"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.10"
 dependencies = [
-    "flask>=2.3.0,<3.0.0",
-    "flask-cors>=4.0.0",
+    "flask>=3.1.0",
+    "flask-cors>=5.0.0",
     "folium>=0.14.0",
     "geopandas>=0.13.0",
-    "langchain>=0.3.0",
-    "langchain-ollama>=0.2.0",
+    "langchain>=1.0.0",
+    "langchain-openai>=1.6.0",
     "pandas>=2.0.0",
     "python-dotenv>=1.0.0",
     "requests>=2.31.0",
@@ -21,12 +21,15 @@ dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
     "pytest-mock>=3.11.0",
-    "ruff>=0.15.0",
+    # Upper-bounded: the repo's lint baseline was verified against 0.14.x.
+    # Bump deliberately and re-run `ruff check .` rather than letting uv float it.
+    "ruff>=0.14.7,<0.15",
     "safety>=2.3.0",
 ]
 
 [tool.ruff]
-line-length = 88
+# Matches the documented repo standard (AGENTS.md: "Line length: 100 chars max").
+line-length = 100
 target-version = "py310"
 
 [tool.ruff.lint]
@@ -49,5 +52,12 @@ ignore = ["S101"] # Allow asserts in tests
 max-complexity = 10
 
 [tool.ruff.lint.per-file-ignores]
-"tests/*" = ["S101", "ARG001"] # Allow asserts and unused args in tests
+"tests/*" = ["S101", "ARG001", "ARG002"] # Asserts + unused mock args required by decorator order
 "**/__init__.py" = ["F401"]
+# Long lines in these files are CONTENT, not code: the alert_service prompt is
+# LLM input text, map_service lines are inline HTML/JS template strings.
+# Wrapping them would change what gets sent to the model / rendered on the page.
+"services/alert_service.py" = ["E501"]
+"services/map_service.py" = ["E501", "C901"] # C901: create_map decomposition is a later phase
+"services/weather_service.py" = ["C901"] # C901: bulk fetch refactor is a later phase
+"routes/api_routes.py" = ["C901"] # C901: endpoint decomposition is a later phase

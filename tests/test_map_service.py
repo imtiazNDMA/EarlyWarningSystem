@@ -114,18 +114,14 @@ class TestMapService:
 
         # Mock row iteration
         row_mock = MagicMock()
-        row_mock.get.side_effect = lambda k: (
-            "Lahore" if k in ["District", "DISTRICT"] else None
-        )
+        row_mock.get.side_effect = lambda k: ("Lahore" if k in ["District", "DISTRICT"] else None)
         centroid_mock = MagicMock()
         centroid_mock.x = 74.0
         centroid_mock.y = 31.0
         row_mock.__getitem__.return_value = centroid_mock  # row["centroid"]
 
         mock_gdf.iterrows.return_value = [(0, row_mock)]
-        mock_gdf.geometry.centroid = [
-            centroid_mock
-        ]  # list of centroids matching iterrows count
+        mock_gdf.geometry.centroid = [centroid_mock]  # list of centroids matching iterrows count
 
         mock_read_file.return_value = mock_gdf
 

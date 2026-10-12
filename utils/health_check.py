@@ -11,25 +11,26 @@ from config import Config
 logger = logging.getLogger(__name__)
 
 
-def check_ollama_status():
-    """Check if Ollama is accessible and model is loaded"""
+def check_llm_status():
+    """Check if the OpenAI-compatible LLM server is up and serving the model"""
+    base_url = Config.LLM_BASE_URL.rstrip("/")
     try:
-        response = requests.get(f"{Config.OLLAMA_BASE_URL}/api/tags", timeout=5)
-        if response.status_code == 200:
-            models = response.json().get("models", [])
-            model_names = [m.get("name") for m in models]
-            if any(Config.OLLAMA_MODEL in name for name in model_names):
-                return True, f"Ollama accessible, model {Config.OLLAMA_MODEL} found"
-            else:
-                return (
-                    True,
-                    f"Ollama accessible, but model {Config.OLLAMA_MODEL} NOT found",
-                )
-        else:
-            return False, f"Ollama returned status {response.status_code}"
+        response = requests.get(f"{base_url}/models", timeout=5)
+        if response.status_code != 200:
+            return False, f"LLM server returned status {response.status_code}"
+
+        model_ids = [m.get("id") for m in response.json().get("data", [])]
+        if Config.LLM_MODEL in model_ids:
+            return True, f"LLM server reachable, model {Config.LLM_MODEL} loaded"
+
+        available = ", ".join(model_ids) or "none"
+        return (
+            True,
+            f"LLM server reachable, model {Config.LLM_MODEL} NOT loaded (available: {available})",
+        )
     except Exception as e:
-        logger.error(f"Ollama status check failed: {e}")
-        return False, f"Ollama error: {str(e)}"
+        logger.error(f"LLM status check failed: {e}")
+        return False, f"LLM server unreachable: {e}"
 
 
 def check_openmeteo_api():
@@ -77,7 +78,7 @@ def get_health_status():
         dict: Health status information
     """
     checks = {
-        "ollama_status": check_ollama_status(),
+        "llm_status": check_llm_status(),
         "openmeteo_api": check_openmeteo_api(),
         "file_system": check_file_system(),
     }

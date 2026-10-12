@@ -31,8 +31,8 @@ jobs:
 
       - name: Create test environment file
         run: |
-          echo "OLLAMA_MODEL=test_model" > .env
-          echo "OLLAMA_BASE_URL=http://localhost:11434" >> .env
+          echo "LLM_MODEL=test_model" > .env
+          echo "LLM_BASE_URL=http://localhost:1234/v1" >> .env
           echo "MAPBOX_TOKEN=test_token" >> .env
           echo "SECRET_KEY=test_secret_key_for_testing" >> .env
 

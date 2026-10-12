@@ -36,9 +36,7 @@ def test_purge_cache_all_districts(mock_purge, client):
     """Test purging all districts in a province"""
     mock_purge.return_value = 5
 
-    response = client.post(
-        "/purge_cache", json={"province": "PUNJAB", "forecast_days": 1}
-    )
+    response = client.post("/purge_cache", json={"province": "PUNJAB", "forecast_days": 1})
 
     assert response.status_code == 200
     data = json.loads(response.data)

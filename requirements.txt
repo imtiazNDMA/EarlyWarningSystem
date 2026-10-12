@@ -1,0 +1,13 @@
+# Runtime dependencies — mirrors [project].dependencies in pyproject.toml.
+# Keep both in sync. Install with: pip install -r requirements.txt
+# Dev tools (pytest, ruff, safety) live in [dependency-groups] in pyproject.toml.
+
+flask>=3.1.0
+flask-cors>=5.0.0
+folium>=0.14.0
+geopandas>=0.13.0
+langchain>=1.0.0
+langchain-openai>=1.6.0
+pandas>=2.0.0
+python-dotenv>=1.0.0
+requests>=2.31.0

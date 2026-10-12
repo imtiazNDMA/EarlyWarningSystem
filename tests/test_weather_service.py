@@ -2,8 +2,8 @@
 Tests for weather_service.py
 """
 
-import os
 from datetime import datetime
+from pathlib import Path
 from unittest.mock import patch
 
 from services.weather_service import WeatherService
@@ -15,11 +15,12 @@ class TestWeatherService:
     def setup_method(self):
         """Set up test fixtures"""
         self.service = WeatherService()
-        # Clean up any test files (legacy check, can remove if confirmed no usage)
-        if os.path.exists("static/weatherdata"):
-            for f in os.listdir("static/weatherdata"):
-                if f.startswith("test_"):
-                    os.remove(f"static/weatherdata/{f}")
+        # Clean up any test files (legacy check, remove if confirmed no usage)
+        legacy_dir = Path("static/weatherdata")
+        if legacy_dir.exists():
+            for file in legacy_dir.iterdir():
+                if file.name.startswith("test_"):
+                    file.unlink()
 
     def teardown_method(self):
         """Clean up after tests"""
@@ -64,9 +65,28 @@ class TestWeatherService:
 
         mock_db.get_raw_weather_cache.side_effect = get_raw_side_effect
 
-        result = self.service.get_bulk_weather_data(
-            "PUNJAB", {"LAHORE": (31.5204, 74.3587)}, 1
-        )
+        result = self.service.get_bulk_weather_data("PUNJAB", {"LAHORE": (31.5204, 74.3587)}, 1)
 
         assert "LAHORE" in result
         assert result["LAHORE"] == mock_data
+
+    @patch("services.weather_service.requests.Session.get")
+    @patch("services.weather_service.database")
+    def test_get_bulk_weather_data_falls_back_to_stale_cache_on_http_429(
+        self, mock_db, mock_get
+    ):
+        """A provider rate limit should not take the dashboard down when cached data exists."""
+        stale_data = {"daily": {"time": ["2024-01-01"], "temperature_2m_max": [25.0]}}
+        mock_db.get_raw_weather_cache.return_value = None
+        mock_db.get_stale_raw_weather_cache.return_value = (
+            stale_data,
+            datetime(2024, 1, 1),
+        )
+        mock_get.return_value.status_code = 429
+
+        result = self.service.get_bulk_weather_data(
+            "PUNJAB", {"LAHORE": (31.5204, 74.3587)}, 1, cache_time=0
+        )
+
+        assert result == {"LAHORE": stale_data}
+        mock_db.get_stale_raw_weather_cache.assert_called_once_with("weather_1_PUNJAB_LAHORE")

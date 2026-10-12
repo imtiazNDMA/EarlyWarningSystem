@@ -14,9 +14,9 @@ class TestAlertService:
 
     def setup_method(self):
         """Set up test fixtures with mocks"""
-        # Patch ChatOllama to avoid connection attempts
-        self.ollama_patcher = patch("services.alert_service.ChatOllama")
-        self.mock_ollama = self.ollama_patcher.start()
+        # Patch ChatOpenAI so __init__ never opens a socket to the LM Studio server
+        self.llm_patcher = patch("services.alert_service.ChatOpenAI")
+        self.mock_llm = self.llm_patcher.start()
 
         # Patch database
         self.db_patcher = patch("services.alert_service.database")
@@ -26,13 +26,34 @@ class TestAlertService:
 
     def teardown_method(self):
         """Clean up patches"""
-        self.ollama_patcher.stop()
+        self.llm_patcher.stop()
         self.db_patcher.stop()
 
     def test_init(self):
         """Test AlertService initialization"""
         assert self.service.client is not None
-        assert self.mock_ollama.called
+        assert self.mock_llm.called
+
+    def test_init_uses_configured_openai_endpoint(self):
+        """Regression: the client must target the configured OpenAI-compatible
+        server (LM Studio), not a hardcoded Ollama endpoint."""
+        from config import Config
+
+        _, kwargs = self.mock_llm.call_args
+
+        assert kwargs["model"] == Config.LLM_MODEL
+        assert kwargs["base_url"] == Config.LLM_BASE_URL
+        assert kwargs["api_key"] == Config.LLM_API_KEY
+        assert kwargs["temperature"] == Config.LLM_TEMPERATURE
+        assert kwargs["timeout"] == Config.LLM_TIMEOUT
+        assert kwargs["max_retries"] == Config.LLM_MAX_RETRIES
+
+    def test_init_wired_to_chat_openai_not_ollama(self):
+        """The import-time symbol must be langchain_openai.ChatOpenAI."""
+        import services.alert_service as alert_module
+
+        assert getattr(alert_module, "ChatOpenAI", None) is not None
+        assert not hasattr(alert_module, "ChatOllama")
 
     def test_parse_district_alerts_valid(self):
         """Test parsing valid district alerts"""
@@ -72,24 +93,19 @@ class TestAlertService:
         alerts = self.service.parse_district_alerts(llm_text)
         assert len(alerts) == 0
 
+    def test_parse_district_alerts_handles_unclosed_thinking_block(self):
+        """Qwen may omit the closing think tag while still returning valid JSON."""
+        llm_text = '<think>reasoning interrupted\n{"Lahore": {"english": "Clear.", "urdu": "صاف۔"}}'
+
+        alerts = self.service.parse_district_alerts(llm_text)
+
+        assert alerts["Lahore"]["english"] == "Clear."
+
     def test_generate_alert_success(self):
         """Test successful alert generation"""
-        # Mock the client instance returned by ChatOllama()
-        mock_client = MagicMock()
-        self.mock_ollama.return_value = mock_client
-
-        # Mock response
         mock_response = MagicMock()
         mock_response.content = "**Lahore Weather Alert** Test alert"
-        mock_client.invoke.return_value = mock_response
-
-        # Re-init service to pick up the mock return value if needed
-        # But self.service.client is already set to the return value
-        # of the previous mock run in setup?
-        # AlertService init calls ChatOllama().
-        # self.mock_ollama returned a MagicMock() by default.
-        # So self.service.client IS that mock.
-        # We just need to configure it.
+        # setup_method patched ChatOpenAI, so self.service.client IS the mock.
         self.service.client.invoke.return_value = mock_response
 
         # Create test forecast data
@@ -161,3 +177,113 @@ class TestAlertService:
         count = self.service.purge_cache("PUNJAB", ["LAHORE"], 1)
         assert count == 5
         self.mock_db.purge_cache_db.assert_called_with("PUNJAB", ["LAHORE"], 1)
+
+    @staticmethod
+    def _forecasts(rows: int) -> dict:
+        return {
+            "Lahore": pd.DataFrame(
+                {
+                    "Date": [f"2024-01-0{i + 1}" for i in range(rows)],
+                    "Max Temp (°C)": [25.0] * rows,
+                    "Min Temp (°C)": [15.0] * rows,
+                    "Precipitation (mm)": [0.0] * rows,
+                    "Weather Code": [0] * rows,
+                }
+            )
+        }
+
+    def _capture_prompt(self) -> str:
+        """HumanMessage content from the last client.invoke() call"""
+        messages = self.service.client.invoke.call_args[0][0]
+        return messages[1].content
+
+    def test_generate_alert_prompt_contains_forecast_days(self):
+        """Regression (F-01): the prompt must interpolate forecast_days, not
+        leave a bare name that raises NameError at f-string build time."""
+        mock_response = MagicMock()
+        mock_response.content = "{}"
+        self.service.client.invoke.return_value = mock_response
+
+        self.service.generate_alert("PUNJAB", self._forecasts(3), forecast_days=3)
+
+        prompt = self._capture_prompt()
+        assert "forecast_days" not in prompt, "uninterpolated placeholder in prompt"
+        assert "FULL 3-DAY PERIOD" in prompt
+
+    def test_generate_alert_derives_forecast_days_from_dataframe(self):
+        """When forecast_days is omitted it must fall back to the frame length."""
+        mock_response = MagicMock()
+        mock_response.content = "{}"
+        self.service.client.invoke.return_value = mock_response
+
+        self.service.generate_alert("PUNJAB", self._forecasts(5))
+
+        prompt = self._capture_prompt()
+        assert "forecast_days" not in prompt
+        assert "FULL 5-DAY PERIOD" in prompt
+
+    def test_generate_alert_empty_forecasts_defaults_to_one_day(self):
+        """No frames at all still builds a valid prompt (no NameError)."""
+        mock_response = MagicMock()
+        mock_response.content = "{}"
+        self.service.client.invoke.return_value = mock_response
+
+        self.service.generate_alert("PUNJAB", {})
+
+        prompt = self._capture_prompt()
+        assert "FULL 1-DAY PERIOD" in prompt
+
+
+class TestCleanLLMResponse:
+    """Qwen3-class models may wrap reasoning in tags and fence the JSON."""
+
+    # Built by concatenation: writing the literal markers inline in source has
+    # repeatedly backfired (backtick / tag markers getting mangled on write).
+    THINK_OPEN = "<" + "think>"
+    THINK_CLOSE = "</" + "think>"
+
+    @staticmethod
+    def _fenced(payload):
+        return "```json\n" + payload + "\n```"
+
+    @classmethod
+    def _think(cls, prose, payload):
+        return cls.THINK_OPEN + prose + cls.THINK_CLOSE + "\n" + cls._fenced(payload)
+
+    def test_strips_json_fence(self):
+        raw = self._fenced('{"Lahore": {"english": "x", "urdu": "y"}}')
+        cleaned = AlertService.clean_llm_response(raw)
+        assert cleaned == '{"Lahore": {"english": "x", "urdu": "y"}}'
+
+    def test_strips_thinking_block(self):
+        raw = self.THINK_OPEN + "reason about Lahore" + self.THINK_CLOSE + '\n{"a": 1}'
+        cleaned = AlertService.clean_llm_response(raw)
+        assert "reason about Lahore" not in cleaned
+        assert cleaned == '{"a": 1}'
+
+    def test_thinking_block_then_fence(self):
+        raw = self._think("plan the district order", '{"ok": true}')
+        assert AlertService.clean_llm_response(raw) == '{"ok": true}'
+
+    def test_plain_json_untouched(self):
+        assert AlertService.clean_llm_response('{"a": 1}') == '{"a": 1}'
+
+    def test_generate_alert_returns_parsable_json(self):
+        """End-to-end: raw reasoning + fence in, parseable advisory out."""
+        with patch("services.alert_service.ChatOpenAI"), patch("services.alert_service.database"):
+            service = AlertService()
+
+        payload = (
+            '{"Lahore": {"english": "Rain expected.", "urdu": "BARSH"}, '
+            '"Region\'s Summary": {"english": "Mixed.", "urdu": "MIX"}}'
+        )
+        service.client = MagicMock()
+        service.client.invoke.return_value = MagicMock(
+            content=self._think("district order first", payload)
+        )
+
+        text = service.generate_alert("PUNJAB", {}, forecast_days=1)
+        alerts = service.parse_district_alerts(text)
+
+        assert alerts["Lahore"]["english"] == "Rain expected."
+        assert alerts["Lahore"]["urdu"] == "BARSH"

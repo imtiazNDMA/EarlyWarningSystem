@@ -11,6 +11,12 @@ main_bp = Blueprint("main", __name__)
 logger = logging.getLogger(__name__)
 
 
+@main_bp.route("/favicon.ico")
+def favicon():
+    """Avoid a noisy 404 for the browser's automatic favicon request."""
+    return "", 204
+
+
 @main_bp.route("/", methods=["GET", "POST"])
 def index():
     """
@@ -64,9 +70,7 @@ def refresh_map(forecast_days):
 
     active_basemap = request.args.get("basemap", "Mapbox Satellite")
     selected_districts_str = request.args.get("districts", "")
-    selected_districts = (
-        selected_districts_str.split(",") if selected_districts_str else []
-    )
+    selected_districts = selected_districts_str.split(",") if selected_districts_str else []
 
     # Get blinking state (default to True)
     blinking_active = request.args.get("blinking", "true").lower() == "true"

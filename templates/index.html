@@ -725,6 +725,29 @@
       toast.show(message, type);
     }
 
+    async function readJsonResponse(response) {
+      const body = await response.text();
+      let data = {};
+
+      if (body.trim()) {
+        try {
+          data = JSON.parse(body);
+        } catch (error) {
+          throw new Error(`Server returned an invalid response (HTTP ${response.status}).`);
+        }
+      }
+
+      if (!response.ok) {
+        throw new Error(data.message || data.error || `Request failed (HTTP ${response.status}).`);
+      }
+
+      if (!body.trim()) {
+        throw new Error(`Server returned an empty response (HTTP ${response.status}).`);
+      }
+
+      return data;
+    }
+
     // Get selected districts
     function getSelectedDistricts() {
       const checkboxes = document.querySelectorAll('#districtFilter input[type="checkbox"]:checked');
@@ -737,7 +760,7 @@
 
       try {
         const response = await fetch(`/get_districts/${province}`);
-        const data = await response.json();
+        const data = await readJsonResponse(response);
 
         const districtFilter = document.getElementById('districtFilter');
         districtFilter.innerHTML = '';
@@ -819,7 +842,7 @@
       try {
         const url = `/refresh_map/${forecastDays}?basemap=${encodeURIComponent(currentBasemap)}&districts=${districts.join(',')}&blinking=${isBlinkingActive}`;
         const response = await fetch(url);
-        const result = await response.json();
+        const result = await readJsonResponse(response);
 
         if (result.map_html) {
           document.querySelector('.map-content').innerHTML = result.map_html;
@@ -862,7 +885,7 @@
           })
         });
 
-        const result = await response.json();
+        const result = await readJsonResponse(response);
 
         if (result.status === 'success') {
           toast.success(result.message);
@@ -889,7 +912,7 @@
       try {
         const url = `/refresh_map/${forecastDays}?basemap=${encodeURIComponent(currentBasemap)}&districts=${districts.join(',')}&blinking=${isBlinkingActive}`;
         const response = await fetch(url);
-        const result = await response.json();
+        const result = await readJsonResponse(response);
 
         if (result.map_html) {
           document.querySelector('.map-content').innerHTML = result.map_html;
@@ -909,7 +932,7 @@
 
       try {
         const response = await fetch(`/get_alert/${province}/${district}/${forecastDays}`);
-        const result = await response.json();
+        const result = await readJsonResponse(response);
 
         if (result.status === 'success' || (result.alert && typeof result.alert === 'object')) {
           // Update the alert header to show current district
@@ -1070,18 +1093,6 @@
 
       return html;
     }
-    // Function to load all alerts
-    async function loadAllAlerts() {
-      const days = document.getElementById('forecast_days').value;
-
-      try {
-        const response = await fetch(`/get_all_alerts/${days}`);
-        const data = await response.json();
-        console.log('Alerts loaded successfully');
-      } catch (error) {
-        console.error('Error loading alerts:', error);
-      }
-    }
 
     // Filter districts based on search term
     function filterDistricts(searchTerm) {
@@ -1192,7 +1203,7 @@
           })
         });
 
-        const result = await response.json();
+        const result = await readJsonResponse(response);
 
         if (result.status === 'success') {
           showNotification(result.message);
@@ -1247,13 +1258,6 @@
 
       // Attach click listeners to existing districts
       attachDistrictListeners();
-
-      // Auto-load alerts on page load (UX improvement)
-      console.log('Page loaded, auto-loading alerts...');
-      setTimeout(() => {
-        loadAllAlerts();
-        toast.info('Welcome! Alerts loaded automatically.', 3000);
-      }, 1000);
     });
   </script>
 </body>

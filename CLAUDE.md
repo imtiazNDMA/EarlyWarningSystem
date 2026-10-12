@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Codebase Overview
 
-This is a Flask-based web application for weather forecasting and early warning alerts in Pakistan. It provides a geospatial dashboard with real-time weather visualization and AI-powered alert generation using local LLMs (Ollama).
+This is a Flask-based web application for weather forecasting and early warning alerts in Pakistan. It provides a geospatial dashboard with real-time weather visualization and AI-powered alert generation using a local OpenAI-compatible LLM server (LM Studio).
 
 ## Architecture
 
@@ -13,7 +13,7 @@ The application follows a layered service-oriented architecture with:
 1. **Flask Web Application** - Main entry point handling HTTP requests
 2. **Services Layer**:
    - WeatherService: Fetches and processes weather data from Open-Meteo API
-   - AlertService: Generates alerts using local LLM (Ollama) inference
+   - AlertService: Generates alerts using a local OpenAI-compatible LLM (LM Studio, `langchain-openai`)
    - MapService: Creates interactive Folium maps with district data
 3. **Database Layer**: SQLite-based caching system for weather data and alerts
 4. **Frontend**: Vanilla JS with Bootstrap 5 and FontAwesome for UI
@@ -21,7 +21,7 @@ The application follows a layered service-oriented architecture with:
 ## Key Files and Structure
 
 - `app.py` - Main Flask application with routing and business logic
-- `database.py` - SQLite database operations for caching weather data and alerts
+- `services/database.py` - SQLite database operations for caching weather data and alerts
 - `config.py` - Configuration management with environment variables
 - `services/` - Directory containing service classes for weather, alerts, and maps
 - `templates/` - HTML templates for the web interface
@@ -77,7 +77,7 @@ bandit -r app.py
 ## Key Features
 
 1. **Geospatial Visualization**: Interactive map using Folium with district-level weather data
-2. **AI-Powered Alerts**: Local LLM inference (Ollama) for generating weather alerts
+2. **AI-Powered Alerts**: Local LLM inference (LM Studio) for generating weather alerts
 3. **Caching System**: SQLite-based caching for efficient data retrieval
 4. **Multiple Weather Models**: Integration with Open-Meteo API for reliable forecasting
 5. **Responsive UI**: Modern Glassmorphic design with Bootstrap 5
@@ -85,7 +85,7 @@ bandit -r app.py
 ## Environment Requirements
 
 - Python 3.10+
-- Ollama (running locally) for LLM inference
+- An OpenAI-compatible LLM server (LM Studio) for inference
 - Mapbox API Token for premium map tiles
 - SQLite for database operations
 
@@ -108,7 +108,7 @@ The application uses a SQLite database (`weather.db`) with two main tables:
 
 Environment variables are loaded from `.env` file:
 - `MAPBOX_TOKEN` - Required for Mapbox API
-- `OLLAMA_BASE_URL` - Local LLM endpoint (default: http://localhost:11434)
-- `OLLAMA_MODEL` - Local model to use (default: llama3.1)
+- `LLM_BASE_URL` - OpenAI-compatible endpoint (default: http://127.0.0.1:1234/v1)
+- `LLM_MODEL` - Model to use (default: qwen/qwen3.8-27b)
 - `SECRET_KEY` - Flask session encryption key
 - `CACHE_TIME` - Data persistence duration in seconds (default: 43200)

@@ -23,8 +23,12 @@ def get_db_connection() -> Generator[sqlite3.Connection, None, None]:
     conn = None
     try:
         conn = sqlite3.connect(DB_FILE, timeout=10.0)
-        # Enable WAL mode for better concurrency
-        # conn.execute("PRAGMA journal_mode=WAL;")
+        # WAL lets readers proceed during writes; with Flask threads plus a
+        # worker pool writing concurrently, the default rollback journal
+        # surfaces as "database is locked" under load.
+        conn.execute("PRAGMA journal_mode=WAL;")
+        # How long a blocked connection waits on a lock before raising.
+        conn.execute("PRAGMA busy_timeout=5000;")
         yield conn
         conn.commit()
     except sqlite3.Error as e:
@@ -46,8 +50,10 @@ def init_db():
     """Initialize the SQLite database with required tables"""
     try:
         # We don't use the context manager here because we might need specific setup logic
-        # or because we want to ensure specific PRAGMAs that stick (though for files it persists usually)
+        # or to ensure specific PRAGMAs that stick (they persist on the file anyway).
         with sqlite3.connect(DB_FILE) as conn:
+            # Persist WAL on the database file (set once, survives across connections)
+            conn.execute("PRAGMA journal_mode=WAL;")
             cursor = conn.cursor()
 
             # Create weather cache table with additional indexes for performance
@@ -65,7 +71,7 @@ def init_db():
             # Add index for faster cache expiration checks
             cursor.execute(
                 """
-                CREATE INDEX IF NOT EXISTS idx_weather_cache_expires_at 
+                CREATE INDEX IF NOT EXISTS idx_weather_cache_expires_at
                 ON weather_cache(expires_at)
                 """
             )
@@ -88,7 +94,7 @@ def init_db():
             # Add index for faster alert lookups by province and forecast_days
             cursor.execute(
                 """
-                CREATE INDEX IF NOT EXISTS idx_alerts_province_days 
+                CREATE INDEX IF NOT EXISTS idx_alerts_province_days
                 ON alerts(province, forecast_days)
                 """
             )
@@ -96,7 +102,7 @@ def init_db():
             # Add index for faster alert lookups by expiration
             cursor.execute(
                 """
-                CREATE INDEX IF NOT EXISTS idx_alerts_expires_at 
+                CREATE INDEX IF NOT EXISTS idx_alerts_expires_at
                 ON alerts(expires_at)
                 """
             )
@@ -114,7 +120,7 @@ def get_weather_cache(cache_key: str) -> pd.DataFrame | None:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT data, created_at FROM weather_cache 
+                SELECT data, created_at FROM weather_cache
                 WHERE cache_key = ? AND expires_at > CURRENT_TIMESTAMP
                 """,
                 (cache_key,),
@@ -128,14 +134,9 @@ def get_weather_cache(cache_key: str) -> pd.DataFrame | None:
                     # Convert back to DataFrame
                     return pd.DataFrame.from_records(data_dict)
                 except Exception as e:
-                    logger.warning(
-                        f"Error parsing weather cache data for {cache_key}: {e}"
-                    )
-                    # We need a new cursor or new transaction usually, but with this CM it commits at end.
-                    # To delete immediately, we can execute on same cursor.
-                    cursor.execute(
-                        "DELETE FROM weather_cache WHERE cache_key = ?", (cache_key,)
-                    )
+                    logger.warning(f"Error parsing weather cache data for {cache_key}: {e}")
+                    # This CM commits at the end, so the same cursor can delete now.
+                    cursor.execute("DELETE FROM weather_cache WHERE cache_key = ?", (cache_key,))
             return None
     except Exception:
         # Error logged in context manager
@@ -149,7 +150,7 @@ def get_raw_weather_cache(cache_key: str) -> tuple[dict, datetime] | None:
             cursor = conn.cursor()
             cursor.execute(
                 """
-                SELECT data, created_at FROM weather_cache 
+                SELECT data, created_at FROM weather_cache
                 WHERE cache_key = ? AND expires_at > CURRENT_TIMESTAMP
                 """,
                 (cache_key,),
@@ -158,13 +159,26 @@ def get_raw_weather_cache(cache_key: str) -> tuple[dict, datetime] | None:
 
             if row:
                 data_dict = json.loads(row[0])
-                created_at = (
-                    datetime.fromisoformat(row[1])
-                    if isinstance(row[1], str)
-                    else row[1]
-                )
+                created_at = datetime.fromisoformat(row[1]) if isinstance(row[1], str) else row[1]
                 return data_dict, created_at
             return None
+    except Exception:
+        return None
+
+
+def get_stale_raw_weather_cache(cache_key: str) -> tuple[dict, datetime] | None:
+    """Retrieve cached weather regardless of expiry for upstream-failure fallback."""
+    try:
+        with get_db_connection() as conn:
+            row = conn.execute(
+                "SELECT data, created_at FROM weather_cache WHERE cache_key = ?",
+                (cache_key,),
+            ).fetchone()
+            if not row:
+                return None
+
+            created_at = datetime.fromisoformat(row[1]) if isinstance(row[1], str) else row[1]
+            return json.loads(row[0]), created_at
     except Exception:
         return None
 
@@ -186,8 +200,9 @@ def set_raw_weather_cache(cache_key: str, data: dict):
             """,
                 (cache_key, data_json, expires_at),
             )
-    except Exception:
-        pass
+    except Exception as e:
+        # Cache writes are best-effort: a failure must never fail the request.
+        logger.warning(f"Failed to write weather cache for {cache_key}: {e}")
 
 
 def set_weather_cache(cache_key: str, df: pd.DataFrame):
@@ -208,8 +223,9 @@ def set_weather_cache(cache_key: str, df: pd.DataFrame):
             """,
                 (cache_key, data_json, expires_at),
             )
-    except Exception:
-        pass
+    except Exception as e:
+        # Cache writes are best-effort: a failure must never fail the request.
+        logger.warning(f"Failed to write weather cache for {cache_key}: {e}")
 
 
 def save_alert(province: str, district: str, forecast_days: int, alert_text: str):
@@ -223,13 +239,15 @@ def save_alert(province: str, district: str, forecast_days: int, alert_text: str
 
             cursor.execute(
                 """
-                INSERT OR REPLACE INTO alerts (province, district, forecast_days, alert_text, created_at, expires_at)
+                INSERT OR REPLACE INTO alerts
+                    (province, district, forecast_days, alert_text, created_at, expires_at)
                 VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, ?)
             """,
                 (province, district, forecast_days, alert_text, expires_at),
             )
-    except Exception:
-        pass
+    except Exception as e:
+        # Alert persistence is best-effort: never fail the generating request.
+        logger.warning(f"Failed to save alert for {province}/{district}: {e}")
 
 
 def get_alert(province: str, district: str, forecast_days: int) -> str | None:
@@ -240,7 +258,8 @@ def get_alert(province: str, district: str, forecast_days: int) -> str | None:
             cursor.execute(
                 """
                 SELECT alert_text FROM alerts
-                WHERE province = ? AND district = ? AND forecast_days = ? AND expires_at > CURRENT_TIMESTAMP
+                WHERE province = ? AND district = ? AND forecast_days = ?
+                  AND expires_at > CURRENT_TIMESTAMP
             """,
                 (province, district, forecast_days),
             )
@@ -351,10 +370,10 @@ def get_raw_weather_cache_batch(
             # SQLite allows many parameters, but it's safe to batch them if > 999
             # For now assuming < 999 keys
             placeholders = ",".join(["?"] * len(cache_keys))
-            query = f"""
-                SELECT cache_key, data, created_at FROM weather_cache 
-                WHERE cache_key IN ({placeholders}) AND expires_at > CURRENT_TIMESTAMP
-            """
+            select_sql = "SELECT cache_key, data, created_at FROM weather_cache"
+            # noqa below: only "?" placeholders are interpolated, every value is a bound param.
+            where_sql = f"cache_key IN ({placeholders}) AND expires_at > CURRENT_TIMESTAMP"  # noqa: S608
+            query = f"{select_sql} WHERE {where_sql}"  # noqa: S608
             cursor.execute(query, cache_keys)
             rows = cursor.fetchall()
 
@@ -388,17 +407,13 @@ def get_alerts_batch(
         with get_db_connection() as conn:
             cursor = conn.cursor()
 
-            # Build query with OR conditions for each tuple
-            # Note: A large number of ORs can be slow. A temporary table or IN clause on a composite key (not supported directly in simple SQL w/o tuple syntax) would be better.
-            # SQLite supports tuple IN clause: WHERE (a, b) IN ((1, 2), (3, 4)) in newer versions.
-            # Let's try the tuple syntax for optimization as requested by user ("SQL-side filtering")
-
-            query = f"""
-                SELECT province, district, forecast_days, alert_text 
-                FROM alerts 
-                WHERE (province, district, forecast_days) IN (VALUES {",".join(["(?, ?, ?)"] * len(province_district_days))})
-                AND expires_at > CURRENT_TIMESTAMP
-            """
+            # Build the query with a composite-key IN clause (SQLite tuple syntax).
+            # Many ORs are slow; a temporary table would be the next step at scale.
+            # noqa below: only "?" placeholders are interpolated, values are bound params.
+            tuple_values = ",".join(["(?, ?, ?)"] * len(province_district_days))
+            where_sql = f"(province, district, forecast_days) IN (VALUES {tuple_values})"  # noqa: S608
+            select_sql = "SELECT province, district, forecast_days, alert_text FROM alerts"
+            query = f"{select_sql} WHERE {where_sql} AND expires_at > CURRENT_TIMESTAMP"  # noqa: S608
 
             # Flatten params
             params = []
@@ -413,16 +428,11 @@ def get_alerts_batch(
                 conditions = []
                 params = []
                 for province, district, days in province_district_days:
-                    conditions.append(
-                        "(province = ? AND district = ? AND forecast_days = ?)"
-                    )
+                    conditions.append("(province = ? AND district = ? AND forecast_days = ?)")
                     params.extend([province, district, days])
 
-                query = f"""
-                    SELECT province, district, forecast_days, alert_text 
-                    FROM alerts 
-                    WHERE {" OR ".join(conditions)} AND expires_at > CURRENT_TIMESTAMP
-                """
+                or_sql = " OR ".join(conditions)
+                query = f"{select_sql} WHERE {or_sql} AND expires_at > CURRENT_TIMESTAMP"  # noqa: S608
                 cursor.execute(query, params)
 
             rows = cursor.fetchall()
@@ -443,27 +453,21 @@ def get_cache_stats() -> dict[str, int]:
 
             # Get weather cache count
             cursor.execute(
-                "SELECT COUNT(*) FROM weather_cache "
-                "WHERE expires_at > CURRENT_TIMESTAMP"
+                "SELECT COUNT(*) FROM weather_cache WHERE expires_at > CURRENT_TIMESTAMP"
             )
             weather_count = cursor.fetchone()[0]
 
             # Get alerts count
-            cursor.execute(
-                "SELECT COUNT(*) FROM alerts WHERE expires_at > CURRENT_TIMESTAMP"
-            )
+            cursor.execute("SELECT COUNT(*) FROM alerts WHERE expires_at > CURRENT_TIMESTAMP")
             alerts_count = cursor.fetchone()[0]
 
             # Get expired records count (for cleanup statistics)
             cursor.execute(
-                "SELECT COUNT(*) FROM weather_cache "
-                "WHERE expires_at <= CURRENT_TIMESTAMP"
+                "SELECT COUNT(*) FROM weather_cache WHERE expires_at <= CURRENT_TIMESTAMP"
             )
             expired_weather_count = cursor.fetchone()[0]
 
-            cursor.execute(
-                "SELECT COUNT(*) FROM alerts WHERE expires_at <= CURRENT_TIMESTAMP"
-            )
+            cursor.execute("SELECT COUNT(*) FROM alerts WHERE expires_at <= CURRENT_TIMESTAMP")
             expired_alerts_count = cursor.fetchone()[0]
 
             return {
@@ -488,9 +492,7 @@ def cleanup_expired_cache():
             cursor = conn.cursor()
 
             # Delete expired weather cache entries
-            cursor.execute(
-                "DELETE FROM weather_cache WHERE expires_at <= CURRENT_TIMESTAMP"
-            )
+            cursor.execute("DELETE FROM weather_cache WHERE expires_at <= CURRENT_TIMESTAMP")
             weather_deleted = cursor.rowcount
 
             # Delete expired alerts

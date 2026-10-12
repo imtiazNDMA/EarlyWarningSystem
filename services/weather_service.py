@@ -94,8 +94,10 @@ class WeatherService:
                     try:
                         dt = datetime.strptime(created_at, "%Y-%m-%d %H:%M:%S")
                         age = (datetime.now() - dt).total_seconds()
-                    except Exception:
-                        pass
+                    except ValueError:
+                        # Unparsable timestamp: leave age at its sentinel so the entry
+                        # is treated as stale and refetched.
+                        logger.debug(f"Unparsable cache timestamp for {cache_key}: {created_at!r}")
 
                 if age < cache_time:
                     cached_data[district_name] = data
@@ -150,9 +152,7 @@ class WeatherService:
         # (limit to 15 workers to avoid overwhelming API)
         logger.info(f"Fetching weather data for {len(uncached)} districts in parallel")
         with ThreadPoolExecutor(max_workers=15) as executor:
-            futures = {
-                executor.submit(fetch_single_district, info): info for info in uncached
-            }
+            futures = {executor.submit(fetch_single_district, info): info for info in uncached}
 
             for future in as_completed(futures):
                 district_name, data, cache_key, error = future.result()
@@ -162,17 +162,24 @@ class WeatherService:
                         cached_data[district_name] = data
                         logger.debug(f"Fetched and cached weather for {district_name}")
                     except Exception as e:
-                        logger.error(
-                            f"Error saving weather data for {district_name}: {e}"
-                        )
+                        logger.error(f"Error saving weather data for {district_name}: {e}")
                 else:
                     logger.error(f"Failed to fetch data for {district_name}: {error}")
+                    stale_result = database.get_stale_raw_weather_cache(cache_key)
+                    if stale_result:
+                        stale_data, created_at = stale_result
+                        cached_data[district_name] = stale_data
+                        logger.warning(
+                            "Using stale weather cache for %s after upstream failure (%s); "
+                            "cached at %s",
+                            district_name,
+                            error,
+                            created_at,
+                        )
 
         return cached_data
 
-    def get_weather_forecast(
-        self, province: str, district: str, days: int
-    ) -> dict | None:
+    def get_weather_forecast(self, province: str, district: str, days: int) -> dict | None:
         """
         Get weather forecast for a specific district
         """
